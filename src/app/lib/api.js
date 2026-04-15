@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:5000/api/users";
+const BASE_URL = "https://crypto-backend-production-11dc.up.railway.app/api/users";
 
 // 🔥 helper (better error handling)
 async function handleRes(res) {
@@ -61,6 +61,34 @@ export async function updateUserInDB(username, data) {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
+    });
+
+    return await handleRes(res);
+  } catch (err) {
+    return { error: "Server not reachable" };
+  }
+}
+
+// ================= BAN / UNBAN =================
+export async function banUserInDB(username, banned) {
+  try {
+    const res = await fetch(`${BASE_URL}/ban`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, banned }),
+    });
+
+    return await handleRes(res);
+  } catch (err) {
+    return { error: "Server not reachable" };
+  }
+}
+
+// ================= DELETE USER =================
+export async function deleteUserFromDB(username) {
+  try {
+    const res = await fetch(`${BASE_URL}/${username}`, {
+      method: "DELETE",
     });
 
     return await handleRes(res);

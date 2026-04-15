@@ -278,9 +278,12 @@ export default function AdminPanel({ onBack, onExit }) {
 
   const del = async (username) => {
     try {
-      await fetch(`http://localhost:5000/api/users/${username.toLowerCase()}`, {
-        method: "DELETE",
-      });
+      await fetch(
+        `https://crypto-backend-production-11dc.up.railway.app/api/users/${username.toLowerCase()}`,
+        {
+          method: "DELETE",
+        },
+      );
 
       // REMOVE FROM LOCAL STORAGE TOO
       const local = JSON.parse(localStorage.getItem("users") || "{}");

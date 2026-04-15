@@ -10,7 +10,6 @@ export const ADMIN_PASS = "CoinAdmin@2026";
 // ───── Safe LocalStorage Helpers ─────
 function loadLS(key, fallback) {
   if (typeof window === "undefined") return fallback;
-
   try {
     const v = localStorage.getItem(key);
     return v ? JSON.parse(v) : fallback;
@@ -28,92 +27,158 @@ function saveLS(key, value) {
 export const S = {
   users: {},
   session: null,
-  banned: new Set(),
-
+  banned: [],
   _hydrated: false,
 
   hydrate() {
     if (this._hydrated) return;
 
     const users = loadLS("users", {});
-    const session = loadLS("session", null);
     const banned = loadLS("banned", []);
+    const rawSession = loadLS("session", null);
 
     this.users = users || {};
-    this.session = session;
-    this.banned = new Set(banned || []);
+    this.banned = Array.isArray(banned) ? banned : [];
+
+    // ✅ Always resolve session to a plain username string
+    if (typeof rawSession === "string") {
+      this.session = rawSession;
+    } else if (rawSession && rawSession.username) {
+      this.session = rawSession.username.toLowerCase().trim();
+      // normalize to plain string in storage
+      saveLS("session", this.session);
+    } else {
+      this.session = null;
+    }
+
+    // normalize credit scores
+    for (const u of Object.values(this.users)) {
+      u.creditScore = Math.max(0, Math.min(100, Number(u.creditScore ?? 50)));
+    }
+
+    // logout banned session
+    if (this.session && this.banned.includes(this.session)) {
+      this.session = null;
+      saveLS("session", null);
+    }
 
     this._hydrated = true;
   },
 
-  get: () => {
-    S.hydrate();
-    return S.session ? S.users[S.session] : null;
+  get() {
+    this.hydrate();
+    return this.session ? (this.users[this.session] || null) : null;
   },
 
+  // ✅ FIXED: always store session as plain username string
   setSession(user) {
-    S.hydrate();
-    S.session = user;
-    saveLS("session", user);
+    this.hydrate();
+
+    if (!user) {
+      this.session = null;
+      saveLS("session", null);
+      return;
+    }
+
+    const username =
+      typeof user === "string"
+        ? user.toLowerCase().trim()
+        : user.username?.toLowerCase().trim();
+
+    if (!username) return;
+
+    this.session = username;
+    saveLS("session", username); // always plain string
+  },
+
+  logout() {
+    this.session = null;
+    saveLS("session", null);
   },
 
   addUser(username, data) {
-    S.hydrate();
-    S.users[username] = data;
-    saveLS("users", S.users);
-  },
+    this.hydrate();
+    const u = username.toLowerCase().trim();
 
-  // ✅ FIXED DELETE (MAIN BUG FIX)
-  deleteUser(username) {
-    S.hydrate();
+    if (this.users[u]) return { error: "User already exists" };
 
-    // rebuild clean object (IMPORTANT FIX)
-    const updated = {};
-
-    for (const key in S.users) {
-      if (key !== username) {
-        updated[key] = S.users[key];
+    for (const user of Object.values(this.users)) {
+      if (user.email && user.email === data.email?.toLowerCase()) {
+        return { error: "Email already exists" };
       }
     }
 
-    S.users = updated;
+    this.users[u] = {
+      username: u,
+      email: data.email?.toLowerCase() || "",
+      password: data.password || "",
+      fullName: data.fullName || "",
+      phone: data.phone || "",
+      dob: data.dob || "",
+      country: data.country || "",
+      balance: 0,
+      creditScore: 50,
+      transactions: [],
+      holdings: {},
+      savedCards: [],
+    };
 
-    // remove session if same user
-    if (S.session === username) {
-      S.session = null;
+    saveLS("users", this.users);
+    return this.users[u];
+  },
+
+  updateUser(username, data) {
+    this.hydrate();
+    const u = username.toLowerCase().trim();
+    if (!this.users[u]) return null;
+
+    this.users[u] = { ...this.users[u], ...data };
+    saveLS("users", this.users);
+    return this.users[u];
+  },
+
+  deleteUser(username) {
+    this.hydrate();
+    const u = username.toLowerCase().trim();
+    const updated = {};
+    for (const key in this.users) {
+      if (key !== u) updated[key] = this.users[key];
+    }
+    this.users = updated;
+    if (this.session === u) {
+      this.session = null;
       saveLS("session", null);
     }
-
-    // remove from banned
-    const newBanned = new Set(S.banned);
-    newBanned.delete(username);
-    S.banned = newBanned;
-    saveLS("banned", Array.from(newBanned));
-
-    // persist users
-    saveLS("users", S.users);
+    this.banned = this.banned.filter((x) => x !== u);
+    saveLS("users", this.users);
+    saveLS("banned", this.banned);
   },
 
   banUser(username) {
-    S.hydrate();
-    S.banned.add(username);
-    saveLS("banned", Array.from(S.banned));
+    this.hydrate();
+    const u = username.toLowerCase().trim();
+    if (!this.banned.includes(u)) this.banned.push(u);
+    if (this.session === u) {
+      this.session = null;
+      saveLS("session", null);
+    }
+    saveLS("banned", this.banned);
+  },
+
+  setCreditScore(username, value) {
+    this.hydrate();
+    const u = username.toLowerCase().trim();
+    if (!this.users[u]) return;
+    this.users[u].creditScore = Math.max(0, Math.min(100, Number(value) || 50));
+    saveLS("users", this.users);
   },
 };
 
-// ───── AUTO INIT ─────
-if (typeof window !== "undefined" && !S._hydrated) {
-  S.hydrate();
-}
-
 // ───── PRICE ENGINE ─────
 const BASES = {
-  BTC: 71320,
-  ETH: 2251,
-  LINK: 9.19,
-  SOL: 148,
-  XMR: 0.004,
-  MATIC: 0.89,
+  BTC: 71320, ETH: 2251, LINK: 9.19, SOL: 148,
+  XMR: 0.004, MATIC: 0.89, BNB: 612,
+  XRP: 0.62, ADA: 0.45, DOGE: 0.18,
 };
 
 export const PE = {
@@ -123,26 +188,11 @@ export const PE = {
 
   tick() {
     for (const id in this.p) {
-      this.p[id] = Math.max(
-        0.001,
-        this.p[id] * (1 + (Math.random() - 0.499) * 0.0009),
-      );
-
+      this.p[id] = this.p[id] * (1 + (Math.random() - 0.499) * 0.0009);
       if (!this.h[id]) this.h[id] = [];
-
-      const v = this.p[id];
-
-      this.h[id].push({
-        t: Date.now(),
-        o: v * (1 + (Math.random() - 0.5) * 0.0003),
-        h: v * (1 + Math.random() * 0.0007),
-        l: v * (1 - Math.random() * 0.0007),
-        c: v,
-      });
-
+      this.h[id].push({ t: Date.now(), c: this.p[id] });
       if (this.h[id].length > 120) this.h[id].shift();
     }
-
     this.cb.forEach((f) => f({ ...this.p }));
   },
 
@@ -150,30 +200,17 @@ export const PE = {
     for (const id in this.p) {
       this.h[id] = [];
       let v = this.p[id];
-
       for (let i = 0; i < 80; i++) {
-        v = Math.max(0.001, v * (1 + (Math.random() - 0.499) * 0.0013));
-
-        const o = v * (1 + (Math.random() - 0.5) * 0.0004);
-
-        this.h[id].push({
-          t: Date.now() - (80 - i) * 3000,
-          o,
-          h: Math.max(o, v) * (1 + Math.random() * 0.0008),
-          l: Math.min(o, v) * (1 - Math.random() * 0.0008),
-          c: v,
-        });
+        v = v * (1 + (Math.random() - 0.499) * 0.0013);
+        this.h[id].push({ t: Date.now(), c: v });
       }
     }
-
     setInterval(() => this.tick(), 1500);
   },
 
   on(f) {
     this.cb.push(f);
-    return () => {
-      this.cb = this.cb.filter((x) => x !== f);
-    };
+    return () => { this.cb = this.cb.filter((x) => x !== f); };
   },
 };
 
@@ -181,68 +218,34 @@ PE.init();
 
 // ───── COINS ─────
 export const COINS = [
-  { id: "BTC", name: "Bitcoin", sym: "₿", cl: "#f59e0b", bg: "#78350f" },
-  { id: "ETH", name: "Ethereum", sym: "Ξ", cl: "#818cf8", bg: "#312e81" },
-  { id: "LINK", name: "Chainlink", sym: "⬡", cl: "#60a5fa", bg: "#1e3a5f" },
-  { id: "SOL", name: "Solana", sym: "◎", cl: "#34d399", bg: "#064e3b" },
-  { id: "XMR", name: "Monero", sym: "◈", cl: "#fb923c", bg: "#431407" },
-  { id: "MATIC", name: "Polygon", sym: "⬟", cl: "#a78bfa", bg: "#2e1065" },
+  { id: "BTC",   name: "Bitcoin",       sym: "₿", cl: "#f59e0b", bg: "#78350f" },
+  { id: "ETH",   name: "Ethereum",      sym: "Ξ", cl: "#818cf8", bg: "#312e81" },
+  { id: "LINK",  name: "Chainlink",     sym: "⬡", cl: "#60a5fa", bg: "#1e3a5f" },
+  { id: "SOL",   name: "Solana",        sym: "◎", cl: "#34d399", bg: "#064e3b" },
+  { id: "XMR",   name: "Monero",        sym: "◈", cl: "#fb923c", bg: "#431407" },
+  { id: "MATIC", name: "Polygon",       sym: "⬟", cl: "#a78bfa", bg: "#2e1065" },
+  { id: "BNB",   name: "Binance Coin",  sym: "🟡", cl: "#f3ba2f", bg: "#3a2a05" },
+  { id: "XRP",   name: "XRP",           sym: "✕", cl: "#94a3b8", bg: "#1e293b" },
+  { id: "ADA",   name: "Cardano",       sym: "₳", cl: "#3b82f6", bg: "#172554" },
+  { id: "DOGE",  name: "Dogecoin",      sym: "Ð", cl: "#eab308", bg: "#422006" },
 ];
 
 // ───── NEWS ─────
 export const NEWS = [
-  {
-    src: "WSJ",
-    cl: "#ef4444",
-    ts: "2026-04-08 16:22",
-    ttl: "Stock Market Today",
-    body: "Markets reacted sharply...",
-  },
-  {
-    src: "CNBC",
-    cl: "#3b82f6",
-    ts: "2026-04-08 16:18",
-    ttl: "Dow futures jump",
-    body: "A rally sparked...",
-  },
-  {
-    src: "BBG",
-    cl: "#a78bfa",
-    ts: "2026-04-08 15:44",
-    ttl: "Bitcoin surges",
-    body: "ETF inflows...",
-  },
-  {
-    src: "MktW",
-    cl: "#00e5b0",
-    ts: "2026-04-08 15:10",
-    ttl: "Ceasefire mirage",
-    body: "Analysts warn...",
-  },
+  { src: "WSJ",  cl: "#ef4444", ts: "2026-04-08 16:22", ttl: "Stock Market Today",  body: "Markets reacted sharply..." },
+  { src: "CNBC", cl: "#3b82f6", ts: "2026-04-08 16:18", ttl: "Dow futures jump",    body: "A rally sparked..." },
+  { src: "BBG",  cl: "#a78bfa", ts: "2026-04-08 15:44", ttl: "Bitcoin surges",      body: "ETF inflows..." },
+  { src: "MktW", cl: "#00e5b0", ts: "2026-04-08 15:10", ttl: "Market update",       body: "Analysts warn..." },
 ];
 
 // ───── THEME ─────
 export const T = {
-  bg: "#07090f",
-  card: "#0f1623",
-  card2: "#162033",
-  acc: "#00e5b0",
-  blue: "#3b82f6",
-  gold: "#f59e0b",
-  red: "#ef4444",
-  green: "#10b981",
-  text: "#f1f5f9",
-  dim: "#4b6080",
-  line: "#1a2540",
+  bg: "#07090f", card: "#0f1623", card2: "#162033",
+  acc: "#00e5b0", blue: "#3b82f6", gold: "#f59e0b",
+  red: "#ef4444", green: "#10b981",
+  text: "#f1f5f9", dim: "#4b6080", line: "#1a2540",
 };
 
 // ───── FORMATTERS ─────
-export const f2 = (n, d = 2) =>
-  typeof n === "number"
-    ? n.toLocaleString("en-US", {
-        minimumFractionDigits: d,
-        maximumFractionDigits: d,
-      })
-    : "0.00";
-
+export const f2 = (n, d = 2) => (typeof n === "number" ? n.toFixed(d) : "0.00");
 export const usd = (n) => "$" + f2(n);

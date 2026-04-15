@@ -1,468 +1,457 @@
 "use client";
 import { useState } from "react";
 import { T, S, COINS, ADMIN_USER, ADMIN_PASS } from "../lib/store";
-import { Input, PB, EyeBtn } from "./UI";
+import { Input, PB } from "./UI";
+import { registerUser, loginUser } from "../lib/api";
+
+/* ================= COUNTRIES LIST ================= */
+const COUNTRIES = [
+  "Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda",
+  "Argentina","Armenia","Australia","Austria","Azerbaijan","Bahamas","Bahrain",
+  "Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan","Bolivia",
+  "Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso",
+  "Burundi","Cabo Verde","Cambodia","Cameroon","Canada","Central African Republic",
+  "Chad","Chile","China","Colombia","Comoros","Congo","Costa Rica","Croatia","Cuba",
+  "Cyprus","Czech Republic","Denmark","Djibouti","Dominica","Dominican Republic",
+  "Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Estonia","Eswatini",
+  "Ethiopia","Fiji","Finland","France","Gabon","Gambia","Georgia","Germany","Ghana",
+  "Greece","Grenada","Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti","Honduras",
+  "Hungary","Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy",
+  "Jamaica","Japan","Jordan","Kazakhstan","Kenya","Kiribati","Kuwait","Kyrgyzstan",
+  "Laos","Latvia","Lebanon","Lesotho","Liberia","Libya","Liechtenstein","Lithuania",
+  "Luxembourg","Madagascar","Malawi","Malaysia","Maldives","Mali","Malta","Marshall Islands",
+  "Mauritania","Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro",
+  "Morocco","Mozambique","Myanmar","Namibia","Nauru","Nepal","Netherlands","New Zealand",
+  "Nicaragua","Niger","Nigeria","North Korea","North Macedonia","Norway","Oman","Pakistan",
+  "Palau","Palestine","Panama","Papua New Guinea","Paraguay","Peru","Philippines","Poland",
+  "Portugal","Qatar","Romania","Russia","Rwanda","Saint Kitts and Nevis","Saint Lucia",
+  "Saint Vincent and the Grenadines","Samoa","San Marino","Sao Tome and Principe",
+  "Saudi Arabia","Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Slovakia",
+  "Slovenia","Solomon Islands","Somalia","South Africa","South Korea","South Sudan","Spain",
+  "Sri Lanka","Sudan","Suriname","Sweden","Switzerland","Syria","Taiwan","Tajikistan",
+  "Tanzania","Thailand","Timor-Leste","Togo","Tonga","Trinidad and Tobago","Tunisia",
+  "Turkey","Turkmenistan","Tuvalu","Uganda","Ukraine","UAE","United Kingdom",
+  "United States","Uruguay","Uzbekistan","Vanuatu","Venezuela","Vietnam","Yemen",
+  "Zambia","Zimbabwe",
+];
+
+/* ================= BACK BUTTON ================= */
+
+export function BackButton({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: 40, height: 40, borderRadius: "50%",
+        border: "1px solid rgba(255,255,255,0.08)",
+        background: "linear-gradient(135deg, rgba(0,229,176,0.12), rgba(59,130,246,0.12))",
+        color: "#f1f5f9", fontSize: 18, fontWeight: 700, cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        marginBottom: 18, boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
+        backdropFilter: "blur(10px)",
+      }}
+    >
+      ←
+    </button>
+  );
+}
+
+/* ================= ERROR BOX ================= */
+
+function ErrorBox({ msg }) {
+  if (!msg) return null;
+  return (
+    <div style={{
+      background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.35)",
+      borderRadius: 10, padding: "10px 14px", marginBottom: 14,
+      fontSize: 13, color: "#f87171", fontWeight: 600,
+    }}>
+      ⚠ {msg}
+    </div>
+  );
+}
+
+/* ================= AGE CHECK ================= */
+function isAtLeast18(dobString) {
+  if (!dobString) return false;
+  const dob = new Date(dobString);
+  const today = new Date();
+  const age18 = new Date(dob.getFullYear() + 18, dob.getMonth(), dob.getDate());
+  return today >= age18;
+}
+
+/* ================= COUNTRY SELECT ================= */
+function CountrySelect({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = COUNTRIES.filter((c) =>
+    c.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div style={{ marginBottom: 14, position: "relative" }}>
+      <label style={{
+        fontSize: 11, color: T.dim, fontWeight: 700,
+        marginBottom: 6, display: "block", letterSpacing: "0.06em",
+      }}>
+        COUNTRY
+      </label>
+
+      {/* Trigger button */}
+      <div
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          width: "100%", padding: "12px 14px",
+          borderRadius: 12,
+          background: open ? "#1a2540" : T.card2,
+          border: `1px solid ${open ? T.acc : T.line}`,
+          color: value ? T.text : T.dim,
+          fontSize: 13, cursor: "pointer",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          transition: "border 0.2s, background 0.2s",
+          boxShadow: open ? `0 0 0 2px rgba(0,229,176,0.15)` : "none",
+          boxSizing: "border-box",
+        }}
+      >
+        <span>{value || "Select Country"}</span>
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke={T.dim} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </div>
+
+      {/* Dropdown */}
+      {open && (
+        <div style={{
+          position: "absolute", top: "100%", left: 0, right: 0, zIndex: 999,
+          background: "#0f1623", border: `1px solid ${T.line}`,
+          borderRadius: 12, marginTop: 4,
+          boxShadow: "0 12px 40px rgba(0,0,0,0.7)",
+          overflow: "hidden",
+        }}>
+          {/* Search box inside dropdown */}
+          <div style={{ padding: "8px 10px", borderBottom: `1px solid ${T.line}` }}>
+            <input
+              autoFocus
+              placeholder="Search country…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                width: "100%", padding: "8px 10px",
+                borderRadius: 8, border: `1px solid ${T.line}`,
+                background: T.card, color: T.text,
+                fontSize: 12, outline: "none", boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {/* List */}
+          <div style={{ maxHeight: 200, overflowY: "auto", scrollbarWidth: "none" }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: "12px 14px", fontSize: 12, color: T.dim }}>
+                No results
+              </div>
+            ) : (
+              filtered.map((c) => (
+                <div
+                  key={c}
+                  onClick={() => { onChange(c); setOpen(false); setSearch(""); }}
+                  style={{
+                    padding: "10px 14px", fontSize: 13,
+                    color: c === value ? T.acc : T.text,
+                    background: c === value ? "rgba(0,229,176,0.07)" : "transparent",
+                    cursor: "pointer",
+                    borderLeft: c === value ? `3px solid ${T.acc}` : "3px solid transparent",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (c !== value) e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (c !== value) e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  {c}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ================= WELCOME ================= */
 
 export function WelcomeScreen({ go }) {
   return (
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        padding: "42px 22px 36px",
-      }}
-    >
-      <style>{`
-        @keyframes pb{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
-        @keyframes fl{0%{transform:translateY(0)}100%{transform:translateY(-9px)}}
-      `}</style>
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div
-          style={{
-            position: "relative",
-            width: 96,
-            height: 96,
-            marginBottom: 20,
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              borderRadius: "50%",
-              background:
-                "linear-gradient(135deg,rgba(0,229,176,0.18),rgba(59,130,246,0.18))",
-              border: `1.5px solid ${T.acc}`,
-              animation: "pb 2.6s ease-in-out infinite",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 36,
-            }}
-          >
-            ₿
-          </div>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: 42 }}>
+      <div style={{
+        flex: 1, display: "flex", flexDirection: "column",
+        justifyContent: "center", alignItems: "center",
+      }}>
+        <div style={{ fontSize: 30, fontWeight: 900, color: T.text }}>
+          Coin<span style={{ color: T.acc }}>Base</span>
         </div>
-        <div
-          style={{
-            fontSize: 30,
-            fontWeight: 900,
-            color: T.text,
-            letterSpacing: "-1px",
-            marginBottom: 7,
-            textAlign: "center",
-          }}
-        >
-          Coin
-          <span
-            style={{
-              background: "linear-gradient(135deg,#00e5b0,#3b82f6)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            Base
-          </span>
+        <div style={{ fontSize: 12, color: T.dim, marginBottom: 30 }}>
+          Your trusted gateway to crypto
         </div>
-        <div
-          style={{
-            fontSize: 12,
-            color: T.dim,
-            marginBottom: 30,
-            textAlign: "center",
-            lineHeight: 1.6,
-            maxWidth: 210,
-          }}
-        >
-          Your trusted gateway to the global crypto economy
-        </div>
-        <div style={{ display: "flex", gap: 13, marginBottom: 28 }}>
-          {COINS.slice(0, 4).map((c, i) => (
-            <div
-              key={c.id}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                background: c.bg,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 17,
-                color: c.cl,
-                border: `1px solid ${T.line}`,
-                animation: `fl ${2.1 + i * 0.3}s ease-in-out infinite alternate`,
-              }}
-            >
+        <div style={{ display: "flex", gap: 13 }}>
+          {COINS.slice(0, 4).map((c) => (
+            <div key={c.id} style={{
+              width: 40, height: 40, borderRadius: "50%", background: c.bg,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 17, color: c.cl,
+            }}>
               {c.sym}
             </div>
           ))}
         </div>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <PB lbl="Create Account" onClick={() => go("signup")} />
         <PB lbl="Sign In" onClick={() => go("login")} ghost />
-        <div
-          style={{
-            fontSize: 10,
-            color: T.dim,
-            textAlign: "center",
-            marginTop: 2,
-          }}
-        >
-          By continuing you agree to our{" "}
-          <span style={{ color: T.acc }}>Terms</span> &{" "}
-          <span style={{ color: T.acc }}>Privacy</span>
-        </div>
       </div>
     </div>
   );
 }
+
+/* ================= SIGNUP ================= */
 
 export function SignupScreen({ go, onAuth }) {
   const [step, ss] = useState(1);
+  const [err, setErr] = useState("");
+  const [fieldErr, setFieldErr] = useState(""); // ✅ inline field-level error (email duplicate)
+  const [loading, setLoading] = useState(false);
   const [f, sf] = useState({
-    user: "",
-    email: "",
-    pw: "",
-    cpw: "",
-    fn: "",
-    ph: "",
-    dob: "",
-    co: "",
+    user: "", email: "", pw: "", cpw: "",
+    fn: "", ph: "", dob: "", co: "",
   });
-  const [errs, se] = useState({});
-  const [spw, ssp] = useState(false);
-  const [scp, ssc] = useState(false);
   const sv = (k) => (v) => sf((p) => ({ ...p, [k]: v }));
 
-  const v1 = () => {
-    const e = {};
-    if (!f.user.trim()) e.user = "Required";
-    else if (f.user.length < 3) e.user = "Min 3 chars";
-    else if (f.user.toLowerCase() === ADMIN_USER) e.user = "Reserved username";
-    else if (S.users[f.user.toLowerCase()]) e.user = "Username taken ✗";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email))
-      e.email = "Valid email needed";
-    if (f.pw.length < 6) e.pw = "Min 6 chars";
-    if (f.pw !== f.cpw) e.cpw = "Don't match";
-    se(e);
-    return !Object.keys(e).length;
-  };
-  const v2 = () => {
-    const e = {};
-    if (!f.fn.trim()) e.fn = "Required";
-    if (!/^\+?[\d\s\-]{7,15}$/.test(f.ph)) e.ph = "Valid phone";
-    if (!f.dob) e.dob = "Required";
-    if (!f.co.trim()) e.co = "Required";
-    se(e);
-    return !Object.keys(e).length;
-  };
-  const submit = () => {
-    if (!v2()) return;
-    const u = {
-      username: f.user.toLowerCase(),
-      email: f.email,
-      password: f.pw,
-      fullName: f.fn,
-      phone: f.ph,
-      dob: f.dob,
-      country: f.co,
-      balance: 0,
-      transactions: [],
-      holdings: {},
-      savedCards: [],
-    };
-    S.addUser(f.user.toLowerCase(), u);
-    S.setSession(f.user.toLowerCase());
-    onAuth(u);
+  const submit = async () => {
+    setErr("");
+    setFieldErr("");
+    const username = f.user.toLowerCase().trim();
+
+    if (!f.dob) return setErr("Date of birth is required.");
+    if (!isAtLeast18(f.dob))
+      return setErr("You must be at least 18 years old to use this app.");
+    if (!f.co) return setErr("Please select your country.");
+
+    setLoading(true);
+    try {
+      const res = await registerUser({
+        username,
+        email: f.email.toLowerCase(),
+        password: f.pw,
+        fullName: f.fn,
+        phone: f.ph,
+        dob: f.dob,
+        country: f.co,
+      });
+
+      if (!res || res.error) {
+        const msg = res?.error || "Registration failed. Please try again.";
+
+        // ✅ If it's an email duplicate error, go back to step 1 and show it inline
+        if (msg.toLowerCase().includes("email")) {
+          ss(1);
+          setFieldErr(msg);
+          return;
+        }
+
+        setErr(msg);
+        return;
+      }
+
+      onAuth({
+        username: res.username,
+        email: res.email,
+        fullName: res.fullName || f.fn || "",
+        role: res.role || "user",
+        phone: res.phone || f.ph || "",
+        dob: res.dob || f.dob || "",
+        country: res.country || f.co || "",
+        loggedInAt: Date.now(),
+      });
+    } catch (e) {
+      setErr("Network error. Please check your connection.");
+      console.error("SIGNUP ERROR:", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div style={{ flex: 1, overflowY: "auto" }}>
-      <div style={{ padding: "20px 19px 0" }}>
-        <button
-          onClick={() => (step === 2 ? ss(1) : go("welcome"))}
-          style={{
-            background: "none",
-            border: "none",
-            color: T.text,
-            fontSize: 20,
-            cursor: "pointer",
-            padding: 0,
-            marginBottom: 16,
-          }}
-        >
-          ←
-        </button>
-        <div style={{ marginBottom: 18 }}>
-          <div
-            style={{
-              fontSize: 21,
-              fontWeight: 900,
-              color: T.text,
-              marginBottom: 3,
+    <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
+      <BackButton onClick={() => { go("welcome"); setErr(""); setFieldErr(""); }} />
+
+      {step === 1 && (
+        <>
+          <ErrorBox msg={fieldErr || err} />
+          <Input label="USERNAME" val={f.user} set={sv("user")} />
+
+          {/* Email with inline error below the field */}
+          <div style={{ marginBottom: fieldErr ? 4 : 0 }}>
+            <Input label="EMAIL" val={f.email} set={(v) => { sv("email")(v); setFieldErr(""); }} />
+          </div>
+          {fieldErr && (
+            <div style={{
+              fontSize: 11, color: "#f87171", fontWeight: 600,
+              marginTop: -8, marginBottom: 12, paddingLeft: 2,
+            }}>
+              ⚠ {fieldErr}
+            </div>
+          )}
+
+          <Input label="PASSWORD" type="password" val={f.pw} set={sv("pw")} />
+          <Input label="CONFIRM PASSWORD" type="password" val={f.cpw} set={sv("cpw")} />
+          <PB
+            lbl="Continue →"
+            onClick={() => {
+              setErr(""); setFieldErr("");
+              const username = f.user.toLowerCase().trim();
+
+              if (!username) return setErr("Username is required.");
+              if (/\d/.test(username)) return setErr("Username cannot contain numbers.");
+              if (!/^[a-z._]+$/.test(username))
+                return setErr("Username can only contain letters, dots, or underscores.");
+              if (!f.email) return setErr("Email is required.");
+              if (!f.pw) return setErr("Password is required.");
+              if (f.pw !== f.cpw) return setErr("Passwords do not match.");
+              if (f.pw.length < 6) return setErr("Password must be at least 6 characters.");
+              ss(2);
             }}
-          >
-            Create Account
-          </div>
-          <div style={{ fontSize: 11, color: T.dim }}>
-            Step {step}/2 — {step === 1 ? "Credentials" : "Personal details"}
-          </div>
-          <div style={{ display: "flex", gap: 5, marginTop: 7 }}>
-            {[1, 2].map((n) => (
-              <div
-                key={n}
-                style={{
-                  height: 3,
-                  flex: 1,
-                  borderRadius: 2,
-                  background: n <= step ? T.acc : T.line,
-                  transition: "background .3s",
-                }}
-              />
-            ))}
-          </div>
-        </div>
-        {step === 1 && (
-          <>
-            <Input
-              label="USERNAME"
-              val={f.user}
-              set={sv("user")}
-              ph="Unique username (min 3)"
-              err={errs.user}
-            />
-            <Input
-              label="EMAIL"
-              type="email"
-              val={f.email}
-              set={sv("email")}
-              ph="your@email.com"
-              err={errs.email}
-            />
-            <Input
-              label="PASSWORD"
-              type={spw ? "text" : "password"}
-              val={f.pw}
-              set={sv("pw")}
-              ph="Min 6 chars"
-              err={errs.pw}
-              right={<EyeBtn show={spw} tog={() => ssp((x) => !x)} />}
-            />
-            <Input
-              label="CONFIRM PASSWORD"
-              type={scp ? "text" : "password"}
-              val={f.cpw}
-              set={sv("cpw")}
-              ph="Repeat password"
-              err={errs.cpw}
-              right={<EyeBtn show={scp} tog={() => ssc((x) => !x)} />}
-            />
-            <div style={{ marginBottom: 14 }}>
-              <PB
-                lbl="Continue →"
-                onClick={() => {
-                  if (v1()) {
-                    se({});
-                    ss(2);
-                  }
-                }}
-              />
-            </div>
-          </>
-        )}
-        {step === 2 && (
-          <>
-            <Input
-              label="FULL NAME"
-              val={f.fn}
-              set={sv("fn")}
-              ph="Legal name"
-              err={errs.fn}
-            />
-            <Input
-              label="PHONE"
-              type="tel"
-              val={f.ph}
-              set={sv("ph")}
-              ph="+1 234 567 8900"
-              err={errs.ph}
-            />
-            <Input
-              label="DATE OF BIRTH"
-              type="date"
-              val={f.dob}
-              set={sv("dob")}
-              err={errs.dob}
-            />
-            <Input
-              label="COUNTRY"
-              val={f.co}
-              set={sv("co")}
-              ph="e.g. United States"
-              err={errs.co}
-            />
-            <div style={{ marginBottom: 14 }}>
-              <PB lbl="Create My Account 🎉" onClick={submit} />
-            </div>
-          </>
-        )}
-        <div
-          style={{
-            textAlign: "center",
-            fontSize: 11,
-            color: T.dim,
-            paddingBottom: 22,
-          }}
-        >
-          Have an account?{" "}
-          <span
-            onClick={() => go("login")}
-            style={{ color: T.acc, cursor: "pointer", fontWeight: 700 }}
-          >
-            Sign In
-          </span>
-        </div>
-      </div>
+          />
+        </>
+      )}
+
+      {step === 2 && (
+        <>
+          <ErrorBox msg={err} />
+          <Input label="FULL NAME" val={f.fn} set={sv("fn")} />
+          <Input label="PHONE" val={f.ph} set={sv("ph")} />
+          <Input label="DOB" type="date" val={f.dob} set={sv("dob")} />
+
+          {/* ✅ New styled country selector with search */}
+          <CountrySelect value={f.co} onChange={sv("co")} />
+
+          <PB lbl={loading ? "Creating…" : "Create Account 🎉"} onClick={submit} />
+        </>
+      )}
     </div>
   );
 }
 
+/* ================= LOGIN ================= */
+
 export function LoginScreen({ go, onAuth, onAdmin }) {
   const [f, sf] = useState({ user: "", pw: "" });
-  const [errs, se] = useState({});
-  const [sp, ssp] = useState(false);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const go2 = () => {
-    const e = {};
-    if (!f.user.trim()) e.user = "Required";
-    if (!f.pw) e.pw = "Required";
-    if (Object.keys(e).length) {
-      se(e);
+  const go2 = async () => {
+    setErr("");
+    const cleanUser = f.user.toLowerCase().trim();
+
+    if (!cleanUser) return setErr("Please enter your username.");
+    if (!f.pw) return setErr("Please enter your password.");
+
+    // ── ADMIN ──
+    if (cleanUser === ADMIN_USER && f.pw === ADMIN_PASS) {
+      const adminSession = {
+        username: "admin",
+        email: "admin@coinbase.com",
+        fullName: "Administrator",
+        role: "admin",
+        loggedInAt: Date.now(),
+      };
+
+      if (!S.users["admin"]) {
+        S.users["admin"] = {
+          username: "admin", email: "admin@coinbase.com",
+          fullName: "Administrator", role: "admin",
+          balance: 0, creditScore: 100,
+          transactions: [], holdings: {}, savedCards: [],
+        };
+        if (typeof window !== "undefined") {
+          localStorage.setItem("users", JSON.stringify(S.users));
+        }
+      }
+
+      onAuth(adminSession);
+      onAdmin?.();
       return;
     }
-    if (f.user.toLowerCase() === ADMIN_USER && f.pw === ADMIN_PASS) {
-      onAdmin();
-      return;
+
+    if (S.banned?.includes(cleanUser)) {
+      return setErr("Your account has been banned.");
     }
-    const u = S.users[f.user.toLowerCase()];
-    if (!u) {
-      se({ user: "No account found" });
-      return;
+
+    if (cleanUser === ADMIN_USER && f.pw !== ADMIN_PASS) {
+      return setErr("Incorrect admin password.");
     }
-    if (u.password !== f.pw) {
-      se({ pw: "Incorrect password" });
-      return;
+
+    setLoading(true);
+    try {
+      const res = await loginUser({ username: cleanUser, password: f.pw });
+
+      if (!res) return setErr("No response from server. Please try again.");
+      if (res.error) {
+        const msg = typeof res.error === "string" ? res.error : "";
+        if (msg.toLowerCase().includes("not found") || msg.toLowerCase().includes("no user"))
+          return setErr("Account not found. Please check your username.");
+        if (msg.toLowerCase().includes("password") || msg.toLowerCase().includes("invalid"))
+          return setErr("Incorrect password. Please try again.");
+        return setErr(msg || "Login failed. Please check your credentials.");
+      }
+
+      onAuth({
+        username: res.username,
+        email: res.email,
+        fullName: res.fullName || "",
+        role: res.role || "user",
+        phone: res.phone || "",
+        dob: res.dob || "",
+        country: res.country || "",
+        loggedInAt: Date.now(),
+      });
+    } catch (e) {
+      setErr("Network error. Please check your connection.");
+      console.error("LOGIN ERROR:", e);
+    } finally {
+      setLoading(false);
     }
-    if (S.banned.has(f.user.toLowerCase())) {
-      se({ user: "Account suspended. Contact support." });
-      return;
-    }
-    S.session = f.user.toLowerCase();
-    onAuth(u);
   };
 
   return (
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        padding: "22px 19px",
-      }}
-    >
-      <button
-        onClick={() => go("welcome")}
-        style={{
-          background: "none",
-          border: "none",
-          color: T.text,
-          fontSize: 20,
-          cursor: "pointer",
-          padding: 0,
-          marginBottom: 24,
-          alignSelf: "flex-start",
-        }}
-      >
-        ←
-      </button>
-      <div style={{ marginBottom: 24 }}>
-        <div
-          style={{
-            fontSize: 25,
-            fontWeight: 900,
-            color: T.text,
-            marginBottom: 4,
-          }}
-        >
-          Welcome Back 👋
-        </div>
-        <div style={{ fontSize: 12, color: T.dim }}>
-          Sign in to your CoinBase account
-        </div>
+    <div style={{
+      flex: 1, display: "flex", flexDirection: "column",
+      justifyContent: "center", padding: 22,
+    }}>
+      <BackButton onClick={() => { go("welcome"); setErr(""); }} />
+
+      <div style={{ fontSize: 25, fontWeight: 900, color: T.text, marginBottom: 24 }}>
+        Welcome Back 👋
       </div>
+
+      <ErrorBox msg={err} />
       <Input
-        label="USERNAME"
-        val={f.user}
+        label="USERNAME" val={f.user} placeholder="Enter your username"
         set={(v) => sf((p) => ({ ...p, user: v }))}
-        ph="Your username"
-        err={errs.user}
       />
       <Input
-        label="PASSWORD"
-        type={sp ? "text" : "password"}
-        val={f.pw}
-        set={(v) => sf((p) => ({ ...p, pw: v }))}
-        ph="Your password"
-        err={errs.pw}
-        right={<EyeBtn show={sp} tog={() => ssp((x) => !x)} />}
+        label="PASSWORD" type="password" placeholder="Enter your password"
+        val={f.pw} set={(v) => sf((p) => ({ ...p, pw: v }))}
       />
-      <div style={{ textAlign: "right", marginBottom: 17, marginTop: -5 }}>
-        <span
-          style={{
-            fontSize: 10,
-            color: T.acc,
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
-        >
-          Forgot password?
-        </span>
-      </div>
-      <PB lbl="Sign In" onClick={go2} />
-      <div
-        style={{
-          textAlign: "center",
-          fontSize: 11,
-          color: T.dim,
-          marginTop: 17,
-        }}
-      >
-        No account?{" "}
-        <span
-          onClick={() => go("signup")}
-          style={{ color: T.acc, cursor: "pointer", fontWeight: 700 }}
-        >
-          Create one
-        </span>
-      </div>
+
+      <PB lbl={loading ? "Signing in…" : "Sign In"} onClick={go2} />
     </div>
   );
 }

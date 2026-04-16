@@ -194,24 +194,45 @@ export default function AdminPanel({ onBack, onExit }) {
   const [banned, setBanned] = useState(loadBanned);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Fetch from DB + merge with localStorage, filter out admin
+  // ✅ Fetch from DB — DB is the single source of truth.
+  // localStorage is only used as a fallback if the DB call fails.
+  // We never let stale localStorage data overwrite DB results.
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       let dbUsers = {};
+      let dbSuccess = false;
+
       if (typeof getAllUsers === "function") {
         const res = await getAllUsers();
-        if (res && !res.error && Array.isArray(res)) {
-          res.forEach((u) => {
+
+        const usersArray = Array.isArray(res)
+          ? res
+          : Array.isArray(res?.users)
+            ? res.users
+            : Array.isArray(res?.data)
+              ? res.data
+              : null;
+
+        if (usersArray) {
+          usersArray.forEach((u) => {
             const key = u.username?.toLowerCase();
             if (key && key !== "admin") dbUsers[key] = { ...u, username: key };
           });
+
+          dbSuccess = true;
         }
       }
-      const local = loadLocalUsers(); // already filters admin
-      const merged = { ...dbUsers, ...local };
-      saveUsers(merged);
-      setUsersState(merged);
+
+      if (dbSuccess) {
+        // ✅ DB succeeded — DB wins entirely, sync localStorage to match
+        saveUsers(dbUsers);
+        setUsersState(dbUsers);
+      } else {
+        // ✅ DB failed — fall back to localStorage only
+        const local = loadLocalUsers();
+        setUsersState(local);
+      }
     } catch (e) {
       console.error("Failed to fetch users:", e);
       setUsersState(loadLocalUsers());

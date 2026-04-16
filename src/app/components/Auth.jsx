@@ -319,9 +319,8 @@ export function SignupScreen({ go, onAuth }) {
               const username = f.user.toLowerCase().trim();
 
               if (!username) return setErr("Username is required.");
-              if (/\d/.test(username)) return setErr("Username cannot contain numbers.");
-              if (!/^[a-z._]+$/.test(username))
-                return setErr("Username can only contain letters, dots, or underscores.");
+              if (!/^[a-z0-9._]+$/.test(username))
+                return setErr("Username can only contain letters, numbers, dots, or underscores.");
               if (!f.email) return setErr("Email is required.");
               if (!f.pw) return setErr("Password is required.");
               if (f.pw !== f.cpw) return setErr("Passwords do not match.");

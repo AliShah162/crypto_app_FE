@@ -426,12 +426,19 @@ export function EditSub({ back, user, re }) {
     co: user.country || "",
   });
   const [msg, sm] = useState("");
-  const save = () => {
+  const save = async () => {
     const u = S.get();
     if (u) {
-      u.fullName = f.fn;
-      u.phone = f.ph;
-      u.country = f.co;
+      S.updateUser(u.username, { fullName: f.fn, phone: f.ph, country: f.co });
+    }
+    // Sync to DB
+    try {
+      const { updateUserInDB } = await import("../lib/api");
+      if (u && typeof updateUserInDB === "function") {
+        await updateUserInDB(u.username, { fullName: f.fn, phone: f.ph, country: f.co });
+      }
+    } catch (e) {
+      console.error("Failed to sync profile to DB:", e);
     }
     re();
     sm("Saved!");

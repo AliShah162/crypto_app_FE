@@ -1,0 +1,63 @@
+[33mcommit b6c6846d96ed0f3d804be77ab77559b4f23df0cc[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Ali Shah <nalain486@gmail.com>
+Date:   Thu Apr 16 19:06:59 2026 +0500
+
+    your message
+
+[1mdiff --git a/src/app/components/AdminPanel.jsx b/src/app/components/AdminPanel.jsx[m
+[1mindex 8796194..be23087 100644[m
+[1m--- a/src/app/components/AdminPanel.jsx[m
+[1m+++ b/src/app/components/AdminPanel.jsx[m
+[36m@@ -194,24 +194,45 @@[m [mexport default function AdminPanel({ onBack, onExit }) {[m
+   const [banned, setBanned] = useState(loadBanned);[m
+   const [loading, setLoading] = useState(true);[m
+ [m
+[31m-  // ✅ Fetch from DB + merge with localStorage, filter out admin[m
+[32m+[m[32m  // ✅ Fetch from DB — DB is the single source of truth.[m
+[32m+[m[32m  // localStorage is only used as a fallback if the DB call fails.[m
+[32m+[m[32m  // We never let stale localStorage data overwrite DB results.[m
+   const fetchUsers = useCallback(async () => {[m
+     setLoading(true);[m
+     try {[m
+       let dbUsers = {};[m
+[32m+[m[32m      let dbSuccess = false;[m
+[32m+[m
+       if (typeof getAllUsers === "function") {[m
+         const res = await getAllUsers();[m
+[31m-        if (res && !res.error && Array.isArray(res)) {[m
+[31m-          res.forEach((u) => {[m
+[32m+[m
+[32m+[m[32m        const usersArray = Array.isArray(res)[m
+[32m+[m[32m          ? res[m
+[32m+[m[32m          : Array.isArray(res?.users)[m
+[32m+[m[32m            ? res.users[m
+[32m+[m[32m            : Array.isArray(res?.data)[m
+[32m+[m[32m              ? res.data[m
+[32m+[m[32m              : null;[m
+[32m+[m
+[32m+[m[32m        if (usersArray) {[m
+[32m+[m[32m          usersArray.forEach((u) => {[m
+             const key = u.username?.toLowerCase();[m
+             if (key && key !== "admin") dbUsers[key] = { ...u, username: key };[m
+           });[m
+[32m+[m
+[32m+[m[32m          dbSuccess = true;[m
+         }[m
+       }[m
+[31m-      const local = loadLocalUsers(); // already filters admin[m
+[31m-      const merged = { ...dbUsers, ...local };[m
+[31m-      saveUsers(merged);[m
+[31m-      setUsersState(merged);[m
+[32m+[m
+[32m+[m[32m      if (dbSuccess) {[m
+[32m+[m[32m        // ✅ DB succeeded — DB wins entirely, sync localStorage to match[m
+[32m+[m[32m        saveUsers(dbUsers);[m
+[32m+[m[32m        setUsersState(dbUsers);[m
+[32m+[m[32m      } else {[m
+[32m+[m[32m        // ✅ DB failed — fall back to localStorage only[m
+[32m+[m[32m        const local = loadLocalUsers();[m
+[32m+[m[32m        setUsersState(local);[m
+[32m+[m[32m      }[m
+     } catch (e) {[m
+       console.error("Failed to fetch users:", e);[m
+       setUsersState(loadLocalUsers());[m

@@ -73,7 +73,7 @@ function Detail({ sel, ss, disc, rest, del, changeScore, banned }) {
         <span style={{ marginRight: 6 }}>←</span> Back to Users
       </button>
       <div style={ds.profileCard}>
-        <div style={ds.profileHeader}>
+        <div style={ds.profileHeader} className="admin-profile-header">
           <div style={ds.avatar}>{u.username[0].toUpperCase()}</div>
           <div>
             <div style={ds.profileName}>@{u.username}</div>
@@ -112,7 +112,7 @@ function Detail({ sel, ss, disc, rest, del, changeScore, banned }) {
               {score}
               <span style={ds.scoreMax}>/100</span>
             </div>
-            <div style={ds.scoreControls}>
+            <div style={ds.scoreControls} className="admin-score-controls">
               {[
                 [-5, "#ef4444"],
                 [-1, "#f97316"],
@@ -155,7 +155,7 @@ function Detail({ sel, ss, disc, rest, del, changeScore, banned }) {
           ))}
         </div>
         <div style={ds.divider} />
-        <div style={ds.actionRow}>
+        <div style={ds.actionRow} className="admin-action-row">
           {!isBan ? (
             <button
               onClick={() => disc(u.username)}
@@ -329,18 +329,18 @@ export default function AdminPanel({ onBack, onExit }) {
   const totalBalance = users.reduce((a, u) => a + (u.balance || 0), 0);
 
   return (
-    <div style={ds.shell}>
+    <div style={ds.shell} className="admin-shell">
       <style>{globalStyles}</style>
-      <aside style={ds.sidebar}>
-        <div style={ds.sidebarTop}>
+      <aside style={ds.sidebar} className="admin-sidebar">
+        <div style={ds.sidebarTop} className="admin-sidebar-top">
           <div style={ds.logo}>
             <div style={ds.logoMark}>A</div>
             <div>
               <div style={ds.logoName}>AdminOS</div>
-              <div style={ds.logoSub}>Control Panel</div>
+              <div style={ds.logoSub} className="admin-logo-sub">Control Panel</div>
             </div>
           </div>
-          <nav style={ds.nav}>
+          <nav style={ds.nav} className="admin-nav">
             {[
               ["dash", "Dashboard", "⬡"],
               ["users", "Users", "◈"],
@@ -363,7 +363,7 @@ export default function AdminPanel({ onBack, onExit }) {
       </aside>
 
       <main style={ds.main}>
-        <div style={ds.topbar}>
+        <div style={ds.topbar} className="admin-topbar">
           <div>
             <div style={ds.pageTitle}>
               {tab === "dash" ? "Dashboard" : "User Management"}
@@ -389,8 +389,8 @@ export default function AdminPanel({ onBack, onExit }) {
         </div>
 
         {tab === "dash" && (
-          <div style={ds.content}>
-            <div style={ds.kpiGrid}>
+          <div style={ds.content} className="admin-content">
+            <div style={ds.kpiGrid} className="admin-kpi-grid">
               {[
                 ["Total Users", users.length, "#3b82f6", "👥"],
                 ["Banned Accounts", banned.length, "#ef4444", "🚫"],
@@ -408,7 +408,7 @@ export default function AdminPanel({ onBack, onExit }) {
         )}
 
         {tab === "users" && !sel && (
-          <div style={ds.content}>
+          <div style={ds.content} className="admin-content">
             <div style={ds.searchWrap}>
               <span style={ds.searchIcon}>⌕</span>
               <input
@@ -419,7 +419,7 @@ export default function AdminPanel({ onBack, onExit }) {
               />
             </div>
             <div style={ds.userTable}>
-              <div style={ds.tableHeader}>
+              <div style={ds.tableHeader} className="admin-table-header">
                 <span>Username</span>
                 <span>Email</span>
                 <span>Balance</span>
@@ -437,16 +437,16 @@ export default function AdminPanel({ onBack, onExit }) {
                       key={u.username}
                       style={{ ...ds.tableRow, animationDelay: `${i * 40}ms` }}
                       onClick={() => setSel(u)}
-                      className="table-row-hover"
+                      className="table-row-hover admin-table-row"
                     >
-                      <span style={ds.rowUsername}>
+                      <span style={ds.rowUsername} className="admin-row-username">
                         <span style={ds.rowAvatar}>
                           {u.username[0].toUpperCase()}
                         </span>
                         @{u.username}
                       </span>
-                      <span style={ds.rowMeta}>{u.email || "—"}</span>
-                      <span style={ds.rowBalance}>{usd(u.balance || 0)}</span>
+                      <span style={ds.rowMeta} className="admin-row-email">{u.email || "—"}</span>
+                      <span style={ds.rowBalance} className="admin-row-balance">{usd(u.balance || 0)}</span>
                       <span>
                         <span
                           style={{
@@ -471,7 +471,7 @@ export default function AdminPanel({ onBack, onExit }) {
         )}
 
         {tab === "users" && sel && (
-          <div style={ds.content}>
+          <div style={ds.content} className="admin-content">
             <Detail
               sel={sel}
               ss={setSel}
@@ -493,9 +493,45 @@ const globalStyles = `
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Syne', sans-serif; }
-  .table-row-hover:hover { background: rgba(59,130,246,0.06) !important; transform: translateX(2px); }
+  .table-row-hover:hover { background: rgba(59,130,246,0.06) !important; }
   @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes slideIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+
+  /* ── Mobile sidebar → top bar ── */
+  @media (max-width: 600px) {
+    .admin-shell { flex-direction: column !important; }
+    .admin-sidebar {
+      width: 100% !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      padding: 10px 14px !important;
+      border-right: none !important;
+      border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+      justify-content: space-between !important;
+    }
+    .admin-sidebar-top { flex-direction: row !important; align-items: center !important; gap: 12px !important; }
+    .admin-nav { flex-direction: row !important; gap: 4px !important; }
+    .admin-logo-sub { display: none !important; }
+    .admin-content { padding: 14px !important; }
+    .admin-topbar { padding: 12px 14px !important; flex-wrap: wrap; gap: 8px; }
+    .admin-kpi-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+    /* User table: hide email col, use card layout */
+    .admin-table-header { display: none !important; }
+    .admin-table-row {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      gap: 6px !important;
+      align-items: center !important;
+      padding: 12px !important;
+    }
+    .admin-row-email { display: none !important; }
+    .admin-row-username { flex: 1 !important; min-width: 0 !important; }
+    .admin-row-balance { font-size: 11px !important; }
+    /* Detail view */
+    .admin-profile-header { flex-wrap: wrap !important; }
+    .admin-score-controls { flex-wrap: wrap !important; gap: 4px !important; }
+    .admin-action-row { flex-direction: column !important; }
+  }
 `;
 
 const detailAnim = `

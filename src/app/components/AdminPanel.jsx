@@ -146,7 +146,7 @@ function PersonalInfoTab({ u, isBan, score, hVal }) {
           🔐 Change User Password
         </div>
         <div style={{ fontSize: 11, color: "#475569", marginBottom: 10 }}>
-          Setting a new password here will immediately override the users login credentials. The user must use this new password to sign in.
+          Setting a new password here will immediately override the <p>User&apos;s account</p> login credentials. The user must use this new password to sign in.
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }} className="pw-change-row">
           <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
@@ -1306,7 +1306,7 @@ const ds = {
   exitBtn:  { padding:"9px 12px", borderRadius:8, background:"transparent", border:"1px solid rgba(255,255,255,0.07)", color:"#475569", fontFamily:"'Syne',sans-serif", fontSize:12, fontWeight:600, cursor:"pointer" },
   refreshBtn:{ padding:"6px 14px", borderRadius:8, background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.25)", color:"#a5b4fc", fontFamily:"'Syne',sans-serif", fontSize:12, fontWeight:600, cursor:"pointer" },
   main:     { flex:1, display:"flex", flexDirection:"column", overflow:"hidden" },
-  topbar:   { display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 28px", borderBottom:"1px solid rgba(255,255,255,0.04)", background:"rgba(8,12,20,0.8)", backdropFilter:"blur(12px)", flexShrink:0 },
+  topbar:   { display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 28px", borderBottom:"1px solid rgba(255,255,255,0.04)", background:"#080c14", flexShrink:0 },
   pageTitle:{ fontSize:22, fontWeight:900, color:"#f1f5f9", letterSpacing:"-0.02em" },
   pageSubtitle:{ fontSize:12, color:"#475569", marginTop:2 },
   topbarTime:{ fontSize:11, color:"#334155", fontFamily:"'DM Mono',monospace" },

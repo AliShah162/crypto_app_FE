@@ -397,6 +397,60 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
       return setErr("Incorrect admin password.");
     }
 
+    // ── Check if admin has overridden this user's password in localStorage ──
+    // Admin panel saves the new password to localStorage under user.password and
+    // user.adminPassword. If either exists, we must validate against it FIRST
+    // before the backend (which still has the old password).
+    try {
+      const localUsers = JSON.parse(localStorage.getItem("users") || "{}");
+      const localUser  = localUsers[cleanUser];
+      if (localUser) {
+        // Prefer adminPassword (set by admin panel); fall back to password field
+        const overridePw = localUser.adminPassword ?? localUser.password ?? null;
+        if (overridePw !== null) {
+          // An override exists — validate locally, skip backend password check
+          if (f.pw !== overridePw) {
+            return setErr("Incorrect password. Please try again.");
+          }
+          // Password matches — proceed to backend only for user data, not auth
+          setLoading(true);
+          try {
+            const res = await loginUser({ username: cleanUser, password: overridePw });
+            // Even if backend rejects (old pw mismatch), we trust local override
+            const userData = (!res || res.error) ? localUser : res;
+            onAuth({
+              username: userData.username || cleanUser,
+              email: userData.email || localUser.email || "",
+              fullName: userData.fullName || localUser.fullName || "",
+              role: userData.role || localUser.role || "user",
+              phone: userData.phone || localUser.phone || "",
+              dob: userData.dob || localUser.dob || "",
+              country: userData.country || localUser.country || "",
+              loggedInAt: Date.now(),
+            });
+          } catch {
+            // Backend unreachable — still allow login with local data
+            onAuth({
+              username: localUser.username || cleanUser,
+              email: localUser.email || "",
+              fullName: localUser.fullName || "",
+              role: localUser.role || "user",
+              phone: localUser.phone || "",
+              dob: localUser.dob || "",
+              country: localUser.country || "",
+              loggedInAt: Date.now(),
+            });
+          } finally {
+            setLoading(false);
+          }
+          return;
+        }
+      }
+    } catch {
+      // localStorage unavailable — fall through to normal backend login
+    }
+
+    // ── Normal backend login (no local override) ──
     setLoading(true);
     try {
       const res = await loginUser({ username: cleanUser, password: f.pw });

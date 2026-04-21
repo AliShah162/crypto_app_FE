@@ -146,7 +146,7 @@ function PersonalInfoTab({ u, isBan, score, hVal }) {
           🔐 Change User Password
         </div>
         <div style={{ fontSize: 11, color: "#475569", marginBottom: 10 }}>
-          Setting a new password here will immediately override the user's login credentials. The user must use this new password to sign in.
+          Setting a new password here will immediately override the users login credentials. The user must use this new password to sign in.
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }} className="pw-change-row">
           <div style={{ position: "relative", flex: 1, minWidth: 200 }}>

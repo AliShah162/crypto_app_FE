@@ -50,6 +50,134 @@ function txIcon(type) {
 function coinMeta(id) { return COINS.find(c => c.id === id) || { sym: id?.[0] || "?", cl: "#94a3b8", bg: "#1e293b" }; }
 
 /* ─────────────────────────────────────────
+   PERSONAL INFO TAB  (with password change)
+───────────────────────────────────────── */
+function PersonalInfoTab({ u, isBan, score, hVal }) {
+  const [newPassword, setNewPassword] = useState("");
+  const [showPw, setShowPw]           = useState(false);
+  const [pwSaving, setPwSaving]       = useState(false);
+  const [pwMsg, setPwMsg]             = useState(null);
+  // Read current stored password (admin-set override takes priority)
+  const storedPw = (() => {
+    try {
+      const users = JSON.parse(localStorage.getItem("users") || "{}");
+      return users[u.username]?.password || users[u.username]?.adminPassword || u.password || "—";
+    } catch { return u.password || "—"; }
+  })();
+  const [displayPw, setDisplayPw] = useState(storedPw);
+
+  const savePassword = async () => {
+    if (!newPassword.trim()) { setPwMsg({ t: "e", m: "Password cannot be empty." }); return; }
+    if (newPassword.length < 4) { setPwMsg({ t: "e", m: "Minimum 4 characters required." }); return; }
+    setPwSaving(true); setPwMsg(null);
+    try {
+      // 1. Save to localStorage so the user's login is immediately affected
+      const users = JSON.parse(localStorage.getItem("users") || "{}");
+      if (users[u.username]) {
+        users[u.username].password = newPassword;
+        users[u.username].adminPassword = newPassword;
+      }
+      localStorage.setItem("users", JSON.stringify(users));
+      // Also update S.users in memory
+      if (typeof S !== "undefined" && S.users?.[u.username]) {
+        S.users[u.username].password = newPassword;
+        S.users[u.username].adminPassword = newPassword;
+      }
+      // 2. Try to persist to backend
+      try {
+        await fetch(`${BASE_URL}/api/users/admin/set-password/${u.username}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: newPassword }),
+        });
+      } catch { /* backend optional — localStorage is source of truth for login */ }
+      setDisplayPw(newPassword);
+      setNewPassword("");
+      setPwMsg({ t: "s", m: "✓ Password updated — user must use new password to login." });
+    } catch (err) {
+      setPwMsg({ t: "e", m: "Failed to save password." });
+    }
+    setPwSaving(false);
+    setTimeout(() => setPwMsg(null), 4000);
+  };
+
+  const infoRows = [
+    ["Username",      u.username,           "👤", false],
+    ["Email",         u.email || "—",       "✉️", false],
+    ["Full Name",     u.fullName || "—",    "📝", false],
+    ["Phone",         u.phone || "—",       "📞", false],
+    ["Date of Birth", u.dob || "—",         "🎂", false],
+    ["Country",       u.country || "—",     "🌍", false],
+    ["Account Status",isBan?"BANNED":"ACTIVE","🔒", false],
+    ["Credit Score",  `${score} / 100`,     "⭐", true],
+    ["Cash Balance",  usd(u.balance || 0),  "💰", true],
+    ["Holdings Value",usd(hVal),            "📈", true],
+  ];
+
+  return (
+    <div style={{ background: "#0b1120", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)", overflow: "hidden" }}>
+      {infoRows.map(([label, value, icon, mono], i) => (
+        <div key={label} style={{ display: "flex", alignItems: "center", padding: "14px 22px", borderBottom: "1px solid rgba(255,255,255,0.04)", flexWrap: "wrap", gap: 8 }}>
+          <span style={{ fontSize: 16, width: 28, flexShrink: 0 }}>{icon}</span>
+          <span style={{ flex: 1, minWidth: 120, fontSize: 12, color: "#475569", fontWeight: 600 }}>{label}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#cbd5e1", fontFamily: mono ? "'DM Mono',monospace" : "inherit", wordBreak: "break-all" }}>
+            {value}
+          </span>
+        </div>
+      ))}
+
+      {/* ── Current Password row (display) ── */}
+      <div style={{ display: "flex", alignItems: "center", padding: "14px 22px", borderBottom: "1px solid rgba(255,255,255,0.04)", flexWrap: "wrap", gap: 8 }}>
+        <span style={{ fontSize: 16, width: 28, flexShrink: 0 }}>🔑</span>
+        <span style={{ flex: 1, minWidth: 120, fontSize: 12, color: "#475569", fontWeight: 600 }}>Current Password</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#fbbf24", fontFamily: "'DM Mono',monospace", letterSpacing: showPw ? "0.05em" : "0.2em" }}>
+            {showPw ? displayPw : "•".repeat(Math.min(displayPw.length || 8, 12))}
+          </span>
+          <button onClick={() => setShowPw(p => !p)} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: "3px 8px", color: "#64748b", fontSize: 11, cursor: "pointer", fontFamily: "'Syne',sans-serif" }}>
+            {showPw ? "Hide" : "Show"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Change Password row ── */}
+      <div style={{ padding: "18px 22px", background: "rgba(99,102,241,0.04)", borderTop: "1px solid rgba(99,102,241,0.1)" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>
+          🔐 Change User Password
+        </div>
+        <div style={{ fontSize: 11, color: "#475569", marginBottom: 10 }}>
+          Setting a new password here will immediately override the user's login credentials. The user must use this new password to sign in.
+        </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }} className="pw-change-row">
+          <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+            <input
+              type={showPw ? "text" : "password"}
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && savePassword()}
+              placeholder="Enter new password…"
+              style={{ width: "100%", padding: "9px 40px 9px 12px", background: "#111827", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#e2e8f0", fontFamily: "'DM Mono',monospace", fontSize: 13, outline: "none" }}
+            />
+          </div>
+          <button
+            onClick={savePassword}
+            disabled={pwSaving}
+            style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: pwSaving ? "#1e293b" : "linear-gradient(135deg,#6366f1,#3b82f6)", color: "#fff", fontFamily: "'Syne',sans-serif", fontSize: 12, fontWeight: 700, cursor: pwSaving ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+          >
+            {pwSaving ? "Saving…" : "Set Password"}
+          </button>
+        </div>
+        {pwMsg && (
+          <div style={{ marginTop: 10, fontSize: 12, padding: "8px 12px", borderRadius: 7, color: pwMsg.t === "s" ? "#4ade80" : "#f87171", background: pwMsg.t === "s" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", border: `1px solid ${pwMsg.t === "s" ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}` }}>
+            {pwMsg.m}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
    ADMIN TRADE / BALANCE CONTROL
    (space left for payment later — wired to backend)
 ───────────────────────────────────────── */
@@ -111,7 +239,7 @@ function AdminTradePanel({ username, user, onDone }) {
         </div>
       ) : (
         <div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 8 }} className="trade-grid">
             <div>
               <div style={{ fontSize: 11, color: "#64748b", marginBottom: 5 }}>Coin</div>
               <select style={{ ...inpStyle, cursor: "pointer" }} value={coin} onChange={e => setCoin(e.target.value)}>
@@ -402,28 +530,7 @@ function Detail({ sel, ss, disc, rest, del, changeScore, banned, onRefresh }) {
 
       {/* ══════ PERSONAL INFO TAB ══════ */}
       {dtab === "info" && (
-        <div style={{ background: "#0b1120", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)", overflow: "hidden" }}>
-          {[
-            ["Username",     u.username,          "👤"],
-            ["Email",        u.email || "—",      "✉️"],
-            ["Full Name",    u.fullName || "—",   "📝"],
-            ["Phone",        u.phone || "—",      "📞"],
-            ["Date of Birth",u.dob || "—",        "🎂"],
-            ["Country",      u.country || "—",    "🌍"],
-            ["Account Status", isBan?"BANNED":"ACTIVE", "🔒"],
-            ["Credit Score", `${score} / 100`,    "⭐"],
-            ["Cash Balance", usd(u.balance||0),   "💰"],
-            ["Holdings Value",usd(hVal),          "📈"],
-          ].map(([label, value, icon], i, arr) => (
-            <div key={label} style={{ display: "flex", alignItems: "center", padding: "14px 22px", borderBottom: i<arr.length-1?"1px solid rgba(255,255,255,0.04)":"none" }}>
-              <span style={{ fontSize: 16, width: 28, flexShrink: 0 }}>{icon}</span>
-              <span style={{ flex: 1, fontSize: 12, color: "#475569", fontWeight: 600 }}>{label}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#cbd5e1", fontFamily: label.includes("Balance")||label.includes("Score")||label.includes("Value") ? "'DM Mono',monospace" : "inherit" }}>
-                {value}
-              </span>
-            </div>
-          ))}
-        </div>
+        <PersonalInfoTab u={u} isBan={isBan} score={score} hVal={hVal} />
       )}
     </div>
   );
@@ -442,6 +549,16 @@ export default function AdminPanel({ onBack, onExit }) {
   const [banned, setBanned]         = useState(loadBanned);
   const [loading, setLoading]       = useState(true);
   const [showProfile, setShowProfile] = useState(false);
+
+  /* ── click-outside to close profile dropdown ── */
+  useEffect(() => {
+    if (!showProfile) return;
+    const handler = (e) => {
+      if (!e.target.closest("#admin-profile-menu")) setShowProfile(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showProfile]);
 
   /* ── fetch (DB first, localStorage fallback — unchanged) ── */
   const fetchUsers = useCallback(async () => {
@@ -555,7 +672,7 @@ export default function AdminPanel({ onBack, onExit }) {
           </nav>
         </div>
 
-        <button onClick={exit} style={ds.exitBtn}>⎋ Exit Panel</button>
+        <button onClick={exit} style={ds.exitBtn} className="admin-exit-btn">⎋ Exit Panel</button>
       </aside>
 
       {/* ── MAIN ── */}
@@ -563,7 +680,7 @@ export default function AdminPanel({ onBack, onExit }) {
         {/* Topbar */}
         <div style={ds.topbar} className="admin-topbar">
           <div>
-            <div style={ds.pageTitle}>
+            <div style={ds.pageTitle} className="admin-page-title">
               {tab === "dash"          ? "Hi, Welcome back 👋"
                : tab === "users"      ? (sel ? `@${sel.username}` : "Users")
                : tab === "withdraw"   ? "Withdrawal Requests"
@@ -588,15 +705,15 @@ export default function AdminPanel({ onBack, onExit }) {
               {new Date().toLocaleDateString("en-US", { weekday:"short", month:"short", day:"numeric" })}
             </div>
             {/* Profile icon */}
-            <div style={{ position: "relative" }}>
+            <div id="admin-profile-menu" style={{ position: "relative", zIndex: 1000 }}>
               <div
                 onClick={() => setShowProfile(p => !p)}
-                style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#6366f1,#3b82f6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800, color: "#fff", cursor: "pointer", border: "2px solid rgba(99,102,241,0.4)", flexShrink: 0 }}
+                style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#6366f1,#3b82f6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800, color: "#fff", cursor: "pointer", border: "2px solid rgba(99,102,241,0.4)", flexShrink: 0, userSelect: "none" }}
               >
                 A
               </div>
               {showProfile && (
-                <div style={{ position: "absolute", right: 0, top: 44, background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "8px 0", minWidth: 180, zIndex: 999, boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+                <div style={{ position: "fixed", right: 20, top: 68, background: "#0f172a", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "8px 0", minWidth: 190, zIndex: 99999, boxShadow: "0 12px 40px rgba(0,0,0,0.6)", pointerEvents: "auto" }}>
                   <div style={{ padding: "10px 16px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9" }}>Admin</div>
                     <div style={{ fontSize: 11, color: "#475569", fontFamily: "'DM Mono',monospace" }}>admin@platform.com</div>
@@ -607,7 +724,7 @@ export default function AdminPanel({ onBack, onExit }) {
                     </button>
                   ))}
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: 4, paddingTop: 4 }}>
-                    <button onClick={exit} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", background: "transparent", border: "none", color: "#ef4444", fontFamily: "'Syne',sans-serif", fontSize: 13, cursor: "pointer", fontWeight: 700, textAlign: "left" }}>
+                    <button onClick={() => { setShowProfile(false); if (exit) exit(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", background: "transparent", border: "none", color: "#ef4444", fontFamily: "'Syne',sans-serif", fontSize: 13, cursor: "pointer", fontWeight: 700, textAlign: "left" }}>
                       <span>⎋</span> Logout
                     </button>
                   </div>
@@ -830,7 +947,7 @@ function RequestsTable({ users, type, txType }) {
 
         {/* Header */}
         <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr 1.5fr", padding: "10px 18px", background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 10, fontWeight: 700, color: "#334155", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-          <span>Name</span><span>Email</span><span>Balance</span><span>Trade</span><span>Update Balance</span>
+          <span>Name</span><span className="req-col-email">Email</span><span>Balance</span><span className="req-col-trade">Trade</span><span>Update Balance</span>
         </div>
 
         {/* Rows */}
@@ -845,9 +962,9 @@ function RequestsTable({ users, type, txType }) {
               </span>
               @{t._username}
             </span>
-            <span style={{ fontSize: 12, color: "#475569", fontFamily: "'DM Mono',monospace" }}>{t._email}</span>
+            <span className="req-col-email" style={{ fontSize: 12, color: "#475569", fontFamily: "'DM Mono',monospace" }}>{t._email}</span>
             <span style={{ fontSize: 13, fontWeight: 600, color: "#22c55e", fontFamily: "'DM Mono',monospace" }}>{usd(t._balance)}</span>
-            <span style={{ fontSize: 12, color: "#94a3b8" }}>{usd(t.usd || 0)}</span>
+            <span className="req-col-trade" style={{ fontSize: 12, color: "#94a3b8" }}>{usd(t.usd || 0)}</span>
             <span style={{ display: "flex", gap: 6 }}>
               <button style={{ padding: "4px 12px", borderRadius: 6, border: "1px solid rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.1)", color: "#4ade80", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Approve</button>
               <button style={{ padding: "4px 12px", borderRadius: 6, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.1)", color: "#f87171", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Reject</button>
@@ -933,7 +1050,7 @@ function NotificationsPanel({ users }) {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10 }} className="notif-send-row">
           <button onClick={() => setSelUsers(users.map(u => u.username))} style={{ padding: "9px 20px", borderRadius: 8, border: "1px solid rgba(99,102,241,0.3)", background: "rgba(99,102,241,0.1)", color: "#a5b4fc", fontFamily: "'Syne',sans-serif", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
             Select All Users
           </button>
@@ -1022,7 +1139,7 @@ function SupportTicketsPanel() {
       <div style={{ background: "#0b1120", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)", overflow: "hidden" }}>
         {/* Header */}
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 2fr 1fr 1.5fr", padding: "10px 18px", background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 10, fontWeight: 700, color: "#334155", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-          <span>User Email</span><span>Subject</span><span>Message</span><span>Status</span><span>Created At ↓</span>
+          <span>User Email</span><span>Subject</span><span className="support-col-msg">Message</span><span>Status</span><span>Created At ↓</span>
         </div>
 
         {paged.length === 0 && (
@@ -1034,7 +1151,7 @@ function SupportTicketsPanel() {
             <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 2fr 1fr 1.5fr", padding: "13px 18px", borderBottom: "1px solid rgba(255,255,255,0.03)", alignItems: "center", fontSize: 12 }} className="table-row-hover">
               <span style={{ color: "#cbd5e1", fontFamily: "'DM Mono',monospace" }}>{t.email}</span>
               <span style={{ color: "#94a3b8" }}>{t.subject}</span>
-              <span style={{ color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.message}</span>
+              <span className="support-col-msg" style={{ color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.message}</span>
               <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: sc.bg, color: sc.color }}>{t.status}</span>
               <span style={{ color: "#475569" }}>{t.createdAt}</span>
             </div>
@@ -1062,27 +1179,114 @@ const globalStyles = `
   body { font-family: 'Syne', sans-serif; }
   .table-row-hover:hover { background: rgba(99,102,241,0.05) !important; }
   select option { background: #111827; }
-  @keyframes fadeUp   { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-  @keyframes slideIn  { from { opacity:0; transform:translateX(-6px); } to { opacity:1; transform:translateX(0); } }
+  @keyframes fadeUp  { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes slideIn { from { opacity:0; transform:translateX(-6px); } to { opacity:1; transform:translateX(0); } }
 
-  /* ── Mobile ── */
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.3); border-radius: 4px; }
+
+  /* ── Tablet (≤900px) ── */
+  @media (max-width: 900px) {
+    .admin-sidebar { width: 200px !important; padding: 18px 10px !important; }
+    .admin-content { padding: 16px !important; }
+    .admin-topbar  { padding: 14px 18px !important; }
+    .admin-kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  }
+
+  /* ── Mobile (≤640px) ── */
   @media (max-width: 640px) {
-    .admin-shell { flex-direction: column !important; }
-    .admin-sidebar { width:100% !important; flex-direction:row !important; align-items:center !important; padding:10px 14px !important; border-right:none !important; border-bottom:1px solid rgba(255,255,255,0.06) !important; justify-content:space-between !important; }
-    .admin-sidebar-top { flex-direction:row !important; align-items:center !important; gap:10px !important; }
-    .admin-nav { flex-direction:row !important; gap:4px !important; }
-    .admin-logo-sub { display:none !important; }
-    .admin-content { padding:14px !important; }
-    .admin-topbar { padding:12px 14px !important; flex-wrap:wrap; gap:8px; }
-    .admin-kpi-grid { grid-template-columns:1fr 1fr !important; gap:10px !important; }
-    .admin-table-header { display:none !important; }
-    .admin-table-row { display:flex !important; flex-wrap:wrap !important; gap:6px !important; align-items:center !important; padding:12px !important; }
-    .admin-row-email { display:none !important; }
-    .admin-row-username { flex:1 !important; min-width:0 !important; }
-    .admin-row-balance { font-size:11px !important; }
-    .admin-profile-header { flex-wrap:wrap !important; }
-    .admin-score-controls { flex-wrap:wrap !important; gap:4px !important; }
-    .admin-action-row { flex-direction:column !important; }
+    .admin-shell   { flex-direction: column !important; }
+
+    /* Sidebar becomes a top nav bar */
+    .admin-sidebar {
+      width: 100% !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      padding: 8px 12px !important;
+      border-right: none !important;
+      border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+      justify-content: space-between !important;
+      position: sticky !important;
+      top: 0 !important;
+      z-index: 100 !important;
+    }
+    .admin-sidebar-top {
+      flex-direction: row !important;
+      align-items: center !important;
+      gap: 8px !important;
+      width: 100% !important;
+      overflow-x: auto !important;
+      scrollbar-width: none !important;
+    }
+    .admin-sidebar-top::-webkit-scrollbar { display: none; }
+    .admin-logo-sub { display: none !important; }
+    .admin-nav {
+      flex-direction: row !important;
+      gap: 2px !important;
+      flex-wrap: nowrap !important;
+      overflow-x: auto !important;
+      scrollbar-width: none !important;
+    }
+    .admin-nav::-webkit-scrollbar { display: none; }
+    .admin-nav button { padding: 6px 10px !important; font-size: 11px !important; white-space: nowrap !important; min-width: auto !important; }
+    .admin-nav button span.nav-icon-label { display: none; }
+    .admin-exit-btn { display: none !important; }
+
+    /* Content */
+    .admin-content { padding: 12px !important; }
+    .admin-topbar  { padding: 10px 12px !important; flex-wrap: wrap; gap: 6px; }
+    .admin-page-title { font-size: 16px !important; }
+
+    /* KPI */
+    .admin-kpi-grid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+
+    /* Tables */
+    .admin-table-header { display: none !important; }
+    .admin-table-row {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      gap: 6px !important;
+      align-items: center !important;
+      padding: 10px 12px !important;
+    }
+    .admin-row-email   { display: none !important; }
+    .admin-row-username { flex: 1 !important; min-width: 0 !important; }
+    .admin-row-balance  { font-size: 11px !important; }
+
+    /* Detail / Profile */
+    .admin-profile-header { flex-wrap: wrap !important; }
+    .admin-score-controls { flex-wrap: wrap !important; gap: 4px !important; }
+    .admin-action-row     { flex-direction: column !important; }
+
+    /* Info rows */
+    .admin-info-row { padding: 10px 14px !important; }
+    .admin-info-value { font-size: 12px !important; word-break: break-all !important; }
+
+    /* Requests table — hide some cols */
+    .req-col-email  { display: none !important; }
+    .req-col-trade  { display: none !important; }
+
+    /* Notifications */
+    .notif-send-row { flex-direction: column !important; }
+    .notif-send-row input { width: 100% !important; }
+
+    /* Support tickets — hide message col */
+    .support-col-msg { display: none !important; }
+
+    /* Trade panel */
+    .trade-grid { grid-template-columns: 1fr !important; }
+
+    /* Password row */
+    .pw-change-row { flex-direction: column !important; }
+    .pw-change-row input { width: 100% !important; }
+  }
+
+  /* ── Very small (≤380px) ── */
+  @media (max-width: 380px) {
+    .admin-kpi-grid { grid-template-columns: 1fr !important; }
+    .admin-nav button { padding: 5px 8px !important; font-size: 10px !important; }
   }
 `;
 

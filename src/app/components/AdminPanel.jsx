@@ -1,5 +1,4 @@
 "use client";
-// TEST CHANGE 123
 import { useState, useEffect, useCallback } from "react";
 import { S, PE, COINS, usd, f2 } from "../lib/store";
 import { getAllUsers, updateUserInDB } from "../lib/api";
@@ -157,13 +156,14 @@ function AdminTradePanel({ username, user, onDone }) {
    FULL USER DETAIL  (the big new section)
 ───────────────────────────────────────── */
 function Detail({ sel, ss, disc, rest, del, changeScore, banned, onRefresh }) {
-  if (!sel) return null;
-  // always read freshest data from S.users
-  const u      = S.users?.[sel.username] || sel;
-  if (!u?.username) return null;
-
-  const [dtab, setDtab]     = useState("overview");   // overview | trades | holdings | cards | info
+  // ── All hooks MUST come before any early return ──
+  const [dtab, setDtab]       = useState("overview");   // overview | trades | holdings | cards | info
   const [showTrade, setShowTrade] = useState(false);
+
+  // Guard after hooks — React rules compliant
+  if (!sel) return null;
+  const u = S.users?.[sel.username] || sel;
+  if (!u?.username) return null;
 
   const isBan  = banned.includes(u.username);
   const txs    = u.transactions || [];
@@ -441,6 +441,7 @@ export default function AdminPanel({ onBack, onExit }) {
   const [usersState, setUsersState] = useState({});
   const [banned, setBanned]         = useState(loadBanned);
   const [loading, setLoading]       = useState(true);
+  const [showProfile, setShowProfile] = useState(false);
 
   /* ── fetch (DB first, localStorage fallback — unchanged) ── */
   const fetchUsers = useCallback(async () => {
@@ -537,16 +538,18 @@ export default function AdminPanel({ onBack, onExit }) {
             {/* Divider */}
             <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "8px 0" }} />
 
-            {/* Placeholders matching screenshot structure — space left */}
+            {/* Functional nav items matching screenshots */}
             {[
-              ["Withdrawal Requests","💸"],
-              ["Deposit",           "💰"],
-              ["Notifications",     "🔔"],
-              ["Support Tickets",   "🎫"],
-            ].map(([label, icon]) => (
-              <button key={label} style={{ ...ds.navItem, opacity: 0.38, cursor: "default" }} disabled>
+              ["withdraw",      "Withdrawal Requests", "💸"],
+              ["deposit",       "Deposit",             "💰"],
+              ["notifications", "Notifications",       "🔔"],
+              ["support",       "Support Tickets",     "🎫"],
+            ].map(([id, label, icon]) => (
+              <button key={id} onClick={() => { setTab(id); setSel(null); }}
+                style={{ ...ds.navItem, ...(tab===id ? ds.navActive : {}) }}>
                 <span style={ds.navIcon}>{icon}</span>
                 {label}
+                {tab===id && <span style={ds.navIndicator} />}
               </button>
             ))}
           </nav>
@@ -561,16 +564,55 @@ export default function AdminPanel({ onBack, onExit }) {
         <div style={ds.topbar} className="admin-topbar">
           <div>
             <div style={ds.pageTitle}>
-              {tab === "dash" ? "Hi, Welcome back 👋" : sel ? `@${sel.username}` : "Users"}
+              {tab === "dash"          ? "Hi, Welcome back 👋"
+               : tab === "users"      ? (sel ? `@${sel.username}` : "Users")
+               : tab === "withdraw"   ? "Withdrawal Requests"
+               : tab === "deposit"    ? "Deposit Requests"
+               : tab === "notifications" ? "Notifications"
+               : tab === "support"    ? "Support Tickets"
+               : ""}
             </div>
             <div style={ds.pageSubtitle}>
-              {tab === "dash" ? "Platform overview & analytics" : sel ? "Full user profile" : `${users.length} registered accounts`}
+              {tab === "dash"          ? "Platform overview & analytics"
+               : tab === "users"      ? (sel ? "Full user profile" : `${users.length} registered accounts`)
+               : tab === "withdraw"   ? "Manage pending & closed withdrawal requests"
+               : tab === "deposit"    ? "Manage pending & closed deposit requests"
+               : tab === "notifications" ? "Send and manage platform notifications"
+               : tab === "support"    ? "View and manage support tickets"
+               : ""}
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button onClick={fetchUsers} style={ds.refreshBtn}>↻ Refresh</button>
             <div style={ds.topbarTime}>
               {new Date().toLocaleDateString("en-US", { weekday:"short", month:"short", day:"numeric" })}
+            </div>
+            {/* Profile icon */}
+            <div style={{ position: "relative" }}>
+              <div
+                onClick={() => setShowProfile(p => !p)}
+                style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#6366f1,#3b82f6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800, color: "#fff", cursor: "pointer", border: "2px solid rgba(99,102,241,0.4)", flexShrink: 0 }}
+              >
+                A
+              </div>
+              {showProfile && (
+                <div style={{ position: "absolute", right: 0, top: 44, background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "8px 0", minWidth: 180, zIndex: 999, boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+                  <div style={{ padding: "10px 16px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9" }}>Admin</div>
+                    <div style={{ fontSize: 11, color: "#475569", fontFamily: "'DM Mono',monospace" }}>admin@platform.com</div>
+                  </div>
+                  {[["🏠","Home"],["👤","Profile"],["⚙️","Settings"]].map(([icon,label]) => (
+                    <button key={label} onClick={() => setShowProfile(false)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", background: "transparent", border: "none", color: "#94a3b8", fontFamily: "'Syne',sans-serif", fontSize: 13, cursor: "pointer", textAlign: "left" }}>
+                      <span>{icon}</span>{label}
+                    </button>
+                  ))}
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", marginTop: 4, paddingTop: 4 }}>
+                    <button onClick={exit} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", background: "transparent", border: "none", color: "#ef4444", fontFamily: "'Syne',sans-serif", fontSize: 13, cursor: "pointer", fontWeight: 700, textAlign: "left" }}>
+                      <span>⎋</span> Logout
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -686,7 +728,327 @@ export default function AdminPanel({ onBack, onExit }) {
             />
           </div>
         )}
+
+        {/* ── WITHDRAWAL REQUESTS ── */}
+        {tab === "withdraw" && (
+          <div style={ds.content} className="admin-content">
+            <RequestsTable
+              users={users}
+              type="withdraw"
+              txType="Withdraw"
+            />
+          </div>
+        )}
+
+        {/* ── DEPOSIT REQUESTS ── */}
+        {tab === "deposit" && (
+          <div style={ds.content} className="admin-content">
+            <RequestsTable
+              users={users}
+              type="deposit"
+              txType="Deposit"
+            />
+          </div>
+        )}
+
+        {/* ── NOTIFICATIONS ── */}
+        {tab === "notifications" && (
+          <div style={ds.content} className="admin-content">
+            <NotificationsPanel users={users} />
+          </div>
+        )}
+
+        {/* ── SUPPORT TICKETS ── */}
+        {tab === "support" && (
+          <div style={ds.content} className="admin-content">
+            <SupportTicketsPanel />
+          </div>
+        )}
       </main>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
+   WITHDRAWAL / DEPOSIT REQUESTS TABLE
+───────────────────────────────────────── */
+function RequestsTable({ users, type, txType }) {
+  const [activeTab, setActiveTab]   = useState("pending");
+  const [q, setQ]                   = useState("");
+  const [page, setPage]             = useState(0);
+  const [rowsPerPage]               = useState(5);
+
+  // Flatten all transactions of the given type from all users
+  const allTxns = users.flatMap(u =>
+    (u.transactions || [])
+      .filter(t => t.type === txType)
+      .map(t => ({ ...t, _username: u.username, _email: u.email || "—", _balance: u.balance || 0 }))
+  );
+
+  // "pending" = no status or status==="pending"; "closed" = status==="closed"/"approved"/"rejected"
+  const filtered = allTxns
+    .filter(t => {
+      const isPending = !t.status || t.status === "pending";
+      return activeTab === "pending" ? isPending : !isPending;
+    })
+    .filter(t =>
+      t._username?.toLowerCase().includes(q.toLowerCase()) ||
+      t._email?.toLowerCase().includes(q.toLowerCase())
+    );
+
+  const total = filtered.length;
+  const paged = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+
+  const tabStyle = (id) => ({
+    padding: "8px 20px", border: "none", background: "transparent",
+    fontFamily: "'Syne',sans-serif", fontSize: 13, fontWeight: 700,
+    cursor: "pointer", borderBottom: activeTab === id ? "2px solid #6366f1" : "2px solid transparent",
+    color: activeTab === id ? "#6366f1" : "#64748b", transition: "all .15s",
+  });
+
+  return (
+    <div>
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid rgba(255,255,255,0.06)", marginBottom: 20 }}>
+        <button style={tabStyle("pending")} onClick={() => { setActiveTab("pending"); setPage(0); }}>Pending Requests</button>
+        <button style={tabStyle("closed")}  onClick={() => { setActiveTab("closed");  setPage(0); }}>Closed Requests</button>
+      </div>
+
+      <div style={{ background: "#0b1120", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)", overflow: "hidden" }}>
+        {/* Search */}
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ position: "relative", width: 280 }}>
+            <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#475569", fontSize: 14 }}>⌕</span>
+            <input
+              value={q} onChange={e => { setQ(e.target.value); setPage(0); }}
+              placeholder="Search user..."
+              style={{ width: "100%", padding: "8px 12px 8px 34px", background: "#111827", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#e2e8f0", fontFamily: "'Syne',sans-serif", fontSize: 12, outline: "none" }}
+            />
+          </div>
+          <span style={{ fontSize: 16, color: "#334155" }}>⚙</span>
+        </div>
+
+        {/* Header */}
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr 1.5fr", padding: "10px 18px", background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 10, fontWeight: 700, color: "#334155", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          <span>Name</span><span>Email</span><span>Balance</span><span>Trade</span><span>Update Balance</span>
+        </div>
+
+        {/* Rows */}
+        {paged.length === 0 && (
+          <div style={{ padding: 40, textAlign: "center", color: "#334155", fontSize: 13 }}>No {activeTab} requests found</div>
+        )}
+        {paged.map((t, i) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr 1.5fr", padding: "13px 18px", borderBottom: "1px solid rgba(255,255,255,0.03)", alignItems: "center" }} className="table-row-hover">
+            <span style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, fontWeight: 600, color: "#cbd5e1" }}>
+              <span style={{ width: 28, height: 28, borderRadius: 7, background: "linear-gradient(135deg,#6366f1,#3b82f6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "#fff", flexShrink: 0 }}>
+                {(t._username || "?")[0].toUpperCase()}
+              </span>
+              @{t._username}
+            </span>
+            <span style={{ fontSize: 12, color: "#475569", fontFamily: "'DM Mono',monospace" }}>{t._email}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#22c55e", fontFamily: "'DM Mono',monospace" }}>{usd(t._balance)}</span>
+            <span style={{ fontSize: 12, color: "#94a3b8" }}>{usd(t.usd || 0)}</span>
+            <span style={{ display: "flex", gap: 6 }}>
+              <button style={{ padding: "4px 12px", borderRadius: 6, border: "1px solid rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.1)", color: "#4ade80", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Approve</button>
+              <button style={{ padding: "4px 12px", borderRadius: 6, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.1)", color: "#f87171", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Reject</button>
+            </span>
+          </div>
+        ))}
+
+        {/* Pagination */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.04)", fontSize: 12, color: "#475569" }}>
+          <span>Rows per page: <strong style={{ color: "#94a3b8" }}>{rowsPerPage}</strong></span>
+          <span>{total === 0 ? "0 – 0 of 0" : `${page * rowsPerPage + 1} – ${Math.min((page + 1) * rowsPerPage, total)} of ${total}`}</span>
+          <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} style={{ background: "transparent", border: "none", color: page === 0 ? "#334155" : "#94a3b8", fontSize: 18, cursor: page === 0 ? "not-allowed" : "pointer" }}>‹</button>
+          <button onClick={() => setPage(p => (p + 1) * rowsPerPage < total ? p + 1 : p)} disabled={(page + 1) * rowsPerPage >= total} style={{ background: "transparent", border: "none", color: (page + 1) * rowsPerPage >= total ? "#334155" : "#94a3b8", fontSize: 18, cursor: (page + 1) * rowsPerPage >= total ? "not-allowed" : "pointer" }}>›</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
+   NOTIFICATIONS PANEL
+───────────────────────────────────────── */
+function NotificationsPanel({ users }) {
+  const [title, setTitle]     = useState("");
+  const [message, setMessage] = useState("");
+  const [ntype, setNtype]     = useState("info");
+  const [selUsers, setSelUsers] = useState([]);
+  const [sent, setSent]       = useState(false);
+  const [myNotifs, setMyNotifs] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("admin_notifs") || "[]"); } catch { return []; }
+  });
+
+  const inpStyle = { width: "100%", background: "#111827", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#e2e8f0", outline: "none", fontFamily: "'Syne',sans-serif" };
+
+  const send = () => {
+    if (!title.trim() || !message.trim()) return;
+    const notif = { title: title.trim(), message: message.trim(), type: ntype, users: selUsers, date: new Date().toLocaleString() };
+    const updated = [notif, ...myNotifs];
+    setMyNotifs(updated);
+    localStorage.setItem("admin_notifs", JSON.stringify(updated));
+    setTitle(""); setMessage(""); setSent(true);
+    setTimeout(() => setSent(false), 2000);
+  };
+
+  const deleteNotif = (i) => {
+    const updated = myNotifs.filter((_, idx) => idx !== i);
+    setMyNotifs(updated);
+    localStorage.setItem("admin_notifs", JSON.stringify(updated));
+  };
+
+  const toggleUser = (username) => {
+    setSelUsers(prev => prev.includes(username) ? prev.filter(u => u !== username) : [...prev, username]);
+  };
+
+  return (
+    <div>
+      {/* Create form */}
+      <div style={{ background: "#0b1120", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)", padding: "22px 24px", marginBottom: 28 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 16 }}>Create New Notification</div>
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Notification Title" style={{ ...inpStyle, marginBottom: 10 }} />
+        <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Notification Message" rows={4} style={{ ...inpStyle, marginBottom: 10, resize: "vertical" }} />
+
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11, color: "#475569", marginBottom: 6 }}>Notification Type</div>
+          <select value={ntype} onChange={e => setNtype(e.target.value)} style={{ ...inpStyle }}>
+            {["info","warning","success","error"].map(t => <option key={t} value={t} style={{ background: "#111827" }}>{t}</option>)}
+          </select>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: "#475569", marginBottom: 6 }}>Select Users</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, background: "#111827", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "10px 14px", minHeight: 44 }}>
+            {selUsers.map(u => (
+              <span key={u} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.3)", color: "#a5b4fc", borderRadius: 20, padding: "2px 10px", fontSize: 12 }}>
+                {u}
+                <button onClick={() => toggleUser(u)} style={{ background: "none", border: "none", color: "#a5b4fc", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+              </span>
+            ))}
+            <select onChange={e => { if (e.target.value) toggleUser(e.target.value); e.target.value = ""; }} style={{ background: "transparent", border: "none", color: "#475569", fontFamily: "'Syne',sans-serif", fontSize: 12, cursor: "pointer", outline: "none", minWidth: 80 }}>
+              <option value="">+ Users</option>
+              {users.filter(u => !selUsers.includes(u.username)).map(u => <option key={u.username} value={u.username} style={{ background: "#111827" }}>{u.username}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => setSelUsers(users.map(u => u.username))} style={{ padding: "9px 20px", borderRadius: 8, border: "1px solid rgba(99,102,241,0.3)", background: "rgba(99,102,241,0.1)", color: "#a5b4fc", fontFamily: "'Syne',sans-serif", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            Select All Users
+          </button>
+          <button onClick={send} style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: sent ? "rgba(34,197,94,0.2)" : "linear-gradient(135deg,#6366f1,#3b82f6)", color: sent ? "#4ade80" : "#fff", fontFamily: "'Syne',sans-serif", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all .2s" }}>
+            {sent ? "✓ Sent!" : "Send Notification"}
+          </button>
+        </div>
+      </div>
+
+      {/* My Notifications list */}
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 14 }}>My Notifications</div>
+      {myNotifs.length === 0 && <div style={{ color: "#334155", fontSize: 13, textAlign: "center", padding: 40 }}>No notifications sent yet</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {myNotifs.map((n, i) => (
+          <div key={i} style={{ background: "#0b1120", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", padding: "16px 18px", display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>{n.title}</div>
+              <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>{n.message}</div>
+              <div style={{ fontSize: 10, color: "#334155", marginTop: 6 }}>Type: {n.type} | Created At: {n.date}</div>
+            </div>
+            <button onClick={() => deleteNotif(i)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 16, padding: 4, flexShrink: 0 }}>🗑</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
+   SUPPORT TICKETS PANEL
+───────────────────────────────────────── */
+function SupportTicketsPanel() {
+  const [q, setQ]               = useState("");
+  const [statusFilter, setStatusFilter] = useState("All Statuses");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [page, setPage]         = useState(0);
+  const [rowsPerPage]           = useState(10);
+  const [tickets, setTickets]   = useState(() => {
+    try { return JSON.parse(localStorage.getItem("support_tickets") || "[]"); } catch { return []; }
+  });
+
+  const statuses = ["All Statuses", "Open", "Pending", "Closed"];
+
+  const filtered = tickets.filter(t => {
+    const matchQ = t.email?.toLowerCase().includes(q.toLowerCase()) || t.subject?.toLowerCase().includes(q.toLowerCase());
+    const matchS = statusFilter === "All Statuses" || t.status?.toLowerCase() === statusFilter.toLowerCase();
+    return matchQ && matchS;
+  });
+
+  const total = filtered.length;
+  const paged = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+
+  const statusColor = (s) => {
+    if (s === "open")    return { color: "#4ade80",  bg: "rgba(34,197,94,0.1)"  };
+    if (s === "pending") return { color: "#fbbf24",  bg: "rgba(245,158,11,0.1)" };
+    if (s === "closed")  return { color: "#94a3b8",  bg: "rgba(148,163,184,0.1)"};
+    return { color: "#94a3b8", bg: "rgba(148,163,184,0.1)" };
+  };
+
+  return (
+    <div>
+      {/* Search + filter bar */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12 }}>
+        <div style={{ position: "relative", flex: 1, maxWidth: 400 }}>
+          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#475569", fontSize: 14 }}>⌕</span>
+          <input value={q} onChange={e => { setQ(e.target.value); setPage(0); }} placeholder="Search by user email or subject..."
+            style={{ width: "100%", padding: "8px 12px 8px 34px", background: "#0b1120", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#e2e8f0", fontFamily: "'Syne',sans-serif", fontSize: 12, outline: "none" }} />
+        </div>
+        <div style={{ position: "relative" }}>
+          <button onClick={() => setShowDropdown(d => !d)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "#0b1120", color: "#94a3b8", fontFamily: "'Syne',sans-serif", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+            {statusFilter} ▾
+          </button>
+          {showDropdown && (
+            <div style={{ position: "absolute", right: 0, top: 38, background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, zIndex: 99, minWidth: 140, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}>
+              {statuses.map(s => (
+                <button key={s} onClick={() => { setStatusFilter(s); setShowDropdown(false); setPage(0); }}
+                  style={{ width: "100%", padding: "9px 14px", background: statusFilter===s ? "rgba(99,102,241,0.15)" : "transparent", border: "none", color: statusFilter===s ? "#a5b4fc" : "#94a3b8", fontFamily: "'Syne',sans-serif", fontSize: 12, cursor: "pointer", textAlign: "left", display: "block" }}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ background: "#0b1120", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)", overflow: "hidden" }}>
+        {/* Header */}
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 2fr 1fr 1.5fr", padding: "10px 18px", background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 10, fontWeight: 700, color: "#334155", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          <span>User Email</span><span>Subject</span><span>Message</span><span>Status</span><span>Created At ↓</span>
+        </div>
+
+        {paged.length === 0 && (
+          <div style={{ padding: 40, textAlign: "center", color: "#334155", fontSize: 13 }}>No tickets found</div>
+        )}
+        {paged.map((t, i) => {
+          const sc = statusColor(t.status);
+          return (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 2fr 1fr 1.5fr", padding: "13px 18px", borderBottom: "1px solid rgba(255,255,255,0.03)", alignItems: "center", fontSize: 12 }} className="table-row-hover">
+              <span style={{ color: "#cbd5e1", fontFamily: "'DM Mono',monospace" }}>{t.email}</span>
+              <span style={{ color: "#94a3b8" }}>{t.subject}</span>
+              <span style={{ color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.message}</span>
+              <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: sc.bg, color: sc.color }}>{t.status}</span>
+              <span style={{ color: "#475569" }}>{t.createdAt}</span>
+            </div>
+          );
+        })}
+
+        {/* Pagination */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.04)", fontSize: 12, color: "#475569" }}>
+          <span>Rows per page: <strong style={{ color: "#94a3b8" }}>{rowsPerPage}</strong></span>
+          <span>{total === 0 ? "1–1 of 1" : `${page * rowsPerPage + 1}–${Math.min((page + 1) * rowsPerPage, total)} of ${total}`}</span>
+          <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} style={{ background: "transparent", border: "none", color: page === 0 ? "#334155" : "#94a3b8", fontSize: 18, cursor: page === 0 ? "not-allowed" : "pointer" }}>‹</button>
+          <button onClick={() => setPage(p => (p + 1) * rowsPerPage < total ? p + 1 : p)} disabled={(page + 1) * rowsPerPage >= total} style={{ background: "transparent", border: "none", color: (page + 1) * rowsPerPage >= total ? "#334155" : "#94a3b8", fontSize: 18, cursor: (page + 1) * rowsPerPage >= total ? "not-allowed" : "pointer" }}>›</button>
+        </div>
+      </div>
     </div>
   );
 }

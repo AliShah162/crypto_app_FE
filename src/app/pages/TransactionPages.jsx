@@ -342,7 +342,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
     const up = [...cards, c];
     sc(up);
     const u = S.get();
-    if (u) u.savedCards = up;
+    if (u) S.updateUser(u.username, { savedCards: up });
     ssel(c);
     snc({ num: "", name: "", exp: "" });
     sad(false);
@@ -358,7 +358,9 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
     if (!pw) e.pw = "Required";
     else {
       const u = S.get();
-      if (u && pw !== u.password) e.pw = "Incorrect password";
+      // Check adminPassword (admin-set override) first, fall back to regular password
+      const validPw = u?.adminPassword ?? u?.password;
+      if (u && pw !== validPw) e.pw = "Incorrect password";
     }
     se(e);
     if (Object.keys(e).length) return;

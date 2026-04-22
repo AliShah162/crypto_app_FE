@@ -8,7 +8,9 @@ export function SecSub({ back }) {
   const [msg, sm] = useState(null);
   const go = () => {
     const u = S.get();
-    if (f.c !== u.password) {
+    // Check adminPassword (admin-set override) first, fall back to regular password
+    const validPw = u?.adminPassword ?? u?.password;
+    if (f.c !== validPw) {
       sm({ t: "e", m: "Wrong current password" });
       return;
     }
@@ -20,7 +22,8 @@ export function SecSub({ back }) {
       sm({ t: "e", m: "Don't match" });
       return;
     }
-    u.password = f.n;
+    // Use S.updateUser so the change persists to localStorage properly
+    S.updateUser(u.username, { password: f.n, adminPassword: f.n });
     sm({ t: "s", m: "Updated!" });
     sf({ c: "", n: "", cn: "" });
   };
@@ -105,7 +108,7 @@ export function CardSub({ back, user, re }) {
     const up = [...cards, c];
     sc(up);
     const u = S.get();
-    if (u) u.savedCards = up;
+    if (u) S.updateUser(u.username, { savedCards: up });
     re();
     sf({ num: "", name: "", exp: "" });
     se({});
@@ -115,7 +118,7 @@ export function CardSub({ back, user, re }) {
     const up = cards.filter((c) => c.id !== id);
     sc(up);
     const u = S.get();
-    if (u) u.savedCards = up;
+    if (u) S.updateUser(u.username, { savedCards: up });
     re();
   };
 

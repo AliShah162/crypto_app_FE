@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, startTransition } from "react";
 import { T, S, PE, usd, f2 } from "./lib/store";
 import AdminPanel from "./components/AdminPanel";
 import { WelcomeScreen, SignupScreen, LoginScreen } from "./components/Auth";
@@ -70,18 +70,21 @@ export default function App() {
       );
 
       if (!isBanned) {
-        // ✅ Read role from a tab-isolated sessionStorage key (not localStorage)
-        // so each browser tab tracks its own role independently
         const tabRole =
           sessionStorage.getItem("tabRole") || current.role || "user";
 
-        setUser({ ...current });
-        ss(tabRole === "admin" ? "admin" : "app");
+        // ✅ Wrap in startTransition to avoid "setState synchronously in effect" warning
+        startTransition(() => {
+          setUser({ ...current });
+          ss(tabRole === "admin" ? "admin" : "app");
+        });
         return;
       }
     }
 
-    ss("welcome");
+    startTransition(() => {
+      ss("welcome");
+    });
   }, []);
 
   useEffect(() => {
@@ -93,10 +96,12 @@ export default function App() {
 
       if (!current) {
         if (scr === "app") {
-          setUser(null);
-          ss("login");
-          sp("home");
-          ssb(null);
+          startTransition(() => {
+            setUser(null);
+            ss("login");
+            sp("home");
+            ssb(null);
+          });
         }
         return;
       }
@@ -106,10 +111,12 @@ export default function App() {
 
       if (isBanned) {
         S.setSession(null);
-        setUser(null);
-        ss("login");
-        sp("home");
-        ssb(null);
+        startTransition(() => {
+          setUser(null);
+          ss("login");
+          sp("home");
+          ssb(null);
+        });
         return;
       }
 
@@ -217,16 +224,12 @@ export default function App() {
   const onDep = (amt) => {
     const u = S.get();
     if (!u) return;
-    u.balance = (u.balance || 0) + amt;
-    u.transactions = u.transactions || [];
-    u.transactions.unshift({
-      type: "Deposit",
-      coin: "USD",
-      usd: amt,
-      date: new Date().toISOString().slice(0, 10),
-      up: true,
-    });
-    localStorage.setItem("users", JSON.stringify(S.users));
+    const newBalance = (u.balance || 0) + amt;
+    const newTxns = [
+      { type: "Deposit", coin: "USD", usd: amt, date: new Date().toISOString().slice(0, 10), up: true },
+      ...(u.transactions || []),
+    ];
+    S.updateUser(u.username, { balance: newBalance, transactions: newTxns });
     re();
     addN("Deposit Successful", `${usd(amt)} added to your balance`);
   };
@@ -234,16 +237,12 @@ export default function App() {
   const onWith = (amt) => {
     const u = S.get();
     if (!u) return;
-    u.balance = Math.max(0, (u.balance || 0) - amt);
-    u.transactions = u.transactions || [];
-    u.transactions.unshift({
-      type: "Withdraw",
-      coin: "USD",
-      usd: amt,
-      date: new Date().toISOString().slice(0, 10),
-      up: false,
-    });
-    localStorage.setItem("users", JSON.stringify(S.users));
+    const newBalance = Math.max(0, (u.balance || 0) - amt);
+    const newTxns = [
+      { type: "Withdraw", coin: "USD", usd: amt, date: new Date().toISOString().slice(0, 10), up: false },
+      ...(u.transactions || []),
+    ];
+    S.updateUser(u.username, { balance: newBalance, transactions: newTxns });
     re();
     addN("Withdrawal Requested", `${usd(amt)} being processed`);
   };

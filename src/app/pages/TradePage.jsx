@@ -100,84 +100,59 @@ export default function TradePage({ nav, px, onTrade }) {
   const [qty, sq] = useState("");
   const [done, sd] = useState(null);
   const [err, se] = useState("");
+  const [, forceUpdate] = useState(0); // triggers re-render after buy/sell
 
   const u = S.get();
   const price = px[sel] || 0;
   const hist = PE.h[sel] || [];
-  const open = hist.length > 0 ? hist[Math.max(0, hist.length - 40)].o : price;
-  const prevC = hist.length > 1 ? hist[hist.length - 2].c : price;
-  const hi =
-    hist.length > 0 ? Math.max(...hist.slice(-40).map((c) => c.h)) : price;
-  const lo =
-    hist.length > 0 ? Math.min(...hist.slice(-40).map((c) => c.l)) : price;
-  const chg = price - open,
-    cpct = (chg / open) * 100;
+  // Safe access — hist entries now always have o/h/l/c from fixed PE
+  const open  = hist.length > 0 ? (hist[Math.max(0, hist.length - 40)].o ?? price) : price;
+  const hi    = hist.length > 0 ? Math.max(...hist.slice(-40).map((c) => c.h ?? c.c)) : price;
+  const lo    = hist.length > 0 ? Math.min(...hist.slice(-40).map((c) => c.l ?? c.c)) : price;
+  const chg   = open > 0 ? price - open : 0;
+  const cpct  = open > 0 ? (chg / open) * 100 : 0;
 
   const buy = () => {
     se("");
     const cost = parseFloat(qty) * price;
-    if (!qty || isNaN(cost) || cost <= 0) {
-      se("Enter a valid quantity");
-      return;
-    }
-    if (!u || u.balance < cost) {
-      se(`Need ${usd(cost)}`);
-      return;
-    }
-    u.balance -= cost;
-    u.holdings = u.holdings || {};
-    u.holdings[sel] = (u.holdings[sel] || 0) + parseFloat(qty);
-    u.transactions = u.transactions || [];
-    u.transactions.unshift({
-      type: "Buy",
-      coin: sel,
-      amount: parseFloat(qty),
-      usd: cost,
-      price,
-      date: new Date().toISOString().slice(0, 10),
-      up: true,
-    });
-    if (typeof window !== "undefined") {
-      localStorage.setItem("users", JSON.stringify(S.users));
-    }
+    if (!qty || isNaN(cost) || cost <= 0) { se("Enter a valid quantity"); return; }
+    if (!u || u.balance < cost) { se(`Need ${usd(cost)}`); return; }
+
+    const newBalance  = u.balance - cost;
+    const newHoldings = { ...(u.holdings || {}), [sel]: ((u.holdings || {})[sel] || 0) + parseFloat(qty) };
+    const newTxns     = [
+      { type: "Buy", coin: sel, amount: parseFloat(qty), usd: cost, price, date: new Date().toISOString().slice(0, 10), up: true },
+      ...(u.transactions || []),
+    ];
+    S.updateUser(u.username, { balance: newBalance, holdings: newHoldings, transactions: newTxns });
     onTrade({ action: "Buy", coin: sel, qty: parseFloat(qty), cost });
     sd({ action: "Buy", coin: sel, qty, cost });
     sq("");
+    forceUpdate((n) => n + 1);
   };
 
   const sell = () => {
     se("");
-    const qn = parseFloat(qty),
-      held = (u?.holdings || {})[sel] || 0;
-    if (!qty || isNaN(qn) || qn <= 0) {
-      se("Enter a valid quantity");
-      return;
-    }
-    if (!u || held < qn) {
-      se(`Only hold ${f2(held, 4)} ${sel}`);
-      return;
-    }
-    const proceeds = qn * price;
-    u.balance += proceeds;
-    u.holdings[sel] = held - qn;
-    u.transactions = u.transactions || [];
-    u.transactions.unshift({
-      type: "Sell",
-      coin: sel,
-      amount: qn,
-      usd: proceeds,
-      price,
-      date: new Date().toISOString().slice(0, 10),
-      up: false,
-    });
-    if (typeof window !== "undefined") {
-      localStorage.setItem("users", JSON.stringify(S.users));
-    }
+    const qn   = parseFloat(qty);
+    const held = (u?.holdings || {})[sel] || 0;
+    if (!qty || isNaN(qn) || qn <= 0) { se("Enter a valid quantity"); return; }
+    if (!u || held < qn) { se(`Only hold ${f2(held, 4)} ${sel}`); return; }
+
+    const proceeds    = qn * price;
+    const newBalance  = u.balance + proceeds;
+    const newHoldings = { ...(u.holdings || {}), [sel]: held - qn };
+    const newTxns     = [
+      { type: "Sell", coin: sel, amount: qn, usd: proceeds, price, date: new Date().toISOString().slice(0, 10), up: false },
+      ...(u.transactions || []),
+    ];
+    S.updateUser(u.username, { balance: newBalance, holdings: newHoldings, transactions: newTxns });
     onTrade({ action: "Sell", coin: sel, qty: qn, cost: proceeds });
     sd({ action: "Sell", coin: sel, qty, cost: proceeds });
     sq("");
+    forceUpdate((n) => n + 1);
   };
 
+  const prevC = hist.length > 1 ? (hist[hist.length - 2].c ?? price) : price;
   const holds = Object.entries(u?.holdings || {}).filter(([, v]) => v > 0);
 
   if (done)
@@ -580,7 +555,7 @@ export default function TradePage({ nav, px, onTrade }) {
             <span>≈ {usd((parseFloat(qty) || 0) * price)}</span>
             <span>
               Bal:{" "}
-              <strong style={{ color: T.text }}>{usd(u?.balance || 0)}</strong>
+              <strong style={{ color: T.text }}>{usd(S.get()?.balance ?? u?.balance ?? 0)}</strong>
             </span>
           </div>
         </div>

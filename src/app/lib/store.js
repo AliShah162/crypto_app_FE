@@ -186,11 +186,20 @@ export const PE = {
   h: {},
   cb: [],
 
+  // Build a proper OHLC candle from a close price
+  _candle(open, close, t) {
+    const lo = Math.min(open, close) * (1 - Math.random() * 0.003);
+    const hi = Math.max(open, close) * (1 + Math.random() * 0.003);
+    return { t, o: open, h: hi, l: lo, c: close };
+  },
+
   tick() {
     for (const id in this.p) {
-      this.p[id] = this.p[id] * (1 + (Math.random() - 0.499) * 0.0009);
       if (!this.h[id]) this.h[id] = [];
-      this.h[id].push({ t: Date.now(), c: this.p[id] });
+      const prev = this.h[id].length > 0 ? this.h[id][this.h[id].length - 1].c : this.p[id];
+      const close = prev * (1 + (Math.random() - 0.499) * 0.0009);
+      this.p[id] = close;
+      this.h[id].push(this._candle(prev, close, Date.now()));
       if (this.h[id].length > 120) this.h[id].shift();
     }
     this.cb.forEach((f) => f({ ...this.p }));
@@ -201,8 +210,9 @@ export const PE = {
       this.h[id] = [];
       let v = this.p[id];
       for (let i = 0; i < 80; i++) {
+        const open = v;
         v = v * (1 + (Math.random() - 0.499) * 0.0013);
-        this.h[id].push({ t: Date.now(), c: v });
+        this.h[id].push(this._candle(open, v, Date.now() - (80 - i) * 1500));
       }
     }
     setInterval(() => this.tick(), 1500);

@@ -137,6 +137,10 @@ export default function TradePage({ nav, px, onTrade }) {
       date: new Date().toISOString().slice(0, 10),
       up: true,
     });
+    // persist immediately so admin panel sees it on refresh
+    if (typeof window !== "undefined") {
+      localStorage.setItem("users", JSON.stringify(S.users));
+    }
     onTrade();
     sd({ action: "Buy", coin: sel, qty, cost });
     sq("");
@@ -167,6 +171,10 @@ export default function TradePage({ nav, px, onTrade }) {
       date: new Date().toISOString().slice(0, 10),
       up: false,
     });
+    // persist immediately so admin panel sees it on refresh
+    if (typeof window !== "undefined") {
+      localStorage.setItem("users", JSON.stringify(S.users));
+    }
     onTrade();
     sd({ action: "Sell", coin: sel, qty, cost: proceeds });
     sq("");

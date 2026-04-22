@@ -334,34 +334,32 @@ export function HistoryPage({ user }) {
 }
 
 // ── Profile ────────────────────────────────────────────
-export function ProfilePage({ user, onLogout, onSub }) {
-  const [refresh, setRefresh] = useState(0);
+export function ProfilePage({ user, onLogout, onSub, re }) {
+  const [tick, setTick] = useState(0);
 
-  // ✅ NEW: sync user data from DB every time profile opens
+  // Re-render every 2 seconds to catch balance/trade updates from admin or trades
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 2000);
+    return () => clearInterval(t);
+  }, []);
+
+  // sync from DB once on open
   useEffect(() => {
     async function syncUser() {
       try {
         const res = await getAllUsers();
         if (Array.isArray(res)) {
           const map = {};
-          res.forEach(u => {
-            map[u.username] = u;
-          });
-
+          res.forEach(u => { map[u.username] = u; });
           S.users = map;
-
-          // 🔥 force re-render
-          setRefresh(r => r + 1);
+          setTick(n => n + 1);
         }
-      } catch (e) {
-        console.error("Failed to sync user:", e);
-      }
+      } catch (e) { /* silent */ }
     }
-
     syncUser();
   }, []);
 
-  // ✅ ALWAYS use live store
+  // ALWAYS read from S.users so admin balance changes reflect instantly
   const liveUser = S.users[user?.username] || user;
 
   const isBan = (S.banned || []).includes(user?.username);

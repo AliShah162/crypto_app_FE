@@ -5,20 +5,18 @@ import { getAllUsers, updateUserInDB } from "../lib/api";
 
 const BASE_URL = "https://crypto-backend-production-11dc.up.railway.app";
 
-/* ─── localStorage helpers (unchanged) ─── */
+/* ─── helpers ─── */
 function loadLocalUsers() {
   if (typeof window === "undefined") return {};
   try {
-    const main = JSON.parse(localStorage.getItem("users") || "{}");
-    const out = {};
-    for (const k in main) { if (k !== "admin") out[k] = main[k]; }
-    return out;
+    const m = JSON.parse(localStorage.getItem("users") || "{}");
+    const o = {}; for (const k in m) { if (k !== "admin") o[k] = m[k]; } return o;
   } catch { return {}; }
 }
 function saveUsers(data) {
-  const safe = { ...data }; delete safe["admin"];
-  localStorage.setItem("users", JSON.stringify(safe));
-  S.users = { ...S.users, ...safe };
+  const s = { ...data }; delete s["admin"];
+  localStorage.setItem("users", JSON.stringify(s));
+  S.users = { ...S.users, ...s };
 }
 function loadBanned() {
   if (typeof window === "undefined") return [];
@@ -27,15 +25,14 @@ function loadBanned() {
 }
 function saveBanned(list) { localStorage.setItem("banned", JSON.stringify(list)); S.banned = list; }
 
-/* ─── helpers ─── */
-function txTypeColor(type) {
-  if (type === "Buy")      return { bg:"rgba(34,197,94,0.12)",  text:"#22c55e", border:"rgba(34,197,94,0.25)"  };
-  if (type === "Sell")     return { bg:"rgba(239,68,68,0.12)",  text:"#ef4444", border:"rgba(239,68,68,0.25)"  };
-  if (type === "Deposit")  return { bg:"rgba(59,130,246,0.12)", text:"#60a5fa", border:"rgba(59,130,246,0.25)" };
-  if (type === "Withdraw") return { bg:"rgba(245,158,11,0.12)", text:"#fbbf24", border:"rgba(245,158,11,0.25)" };
-  return                          { bg:"rgba(148,163,184,0.1)", text:"#94a3b8", border:"rgba(148,163,184,0.2)" };
+function typeColor(type) {
+  if (type === "Buy")      return "#22c55e";
+  if (type === "Sell")     return "#ef4444";
+  if (type === "Deposit")  return "#60a5fa";
+  if (type === "Withdraw") return "#f59e0b";
+  return "#94a3b8";
 }
-function txIcon(type) {
+function typeIcon(type) {
   if (type === "Buy")      return "📈";
   if (type === "Sell")     return "📉";
   if (type === "Deposit")  return "💰";
@@ -44,775 +41,732 @@ function txIcon(type) {
 }
 function coinMeta(id) { return COINS.find(c => c.id === id) || { sym: id?.[0]||"?", cl:"#94a3b8", bg:"#1e293b", name: id }; }
 
-/* ═══════════════════════════════════════════════════════
-   ADMIN BALANCE & TRADE CONTROL
-   ─ All operations are LOCAL FIRST (instant to user) ─
-   ─ Then silently tries to sync to DB in background   ─
-═══════════════════════════════════════════════════════ */
-function AdminTradePanel({ username, usersState, setUsersState, onDone }) {
-  const [action, setAction]   = useState("balance"); // balance | buy | sell
-  const [coin, setCoin]       = useState("BTC");
-  const [amount, setAmount]   = useState("");
-  const [balInput, setBalInput] = useState("");
-  const [balMode, setBalMode] = useState("set"); // set | add | subtract
-  const [msg, setMsg]         = useState(null);
-  const [loading, setLoading] = useState(false);
+/* ══════════════════════════════════════════════════════
+   THEME
+══════════════════════════════════════════════════════ */
+const C = {
+  bg:     "#f0f2f5",
+  card:   "#ffffff",
+  sidebar:"#1e2a3a",
+  sideHov:"rgba(255,255,255,0.07)",
+  sideAct:"rgba(99,102,241,0.25)",
+  accent: "#6366f1",
+  accentL:"#818cf8",
+  text:   "#1e293b",
+  sub:    "#64748b",
+  border: "#e2e8f0",
+  green:  "#22c55e",
+  red:    "#ef4444",
+  gold:   "#f59e0b",
+  blue:   "#3b82f6",
+};
 
-  // always read fresh from usersState (passed from parent)
-  const u     = usersState[username] || {};
-  const price = PE.p[coin] || 0;
-  const held  = (u.holdings || {})[coin] || 0;
+/* ══════════════════════════════════════════════════════
+   BALANCE EDITOR  (clean modal-style inline form)
+══════════════════════════════════════════════════════ */
+function BalanceEditor({ username, usersState, setUsersState }) {
+  const [mode, setMode]     = useState("add");   // add | subtract | set
+  const [val, setVal]       = useState("");
+  const [msg, setMsg]       = useState(null);
 
-  /* ── apply locally to S.users + localStorage immediately ── */
-  const applyLocal = (updatedUser) => {
-    S.users[username] = { ...S.users[username], ...updatedUser };
-    const newState = { ...usersState, [username]: { ...usersState[username], ...updatedUser } };
-    setUsersState(newState);
-    saveUsers(newState);
-  };
+  const u      = usersState[username] || {};
+  const now    = new Date().toISOString().slice(0, 10);
 
-  /* ── try to sync to DB in background (non-blocking) ── */
-  const syncDB = async (data) => {
-    try {
-      if (typeof updateUserInDB === "function") {
-        await updateUserInDB(username, data);
-      }
-    } catch (e) { /* silent — local already updated */ }
-  };
-
-  const apply = async () => {
-    setMsg(null); setLoading(true);
-
-    const now = new Date().toISOString().slice(0, 10);
+  const apply = () => {
+    const n = parseFloat(val);
+    if (!val || isNaN(n) || n < 0) { setMsg({ t:"e", m:"Enter a valid positive number." }); return; }
     const fresh = S.users[username] || usersState[username] || {};
+    let newBal  = fresh.balance || 0;
+    let delta   = 0;
+    let note    = "";
+    if (mode === "set")      { delta = n - newBal; newBal = n;                         note = `Admin set balance to ${usd(n)}`; }
+    else if (mode === "add") { delta = n;           newBal += n;                        note = `Admin credited ${usd(n)}`; }
+    else                     { delta = -n;          newBal = Math.max(0, newBal - n);  note = `Admin deducted ${usd(n)}`; }
 
-    /* ────── ADJUST BALANCE ────── */
-    if (action === "balance") {
-      const n = parseFloat(balInput);
-      if (!balInput || isNaN(n)) { setMsg({ t:"e", m:"Enter a valid number." }); setLoading(false); return; }
-
-      let newBal = fresh.balance || 0;
-      let delta  = 0;
-      if (balMode === "set")      { delta = n - newBal; newBal = n; }
-      else if (balMode === "add") { delta = n; newBal += n; }
-      else                        { delta = -Math.min(n, newBal); newBal = Math.max(0, newBal - n); }
-
-      const newTx = {
-        type: "Deposit", coin: "USD",
-        usd: Math.abs(delta),
-        date: now, up: delta >= 0,
-        adminAdded: true,
-        note: balMode === "set" ? `Admin set balance to $${n}` : balMode === "add" ? `Admin added $${n}` : `Admin deducted $${n}`,
-      };
-
-      const updatedUser = {
-        ...fresh,
-        balance: Math.max(0, newBal),
-        transactions: [newTx, ...(fresh.transactions || [])],
-      };
-
-      applyLocal(updatedUser);
-      syncDB({ balance: updatedUser.balance, transactions: updatedUser.transactions });
-      setMsg({ t:"s", m: balMode === "set" ? `✅ Balance set to ${usd(newBal)}` : balMode === "add" ? `✅ Added ${usd(n)} → new balance ${usd(newBal)}` : `✅ Deducted ${usd(Math.min(n, fresh.balance||0))} → new balance ${usd(newBal)}` });
-    }
-
-    /* ────── FORCE BUY ────── */
-    else if (action === "buy") {
-      const qty = parseFloat(amount);
-      if (!qty || qty <= 0) { setMsg({ t:"e", m:"Enter a valid quantity." }); setLoading(false); return; }
-      const cost = qty * price;
-      if ((fresh.balance || 0) < cost) { setMsg({ t:"e", m:`Insufficient balance. User has ${usd(fresh.balance||0)}, trade costs ${usd(cost)}.` }); setLoading(false); return; }
-
-      const newHoldings = { ...(fresh.holdings || {}) };
-      newHoldings[coin] = (newHoldings[coin] || 0) + qty;
-      const newTx = { type:"Buy", coin, amount: qty, usd: cost, price, date: now, up: true, adminAction: true };
-      const updatedUser = {
-        ...fresh,
-        balance: (fresh.balance || 0) - cost,
-        holdings: newHoldings,
-        transactions: [newTx, ...(fresh.transactions || [])],
-      };
-      applyLocal(updatedUser);
-      syncDB({ balance: updatedUser.balance, holdings: updatedUser.holdings, transactions: updatedUser.transactions });
-      setMsg({ t:"s", m:`✅ Forced Buy: ${qty} ${coin} for ${usd(cost)}. New balance: ${usd(updatedUser.balance)}` });
-    }
-
-    /* ────── FORCE SELL ────── */
-    else if (action === "sell") {
-      const qty = parseFloat(amount);
-      if (!qty || qty <= 0) { setMsg({ t:"e", m:"Enter a valid quantity." }); setLoading(false); return; }
-      if (held < qty) { setMsg({ t:"e", m:`User only holds ${f2(held,6)} ${coin}.` }); setLoading(false); return; }
-      const proceeds = qty * price;
-      const newHoldings = { ...(fresh.holdings || {}) };
-      newHoldings[coin] = Math.max(0, (newHoldings[coin] || 0) - qty);
-      const newTx = { type:"Sell", coin, amount: qty, usd: proceeds, price, date: now, up: false, adminAction: true };
-      const updatedUser = {
-        ...fresh,
-        balance: (fresh.balance || 0) + proceeds,
-        holdings: newHoldings,
-        transactions: [newTx, ...(fresh.transactions || [])],
-      };
-      applyLocal(updatedUser);
-      syncDB({ balance: updatedUser.balance, holdings: updatedUser.holdings, transactions: updatedUser.transactions });
-      setMsg({ t:"s", m:`✅ Forced Sell: ${qty} ${coin} for ${usd(proceeds)}. New balance: ${usd(updatedUser.balance)}` });
-    }
-
-    setLoading(false);
-    setAmount(""); setBalInput("");
+    const tx = { type: delta >= 0 ? "Deposit" : "Withdraw", coin:"USD", usd: Math.abs(delta), date: now, up: delta >= 0, adminAdded: true, note };
+    const updated = { ...fresh, balance: Math.max(0, newBal), transactions: [tx, ...(fresh.transactions || [])] };
+    S.users[username] = updated;
+    const ns = { ...usersState, [username]: updated }; setUsersState(ns); saveUsers(ns);
+    try { if (typeof updateUserInDB === "function") updateUserInDB(username, { balance: updated.balance, transactions: updated.transactions }); } catch {}
+    setMsg({ t:"s", m:`Done! New balance: ${usd(Math.max(0, newBal))}` });
+    setVal("");
   };
 
-  const inp = { width:"100%", background:"#111827", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, padding:"9px 12px", fontSize:13, color:"#e2e8f0", outline:"none", fontFamily:"inherit" };
-  const tabBtn = (v, label) => (
-    <button key={v} onClick={() => { setAction(v); setMsg(null); }}
-      style={{ flex:1, padding:"8px 4px", borderRadius:8, border:`1px solid ${action===v?"#6366f1":"rgba(255,255,255,0.07)"}`, fontSize:12, fontWeight:700, cursor:"pointer", background:action===v?"rgba(99,102,241,0.2)":"transparent", color:action===v?"#a5b4fc":"#475569", transition:"all .15s" }}>
+  const preview = () => {
+    const n = parseFloat(val); if (!n || isNaN(n)) return null;
+    const cur = u.balance || 0;
+    const nb  = mode==="set" ? n : mode==="add" ? cur+n : Math.max(0, cur-n);
+    return usd(nb);
+  };
+
+  const btn = (v, label, color) => (
+    <button onClick={() => { setMode(v); setMsg(null); }}
+      style={{ flex:1, padding:"7px 0", borderRadius:7, border:`1.5px solid ${mode===v ? color : C.border}`, fontSize:12, fontWeight:700, cursor:"pointer", background: mode===v ? color+"18" : "transparent", color: mode===v ? color : C.sub, transition:"all .15s" }}>
       {label}
     </button>
   );
 
   return (
-    <div style={{ background:"#0f172a", borderRadius:12, border:"1px solid rgba(99,102,241,0.3)", padding:"18px 20px", marginTop:12 }}>
-      <div style={{ fontSize:11, fontWeight:700, color:"#6366f1", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:14 }}>⚙ Admin Trade & Balance Control</div>
-
-      {/* Action tabs */}
-      <div style={{ display:"flex", gap:6, marginBottom:16 }}>
-        {tabBtn("balance","💰 Adjust Balance")}
-        {tabBtn("buy","📈 Force Buy")}
-        {tabBtn("sell","📉 Force Sell")}
+    <div style={{ background: C.card, borderRadius:14, border:`1px solid ${C.border}`, padding:"20px 22px", boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+      <div style={{ fontSize:13, fontWeight:800, color:C.text, marginBottom:14 }}>💰 Adjust User Balance</div>
+      <div style={{ display:"flex", gap:6, marginBottom:14 }}>
+        {btn("add",    "＋ Add",      C.green)}
+        {btn("subtract","− Deduct",   C.red)}
+        {btn("set",    "= Set Exact", C.accent)}
       </div>
-
-      {/* ── BALANCE PANEL ── */}
-      {action === "balance" && (
-        <div>
-          <div style={{ display:"flex", gap:6, marginBottom:12 }}>
-            {[["set","Set Exact"],["add","Add"],["subtract","Deduct"]].map(([v,l]) => (
-              <button key={v} onClick={() => setBalMode(v)}
-                style={{ flex:1, padding:"6px 4px", borderRadius:7, border:`1px solid ${balMode===v?"#22c55e":"rgba(255,255,255,0.07)"}`, fontSize:11, fontWeight:700, cursor:"pointer", background:balMode===v?"rgba(34,197,94,0.15)":"transparent", color:balMode===v?"#4ade80":"#475569" }}>
-                {l}
-              </button>
-            ))}
-          </div>
-          <div style={{ marginBottom:8 }}>
-            <div style={{ fontSize:11, color:"#64748b", marginBottom:5 }}>
-              {balMode==="set" ? "New balance amount ($)" : balMode==="add" ? "Amount to add ($)" : "Amount to deduct ($)"}
-            </div>
-            <input style={inp} type="number" min="0" placeholder="e.g. 5000" value={balInput} onChange={e => setBalInput(e.target.value)} />
-          </div>
-          <div style={{ fontSize:12, color:"#334155", marginTop:4 }}>
-            Current balance: <span style={{ color:"#22c55e", fontWeight:700 }}>{usd(u.balance||0)}</span>
-            {balInput && !isNaN(parseFloat(balInput)) && (
-              <span style={{ color:"#94a3b8", marginLeft:8 }}>→ will become: <span style={{ color:"#f1f5f9", fontWeight:700 }}>{
-                balMode==="set" ? usd(parseFloat(balInput)) :
-                balMode==="add" ? usd((u.balance||0) + parseFloat(balInput)) :
-                usd(Math.max(0, (u.balance||0) - parseFloat(balInput)))
-              }</span></span>
-            )}
-          </div>
+      <div style={{ display:"flex", gap:8 }}>
+        <div style={{ position:"relative", flex:1 }}>
+          <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", fontSize:14, color:C.sub, fontWeight:700 }}>$</span>
+          <input type="number" min="0" placeholder="0.00" value={val}
+            onChange={e => { setVal(e.target.value); setMsg(null); }}
+            style={{ width:"100%", padding:"10px 12px 10px 26px", border:`1.5px solid ${C.border}`, borderRadius:9, fontSize:14, color:C.text, outline:"none", fontFamily:"inherit", background:"#f8fafc" }} />
         </div>
-      )}
-
-      {/* ── BUY / SELL PANEL ── */}
-      {(action === "buy" || action === "sell") && (
-        <div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-            <div>
-              <div style={{ fontSize:11, color:"#64748b", marginBottom:5 }}>Coin</div>
-              <select style={{ ...inp, cursor:"pointer" }} value={coin} onChange={e => setCoin(e.target.value)}>
-                {COINS.map(c => <option key={c.id} value={c.id} style={{ background:"#111827" }}>{c.id} — {c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <div style={{ fontSize:11, color:"#64748b", marginBottom:5 }}>Quantity</div>
-              <input style={inp} type="number" min="0" placeholder="e.g. 0.5" value={amount} onChange={e => setAmount(e.target.value)} />
-            </div>
-          </div>
-          <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"#475569", marginBottom:4 }}>
-            <span>Live price: <strong style={{ color:"#f1f5f9" }}>{usd(price)}</strong></span>
-            <span>User holds: <strong style={{ color:"#f1f5f9" }}>{f2(held,6)} {coin}</strong></span>
-          </div>
-          {amount && !isNaN(parseFloat(amount)) && (
-            <div style={{ fontSize:12, fontWeight:700, color: action==="buy"?"#22c55e":"#ef4444", marginTop:4 }}>
-              {action==="buy" ? "Cost from balance:" : "Credits to balance:"} {usd((parseFloat(amount)||0)*price)}
-            </div>
-          )}
-          <div style={{ fontSize:11, color:"#334155", marginTop:6 }}>
-            User balance: <span style={{ color:"#22c55e", fontWeight:700 }}>{usd(u.balance||0)}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Result message */}
+        <button onClick={apply}
+          style={{ padding:"10px 20px", borderRadius:9, border:"none", background:C.accent, color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+          Apply
+        </button>
+      </div>
+      <div style={{ marginTop:8, fontSize:12, color:C.sub }}>
+        Current: <strong style={{ color:C.text }}>{usd(u.balance||0)}</strong>
+        {preview() && <span style={{ marginLeft:8 }}>→ <strong style={{ color: mode==="subtract"?C.red:C.green }}>{preview()}</strong></span>}
+      </div>
       {msg && (
-        <div style={{ fontSize:12, color:msg.t==="s"?"#22c55e":"#ef4444", background:msg.t==="s"?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)", borderRadius:8, padding:"10px 13px", marginTop:12, lineHeight:1.5 }}>
-          {msg.m}
+        <div style={{ marginTop:10, padding:"9px 12px", borderRadius:8, fontSize:12, fontWeight:600, background: msg.t==="s"?C.green+"15":C.red+"15", color: msg.t==="s"?C.green:C.red, border:`1px solid ${msg.t==="s"?C.green+"30":C.red+"30"}` }}>
+          {msg.t==="s" ? "✅ " : "❌ "}{msg.m}
         </div>
       )}
-
-      {/* Apply button */}
-      <button onClick={apply} disabled={loading}
-        style={{ marginTop:14, width:"100%", padding:"11px 0", borderRadius:9, border:"none", background:loading?"#1e293b":"linear-gradient(135deg,#6366f1,#3b82f6)", color:"#fff", fontSize:13, fontWeight:800, cursor:loading?"not-allowed":"pointer", fontFamily:"inherit", letterSpacing:"0.02em" }}>
-        {loading ? "Applying…" : action==="balance" ? "💰 Apply Balance Change" : action==="buy" ? "📈 Force Buy" : "📉 Force Sell"}
-      </button>
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════
-   FULL USER DETAIL
-═══════════════════════════════════════════════════════ */
-function Detail({ sel, ss, disc, rest, del, changeScore, banned, usersState, setUsersState, onRefresh }) {
-  if (!sel) return null;
-  const u = usersState[sel.username] || S.users?.[sel.username] || sel;
-  if (!u?.username) return null;
+/* ══════════════════════════════════════════════════════
+   FORCE TRADE PANEL
+══════════════════════════════════════════════════════ */
+function ForceTradePanel({ username, usersState, setUsersState }) {
+  const [action, setAction] = useState("buy");
+  const [coin, setCoin]     = useState("BTC");
+  const [qty, setQty]       = useState("");
+  const [msg, setMsg]       = useState(null);
 
-  const [dtab, setDtab]         = useState("overview");
-  const [showTrade, setShowTrade] = useState(false);
+  const u     = usersState[username] || {};
+  const price = PE.p[coin] || 0;
+  const held  = (u.holdings || {})[coin] || 0;
+  const now   = new Date().toISOString().slice(0, 10);
 
-  const isBan  = banned.includes(u.username);
-  const txs    = u.transactions || [];
-  const cards  = u.savedCards   || [];
-  const deps   = txs.filter(t => t.type==="Deposit").reduce((s,t)=>s+(t.usd||0),0);
-  const wths   = txs.filter(t => t.type==="Withdraw").reduce((s,t)=>s+(t.usd||0),0);
-  const buys   = txs.filter(t => t.type==="Buy");
-  const sells  = txs.filter(t => t.type==="Sell");
-  const hVal   = Object.entries(u.holdings||{}).reduce((s,[id,q])=>s+q*(PE.p[id]||0),0);
-  const score  = u.creditScore ?? 50;
-  const scoreC = score>=70?"#22c55e":score>=40?"#f59e0b":"#ef4444";
+  const apply = () => {
+    const q = parseFloat(qty);
+    if (!q || q <= 0) { setMsg({ t:"e", m:"Enter a valid quantity." }); return; }
+    const fresh = S.users[username] || usersState[username] || {};
+    let updated;
 
-  const pill = (t, label) => (
-    <button onClick={() => setDtab(t)}
-      style={{ padding:"7px 14px", borderRadius:20, fontSize:11, fontWeight:700, cursor:"pointer", border:`1px solid ${dtab===t?"#6366f1":"rgba(255,255,255,0.07)"}`, background:dtab===t?"rgba(99,102,241,0.18)":"transparent", color:dtab===t?"#a5b4fc":"#475569", transition:"all .15s", whiteSpace:"nowrap" }}>
-      {label}
-    </button>
-  );
+    if (action === "buy") {
+      const cost = q * price;
+      if ((fresh.balance || 0) < cost) { setMsg({ t:"e", m:`User only has ${usd(fresh.balance||0)}. Trade costs ${usd(cost)}.` }); return; }
+      const newH = { ...(fresh.holdings||{}), [coin]: ((fresh.holdings||{})[coin]||0) + q };
+      const tx   = { type:"Buy", coin, amount:q, usd:cost, price, date:now, up:true, adminAction:true };
+      updated    = { ...fresh, balance:(fresh.balance||0)-cost, holdings:newH, transactions:[tx,...(fresh.transactions||[])] };
+      setMsg({ t:"s", m:`Bought ${q} ${coin} for ${usd(cost)}. New balance: ${usd(updated.balance)}` });
+    } else {
+      if (held < q) { setMsg({ t:"e", m:`User only holds ${f2(held,6)} ${coin}.` }); return; }
+      const proceeds = q * price;
+      const newH     = { ...(fresh.holdings||{}), [coin]: Math.max(0, held - q) };
+      const tx       = { type:"Sell", coin, amount:q, usd:proceeds, price, date:now, up:false, adminAction:true };
+      updated        = { ...fresh, balance:(fresh.balance||0)+proceeds, holdings:newH, transactions:[tx,...(fresh.transactions||[])] };
+      setMsg({ t:"s", m:`Sold ${q} ${coin} for ${usd(proceeds)}. New balance: ${usd(updated.balance)}` });
+    }
+
+    S.users[username] = updated;
+    const ns = { ...usersState, [username]: updated }; setUsersState(ns); saveUsers(ns);
+    try { if (typeof updateUserInDB === "function") updateUserInDB(username, { balance: updated.balance, holdings: updated.holdings, transactions: updated.transactions }); } catch {}
+    setQty("");
+  };
 
   return (
-    <div style={{ animation:"fadeIn .3s ease both" }}>
-      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
-
-      <button onClick={() => ss(null)} style={{ background:"transparent", border:"1px solid rgba(255,255,255,0.08)", color:"#64748b", fontFamily:"inherit", fontSize:12, fontWeight:600, padding:"7px 16px", borderRadius:8, cursor:"pointer", marginBottom:20 }}>
-        ← Back to Users
-      </button>
-
-      {/* ── PROFILE HEADER CARD ── */}
-      <div style={{ background:"#0b1120", borderRadius:16, border:"1px solid rgba(255,255,255,0.06)", overflow:"hidden", marginBottom:14 }}>
-        <div style={{ height:4, background: isBan?"linear-gradient(90deg,#ef4444,#f97316)":"linear-gradient(90deg,#6366f1,#3b82f6,#22c55e)" }} />
-        <div style={{ padding:"20px 24px", display:"flex", alignItems:"flex-start", gap:16, flexWrap:"wrap" }} className="admin-profile-header">
-          <div style={{ width:56, height:56, borderRadius:14, background:"linear-gradient(135deg,#6366f1,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, fontWeight:900, color:"#fff", flexShrink:0 }}>
-            {u.username[0].toUpperCase()}
-          </div>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:18, fontWeight:800, color:"#f1f5f9" }}>@{u.username}</div>
-            <div style={{ fontSize:12, color:"#475569", marginTop:2, fontFamily:"'DM Mono',monospace" }}>{u.email||"—"}</div>
-            {u.fullName && <div style={{ fontSize:12, color:"#94a3b8", marginTop:3 }}>👤 {u.fullName}</div>}
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:6 }}>
-              {u.phone   && <span style={{ fontSize:11, color:"#64748b", background:"rgba(255,255,255,0.04)", padding:"2px 8px", borderRadius:20 }}>📞 {u.phone}</span>}
-              {u.country && <span style={{ fontSize:11, color:"#64748b", background:"rgba(255,255,255,0.04)", padding:"2px 8px", borderRadius:20 }}>🌍 {u.country}</span>}
-              {u.dob     && <span style={{ fontSize:11, color:"#64748b", background:"rgba(255,255,255,0.04)", padding:"2px 8px", borderRadius:20 }}>🎂 {u.dob}</span>}
-            </div>
-          </div>
-          <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 12px", borderRadius:20, fontSize:11, fontWeight:700, letterSpacing:"0.06em", textTransform:"uppercase", ...(isBan?{background:"rgba(239,68,68,0.12)",color:"#f87171",border:"1px solid rgba(239,68,68,0.25)"}:{background:"rgba(34,197,94,0.12)",color:"#4ade80",border:"1px solid rgba(34,197,94,0.25)"}) }}>
-            <span style={{ width:6, height:6, borderRadius:"50%", background:isBan?"#ef4444":"#22c55e" }} />
-            {isBan?"BANNED":"ACTIVE"}
-          </span>
-        </div>
-
-        {/* Quick stats row */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))", gap:1, background:"rgba(255,255,255,0.03)", borderTop:"1px solid rgba(255,255,255,0.05)" }}>
-          {[
-            ["Cash Balance",   usd(u.balance||0), "#22c55e"],
-            ["Holdings",       usd(hVal),          "#f59e0b"],
-            ["Total Deposits", usd(deps),          "#60a5fa"],
-            ["Withdrawals",    usd(wths),          "#f87171"],
-            ["Buy Trades",     buys.length,        "#a5b4fc"],
-            ["Sell Trades",    sells.length,       "#fb923c"],
-            ["All Txns",       txs.length,         "#94a3b8"],
-            ["Cards",          cards.length,       "#34d399"],
-          ].map(([label, value, color]) => (
-            <div key={label} style={{ padding:"13px 16px", background:"#0b1120" }}>
-              <div style={{ fontSize:9, color:"#475569", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4 }}>{label}</div>
-              <div style={{ fontSize:14, fontWeight:800, color, fontFamily:"'DM Mono',monospace" }}>{value}</div>
-            </div>
-          ))}
-        </div>
+    <div style={{ background: C.card, borderRadius:14, border:`1px solid ${C.border}`, padding:"20px 22px", boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+      <div style={{ fontSize:13, fontWeight:800, color:C.text, marginBottom:14 }}>⚙ Force Trade</div>
+      <div style={{ display:"flex", gap:6, marginBottom:14 }}>
+        <button onClick={() => { setAction("buy"); setMsg(null); }}
+          style={{ flex:1, padding:"7px 0", borderRadius:7, border:`1.5px solid ${action==="buy"?C.green:C.border}`, fontSize:12, fontWeight:700, cursor:"pointer", background:action==="buy"?C.green+"15":"transparent", color:action==="buy"?C.green:C.sub }}>
+          📈 Force Buy
+        </button>
+        <button onClick={() => { setAction("sell"); setMsg(null); }}
+          style={{ flex:1, padding:"7px 0", borderRadius:7, border:`1.5px solid ${action==="sell"?C.red:C.border}`, fontSize:12, fontWeight:700, cursor:"pointer", background:action==="sell"?C.red+"15":"transparent", color:action==="sell"?C.red:C.sub }}>
+          📉 Force Sell
+        </button>
       </div>
-
-      {/* ── TABS ── */}
-      <div style={{ display:"flex", gap:6, overflowX:"auto", marginBottom:14, paddingBottom:2, scrollbarWidth:"none" }}>
-        {pill("overview","⬡ Overview")}
-        {pill("trades",`📊 Trades (${txs.length})`)}
-        {pill("holdings","💼 Holdings")}
-        {pill("cards",`💳 Cards (${cards.length})`)}
-        {pill("info","👤 Info")}
-      </div>
-
-      {/* ══ OVERVIEW ══ */}
-      {dtab === "overview" && (
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
         <div>
-          {/* Credit score */}
-          <div style={{ background:"#0b1120", borderRadius:12, border:"1px solid rgba(255,255,255,0.06)", padding:"18px 22px", marginBottom:12 }}>
-            <div style={{ fontSize:10, color:"#475569", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Credit Score</div>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
-              <div style={{ fontSize:36, fontWeight:900, color:scoreC, fontFamily:"'DM Mono',monospace" }}>
-                {score}<span style={{ fontSize:16, color:"#334155", fontWeight:400 }}>/100</span>
+          <div style={{ fontSize:11, color:C.sub, fontWeight:600, marginBottom:4 }}>Coin</div>
+          <select value={coin} onChange={e => setCoin(e.target.value)}
+            style={{ width:"100%", padding:"9px 10px", border:`1.5px solid ${C.border}`, borderRadius:9, fontSize:13, color:C.text, outline:"none", fontFamily:"inherit", background:"#f8fafc", cursor:"pointer" }}>
+            {COINS.map(c => <option key={c.id} value={c.id}>{c.id} — {c.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{ fontSize:11, color:C.sub, fontWeight:600, marginBottom:4 }}>Quantity</div>
+          <input type="number" min="0" placeholder="e.g. 0.5" value={qty}
+            onChange={e => { setQty(e.target.value); setMsg(null); }}
+            style={{ width:"100%", padding:"9px 10px", border:`1.5px solid ${C.border}`, borderRadius:9, fontSize:13, color:C.text, outline:"none", fontFamily:"inherit", background:"#f8fafc" }} />
+        </div>
+      </div>
+      <div style={{ fontSize:12, color:C.sub, marginBottom:12, display:"flex", justifyContent:"space-between" }}>
+        <span>Live price: <strong style={{ color:C.text }}>{usd(price)}</strong></span>
+        <span>Holds: <strong style={{ color:C.text }}>{f2(held,4)} {coin}</strong></span>
+        <span>Balance: <strong style={{ color:C.green }}>{usd(u.balance||0)}</strong></span>
+      </div>
+      {qty && !isNaN(parseFloat(qty)) && (
+        <div style={{ fontSize:12, fontWeight:700, color:action==="buy"?C.green:C.red, marginBottom:10 }}>
+          {action==="buy"?"Cost:":"Credits:"} {usd((parseFloat(qty)||0)*price)}
+        </div>
+      )}
+      <button onClick={apply}
+        style={{ width:"100%", padding:"10px 0", borderRadius:9, border:"none", background:action==="buy"?C.green:C.red, color:"#fff", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+        {action==="buy"?"📈 Execute Buy":"📉 Execute Sell"}
+      </button>
+      {msg && (
+        <div style={{ marginTop:10, padding:"9px 12px", borderRadius:8, fontSize:12, fontWeight:600, background:msg.t==="s"?C.green+"15":C.red+"15", color:msg.t==="s"?C.green:C.red, border:`1px solid ${msg.t==="s"?C.green+"30":C.red+"30"}` }}>
+          {msg.t==="s"?"✅ ":"❌ "}{msg.m}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
+   USER DETAIL DRAWER  (slides in from right on click)
+══════════════════════════════════════════════════════ */
+function UserDrawer({ username, usersState, setUsersState, banned, changeScore, disc, rest, del, onClose }) {
+  const [tab, setTab] = useState("overview");
+  const u      = usersState[username] || S.users?.[username] || {};
+  const isBan  = banned.includes(username);
+  const txs    = u.transactions || [];
+  const cards  = u.savedCards   || [];
+  const hVal   = Object.entries(u.holdings||{}).reduce((s,[id,q])=>s+q*(PE.p[id]||0),0);
+  const deps   = txs.filter(t=>t.type==="Deposit").reduce((s,t)=>s+(t.usd||0),0);
+  const wths   = txs.filter(t=>t.type==="Withdraw").reduce((s,t)=>s+(t.usd||0),0);
+  const buys   = txs.filter(t=>t.type==="Buy").length;
+  const sells  = txs.filter(t=>t.type==="Sell").length;
+  const score  = u.creditScore ?? 50;
+  const sc     = score>=70?C.green:score>=40?C.gold:C.red;
+
+  const tabs = [
+    ["overview","Overview"],
+    ["balance","Balance"],
+    ["trades","Trades"],
+    ["holdings","Holdings"],
+    ["cards","Cards"],
+    ["info","Info"],
+  ];
+
+  return (
+    <div style={{ position:"fixed", top:0, right:0, bottom:0, width:"min(520px,100vw)", background:C.bg, boxShadow:"-4px 0 32px rgba(0,0,0,0.14)", zIndex:1000, display:"flex", flexDirection:"column", overflowY:"auto" }}>
+      {/* Header */}
+      <div style={{ background:C.sidebar, padding:"20px 22px", display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
+        <button onClick={onClose} style={{ background:"rgba(255,255,255,0.1)", border:"none", borderRadius:8, width:34, height:34, cursor:"pointer", fontSize:18, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>←</button>
+        <div style={{ width:42, height:42, borderRadius:11, background:"linear-gradient(135deg,#6366f1,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, fontWeight:900, color:"#fff", flexShrink:0 }}>
+          {username[0].toUpperCase()}
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:16, fontWeight:800, color:"#fff" }}>@{username}</div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>{u.email||"—"}</div>
+        </div>
+        <span style={{ fontSize:10, fontWeight:700, padding:"4px 10px", borderRadius:20, ...(isBan?{background:"rgba(239,68,68,0.2)",color:"#f87171"}:{background:"rgba(34,197,94,0.2)",color:"#4ade80"}) }}>
+          {isBan?"BANNED":"ACTIVE"}
+        </span>
+      </div>
+
+      {/* Quick stats */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:`1px solid ${C.border}` }}>
+        {[["Balance",usd(u.balance||0),C.green],["Holdings",usd(hVal),C.gold],["Buys",buys,C.accent],["Sells",sells,C.red]].map(([l,v,c])=>(
+          <div key={l} style={{ padding:"12px 10px", textAlign:"center", borderRight:`1px solid ${C.border}` }}>
+            <div style={{ fontSize:14, fontWeight:800, color:c }}>{v}</div>
+            <div style={{ fontSize:10, color:C.sub, marginTop:2, fontWeight:600 }}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tab bar */}
+      <div style={{ display:"flex", overflowX:"auto", background:"#fff", borderBottom:`1px solid ${C.border}`, scrollbarWidth:"none", flexShrink:0 }}>
+        {tabs.map(([t,l])=>(
+          <button key={t} onClick={()=>setTab(t)}
+            style={{ padding:"11px 16px", border:"none", borderBottom:`2.5px solid ${tab===t?C.accent:"transparent"}`, background:"transparent", fontSize:12, fontWeight:700, color:tab===t?C.accent:C.sub, cursor:"pointer", whiteSpace:"nowrap", fontFamily:"inherit" }}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div style={{ flex:1, padding:"18px 20px", overflowY:"auto" }}>
+
+        {/* ── OVERVIEW ── */}
+        {tab==="overview" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            {/* Credit score */}
+            <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"16px 18px" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+                <div style={{ fontSize:12, fontWeight:700, color:C.sub, textTransform:"uppercase", letterSpacing:"0.06em" }}>Credit Score</div>
+                <div style={{ fontSize:22, fontWeight:900, color:sc }}>{score}<span style={{ fontSize:12, color:C.sub, fontWeight:400 }}>/100</span></div>
               </div>
-              <div style={{ display:"flex", gap:6 }} className="admin-score-controls">
-                {[[-5,"#ef4444"],[-1,"#f97316"],[+1,"#22c55e"],[+5,"#3b82f6"]].map(([d,c]) => (
-                  <button key={d} onClick={() => changeScore(u.username, d)}
-                    style={{ width:38, height:32, borderRadius:7, background:"transparent", border:`1px solid ${c}`, color:c, fontFamily:"'DM Mono',monospace", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+              <div style={{ height:8, background:C.border, borderRadius:8, overflow:"hidden" }}>
+                <div style={{ width:`${score}%`, height:"100%", background:sc, borderRadius:8, transition:"width .4s" }} />
+              </div>
+              <div style={{ display:"flex", gap:6, marginTop:12 }}>
+                {[[-5,C.red],[-1,C.gold],[+1,C.green],[+5,C.blue]].map(([d,c])=>(
+                  <button key={d} onClick={()=>changeScore(username,d)}
+                    style={{ flex:1, padding:"6px 0", borderRadius:7, border:`1.5px solid ${c}`, background:c+"15", color:c, fontSize:12, fontWeight:700, cursor:"pointer" }}>
                     {d>0?`+${d}`:d}
                   </button>
                 ))}
               </div>
             </div>
-            <div style={{ height:6, background:"rgba(255,255,255,0.05)", borderRadius:6, marginTop:14, overflow:"hidden" }}>
-              <div style={{ width:`${score}%`, height:"100%", background:scoreC, borderRadius:6, transition:"width .4s ease" }} />
-            </div>
-          </div>
 
-          {/* Admin control toggle */}
-          <div style={{ background:"#0b1120", borderRadius:12, border:"1px solid rgba(99,102,241,0.25)", padding:"14px 18px", marginBottom:12 }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <div style={{ fontSize:12, fontWeight:700, color:"#a5b4fc" }}>⚙ Admin Trade & Balance Control</div>
-              <button onClick={() => setShowTrade(v=>!v)}
-                style={{ padding:"5px 14px", borderRadius:7, border:"1px solid rgba(99,102,241,0.3)", background:"rgba(99,102,241,0.1)", color:"#a5b4fc", fontSize:11, fontWeight:700, cursor:"pointer" }}>
-                {showTrade?"Hide":"Open"}
-              </button>
-            </div>
-            {showTrade && (
-              <AdminTradePanel
-                username={u.username}
-                usersState={usersState}
-                setUsersState={setUsersState}
-                onDone={() => { setShowTrade(false); if (onRefresh) onRefresh(); }}
-              />
-            )}
-          </div>
-
-          {/* Actions */}
-          <div style={{ display:"flex", gap:10, flexWrap:"wrap" }} className="admin-action-row">
-            {!isBan
-              ? <button onClick={() => disc(u.username)} style={{ flex:1, minWidth:120, padding:"11px 0", borderRadius:9, border:"1px solid rgba(245,158,11,0.35)", background:"rgba(245,158,11,0.12)", color:"#fbbf24", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🚫 Ban User</button>
-              : <button onClick={() => rest(u.username)} style={{ flex:1, minWidth:120, padding:"11px 0", borderRadius:9, border:"1px solid rgba(34,197,94,0.35)", background:"rgba(34,197,94,0.12)", color:"#4ade80", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✅ Unban User</button>}
-            <button onClick={() => del(u.username)} style={{ flex:1, minWidth:120, padding:"11px 0", borderRadius:9, border:"1px solid rgba(239,68,68,0.35)", background:"rgba(239,68,68,0.12)", color:"#f87171", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑 Delete Account</button>
-          </div>
-        </div>
-      )}
-
-      {/* ══ TRADE HISTORY ══ */}
-      {dtab === "trades" && (
-        <div style={{ background:"#0b1120", borderRadius:12, border:"1px solid rgba(255,255,255,0.06)", overflow:"hidden" }}>
-          <div style={{ display:"grid", gridTemplateColumns:"38px 90px 1fr 95px 95px 75px", padding:"10px 16px", borderBottom:"1px solid rgba(255,255,255,0.06)", fontSize:10, fontWeight:700, color:"#334155", textTransform:"uppercase", letterSpacing:"0.07em" }}>
-            <span/><span>Type</span><span>Detail</span><span style={{textAlign:"right"}}>Qty</span><span style={{textAlign:"right"}}>USD</span><span style={{textAlign:"right"}}>Date</span>
-          </div>
-          {txs.length === 0 && <div style={{ padding:40, textAlign:"center", color:"#334155", fontSize:13 }}>No transactions yet</div>}
-          {txs.map((tx,i) => {
-            const colors = txTypeColor(tx.type);
-            return (
-              <div key={i} style={{ display:"grid", gridTemplateColumns:"38px 90px 1fr 95px 95px 75px", padding:"11px 16px", borderBottom:"1px solid rgba(255,255,255,0.03)", alignItems:"center" }} className="table-row-hover">
-                <span style={{ fontSize:16 }}>{txIcon(tx.type)}</span>
-                <span>
-                  <span style={{ fontSize:11, fontWeight:700, padding:"3px 8px", borderRadius:20, background:colors.bg, color:colors.text, border:`1px solid ${colors.border}` }}>{tx.type}</span>
-                  {tx.adminAction && <div style={{ fontSize:9, color:"#6366f1", marginTop:2 }}>🔧 admin</div>}
-                  {tx.adminAdded  && <div style={{ fontSize:9, color:"#22c55e", marginTop:2 }}>💰 admin</div>}
-                </span>
-                <span>
-                  <div style={{ fontSize:12, fontWeight:700, color:"#cbd5e1" }}>{tx.coin||"USD"}</div>
-                  {tx.amount && <div style={{ fontSize:10, color:"#475569" }}>{f2(tx.amount,6)} @ {usd(tx.price||0)}</div>}
-                  {tx.note   && <div style={{ fontSize:10, color:"#475569", fontStyle:"italic" }}>{tx.note}</div>}
-                </span>
-                <span style={{ fontSize:12, fontWeight:700, color:tx.up?"#22c55e":"#ef4444", textAlign:"right", fontFamily:"'DM Mono',monospace" }}>
-                  {tx.amount ? f2(tx.amount,4) : "—"}
-                </span>
-                <span style={{ fontSize:12, fontWeight:700, color:"#f1f5f9", textAlign:"right", fontFamily:"'DM Mono',monospace" }}>{usd(tx.usd||0)}</span>
-                <span style={{ fontSize:10, color:"#475569", textAlign:"right" }}>{tx.date||"—"}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ══ HOLDINGS ══ */}
-      {dtab === "holdings" && (
-        <div>
-          <div style={{ background:"linear-gradient(135deg,#0f172a,#1e293b)", borderRadius:12, padding:"16px 20px", marginBottom:12, border:"1px solid rgba(99,102,241,0.2)" }}>
-            <div style={{ fontSize:10, color:"#6366f1", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:4 }}>Total Holdings Value</div>
-            <div style={{ fontSize:28, fontWeight:900, color:"#f1f5f9", fontFamily:"'DM Mono',monospace" }}>{usd(hVal)}</div>
-          </div>
-          <div style={{ background:"#0b1120", borderRadius:12, border:"1px solid rgba(255,255,255,0.06)", overflow:"hidden" }}>
-            <div style={{ display:"grid", gridTemplateColumns:"44px 1fr 120px 100px 90px", padding:"10px 16px", borderBottom:"1px solid rgba(255,255,255,0.06)", fontSize:10, fontWeight:700, color:"#334155", textTransform:"uppercase", letterSpacing:"0.07em" }}>
-              <span/><span>Coin</span><span style={{textAlign:"right"}}>Quantity</span><span style={{textAlign:"right"}}>Price</span><span style={{textAlign:"right"}}>Value</span>
-            </div>
-            {Object.entries(u.holdings||{}).filter(([,q])=>q>0).length===0 && (
-              <div style={{ padding:40, textAlign:"center", color:"#334155", fontSize:13 }}>No holdings</div>
-            )}
-            {Object.entries(u.holdings||{}).filter(([,q])=>q>0).map(([id,q]) => {
-              const cm  = coinMeta(id);
-              const val = q*(PE.p[id]||0);
-              return (
-                <div key={id} style={{ display:"grid", gridTemplateColumns:"44px 1fr 120px 100px 90px", padding:"13px 16px", borderBottom:"1px solid rgba(255,255,255,0.03)", alignItems:"center" }} className="table-row-hover">
-                  <div style={{ width:32, height:32, borderRadius:"50%", background:cm.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, color:cm.cl }}>{cm.sym}</div>
-                  <div>
-                    <div style={{ fontSize:13, fontWeight:700, color:"#f1f5f9" }}>{id}</div>
-                    <div style={{ fontSize:10, color:"#475569" }}>{cm.name}</div>
-                  </div>
-                  <div style={{ fontSize:12, fontWeight:700, color:"#f1f5f9", textAlign:"right", fontFamily:"'DM Mono',monospace" }}>{f2(q,6)}</div>
-                  <div style={{ fontSize:12, color:"#94a3b8", textAlign:"right", fontFamily:"'DM Mono',monospace" }}>{usd(PE.p[id]||0)}</div>
-                  <div style={{ fontSize:13, fontWeight:800, color:"#22c55e", textAlign:"right", fontFamily:"'DM Mono',monospace" }}>{usd(val)}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ══ CARDS ══ */}
-      {dtab === "cards" && (
-        <div>
-          {cards.length===0 && <div style={{ background:"#0b1120", borderRadius:12, border:"1px solid rgba(255,255,255,0.06)", padding:40, textAlign:"center", color:"#334155", fontSize:13 }}>No saved cards</div>}
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))", gap:12 }}>
-            {cards.map((c,i) => (
-              <div key={c.id||i} style={{ background:"linear-gradient(135deg,#0c2340,#1a3a5c,#0f3460)", borderRadius:16, padding:"20px 20px 16px", border:"1px solid rgba(59,130,246,0.2)", position:"relative", overflow:"hidden" }}>
-                <div style={{ position:"absolute", top:-30, right:-30, width:100, height:100, borderRadius:"50%", background:"rgba(99,102,241,0.08)" }} />
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", letterSpacing:3, marginBottom:14, textTransform:"uppercase" }}>Bank Card</div>
-                <div style={{ fontSize:17, fontWeight:900, color:"#fff", letterSpacing:3, marginBottom:14, fontFamily:"'DM Mono',monospace" }}>{c.display||"**** **** **** ****"}</div>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
-                  <div>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", letterSpacing:2, marginBottom:2 }}>CARD HOLDER</div>
-                    <div style={{ fontSize:12, color:"rgba(255,255,255,0.7)", fontWeight:600 }}>{c.name||"—"}</div>
-                  </div>
-                  <div style={{ textAlign:"right" }}>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", letterSpacing:2, marginBottom:2 }}>EXPIRES</div>
-                    <div style={{ fontSize:12, color:"rgba(255,255,255,0.7)", fontFamily:"'DM Mono',monospace" }}>{c.exp||"—"}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ══ PERSONAL INFO ══ */}
-      {dtab === "info" && (
-        <div style={{ background:"#0b1120", borderRadius:12, border:"1px solid rgba(255,255,255,0.06)", overflow:"hidden" }}>
-          {[
-            ["Username",      u.username,          "👤"],
-            ["Email",         u.email||"—",        "✉️"],
-            ["Full Name",     u.fullName||"—",     "📝"],
-            ["Phone",         u.phone||"—",        "📞"],
-            ["Date of Birth", u.dob||"—",          "🎂"],
-            ["Country",       u.country||"—",      "🌍"],
-            ["Status",        isBan?"BANNED":"ACTIVE","🔒"],
-            ["Credit Score",  `${score} / 100`,    "⭐"],
-            ["Cash Balance",  usd(u.balance||0),   "💰"],
-            ["Holdings",      usd(hVal),           "📈"],
-            ["Total Txns",    txs.length,          "📊"],
-            ["Saved Cards",   cards.length,        "💳"],
-          ].map(([label,value,icon],i,arr) => (
-            <div key={label} style={{ display:"flex", alignItems:"center", padding:"14px 22px", borderBottom:i<arr.length-1?"1px solid rgba(255,255,255,0.04)":"none" }}>
-              <span style={{ fontSize:16, width:28, flexShrink:0 }}>{icon}</span>
-              <span style={{ flex:1, fontSize:12, color:"#475569", fontWeight:600 }}>{label}</span>
-              <span style={{ fontSize:13, fontWeight:700, color:"#cbd5e1" }}>{value}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════
-   MAIN ADMIN PANEL
-═══════════════════════════════════════════════════════ */
-export default function AdminPanel({ onBack, onExit }) {
-  const exit = onBack || onExit;
-
-  const [tab, setTab]               = useState("dash");
-  const [sel, setSel]               = useState(null);
-  const [q, setQ]                   = useState("");
-  const [usersState, setUsersState] = useState({});
-  const [banned, setBanned]         = useState(loadBanned);
-  const [loading, setLoading]       = useState(true);
-
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      let dbUsers = {}, dbSuccess = false;
-      if (typeof getAllUsers === "function") {
-        const res        = await getAllUsers();
-        const usersArray = Array.isArray(res) ? res : Array.isArray(res?.users) ? res.users : Array.isArray(res?.data) ? res.data : null;
-        if (usersArray) {
-          usersArray.forEach(u => { const k = u.username?.toLowerCase(); if (k && k!=="admin") dbUsers[k] = { ...u, username:k }; });
-          dbSuccess = true;
-        }
-      }
-      if (dbSuccess) { saveUsers(dbUsers); setUsersState(dbUsers); }
-      else { setUsersState(loadLocalUsers()); }
-    } catch { setUsersState(loadLocalUsers()); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
-  useEffect(() => { S.banned = banned; }, [banned]);
-
-  const users = Object.values(usersState);
-  const found = users.filter(u =>
-    u.username?.toLowerCase().includes(q.toLowerCase()) ||
-    (u.email||"").toLowerCase().includes(q.toLowerCase())
-  );
-
-  const updateUsers = (data) => { setUsersState(data); saveUsers(data); };
-
-  const changeScore = async (username, delta) => {
-    const updated  = { ...usersState };
-    const newScore = Math.max(0, Math.min(100, (updated[username]?.creditScore??50) + delta));
-    updated[username] = { ...updated[username], creditScore: newScore };
-    updateUsers(updated);
-    if (S.users[username]) S.users[username].creditScore = newScore;
-    try { if (typeof updateUserInDB==="function") await updateUserInDB(username, { creditScore: newScore }); }
-    catch {}
-  };
-
-  const disc = (username) => { const n = banned.includes(username)?banned:[...banned,username]; setBanned(n); saveBanned(n); };
-  const rest = (username) => { const n = banned.filter(x=>x!==username); setBanned(n); saveBanned(n); };
-  const del  = async (username) => {
-    try {
-      await fetch(`https://crypto-backend-production-11dc.up.railway.app/api/users/${username.toLowerCase()}`, { method:"DELETE" });
-      const local = JSON.parse(localStorage.getItem("users")||"{}");
-      delete local[username.toLowerCase()];
-      localStorage.setItem("users", JSON.stringify(local));
-      const updated = { ...usersState }; delete updated[username];
-      updateUsers(updated);
-      const nb = banned.filter(x=>x!==username); setBanned(nb); saveBanned(nb);
-      setSel(null);
-    } catch (e) { console.error("Delete failed:", e); }
-  };
-
-  const totalBalance  = users.reduce((a,u)=>a+(u.balance||0),0);
-  const totalHoldings = users.reduce((a,u)=>a+Object.entries(u.holdings||{}).reduce((s,[id,q])=>s+q*(PE.p[id]||0),0),0);
-  const totalTxns     = users.reduce((a,u)=>a+(u.transactions||[]).length,0);
-
-  return (
-    <div style={ds.shell} className="admin-shell">
-      <style>{globalStyles}</style>
-
-      {/* ── SIDEBAR ── */}
-      <aside style={ds.sidebar} className="admin-sidebar">
-        <div style={ds.sidebarTop} className="admin-sidebar-top">
-          <div style={ds.logo}>
-            <div style={ds.logoMark}>A</div>
-            <div>
-              <div style={ds.logoName}>AdminOS</div>
-              <div style={ds.logoSub} className="admin-logo-sub">CoinBase Control</div>
-            </div>
-          </div>
-          <nav style={ds.nav} className="admin-nav">
-            {[["dash","Dashboard","📊"],["users","Users","👥"]].map(([id,label,icon]) => (
-              <button key={id} onClick={() => { setTab(id); setSel(null); }} style={{ ...ds.navItem, ...(tab===id?ds.navActive:{}) }}>
-                <span style={ds.navIcon}>{icon}</span>{label}
-                {tab===id && <span style={ds.navIndicator} />}
-              </button>
-            ))}
-            <div style={{ height:1, background:"rgba(255,255,255,0.05)", margin:"8px 0" }} />
-            {[["Withdrawal Requests","💸"],["Deposit","💰"],["Notifications","🔔"],["Support Tickets","🎫"]].map(([label,icon]) => (
-              <button key={label} style={{ ...ds.navItem, opacity:0.35, cursor:"default" }} disabled>
-                <span style={ds.navIcon}>{icon}</span>{label}
-              </button>
-            ))}
-          </nav>
-        </div>
-        <button onClick={exit} style={ds.exitBtn}>⎋ Exit Panel</button>
-      </aside>
-
-      {/* ── MAIN ── */}
-      <main style={ds.main}>
-        <div style={ds.topbar} className="admin-topbar">
-          <div>
-            <div style={ds.pageTitle}>
-              {tab==="dash" ? "Hi, Welcome back 👋" : sel ? `@${sel.username}` : "Users"}
-            </div>
-            <div style={ds.pageSubtitle}>
-              {tab==="dash" ? "Platform overview" : sel ? "Full user profile" : `${users.length} registered accounts`}
-            </div>
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <button onClick={fetchUsers} style={ds.refreshBtn}>↻ Refresh</button>
-            <div style={ds.topbarTime}>{new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
-          </div>
-        </div>
-
-        {/* ── DASHBOARD ── */}
-        {tab==="dash" && (
-          <div style={ds.content} className="admin-content">
-            <div style={ds.kpiGrid} className="admin-kpi-grid">
-              {[
-                {label:"Total Users",        value:users.length,       color:"#6366f1",icon:"👥",sub:"registered accounts"},
-                {label:"Banned Accounts",    value:banned.length,      color:"#ef4444",icon:"🚫",sub:"access blocked"},
-                {label:"Platform Cash",      value:usd(totalBalance),  color:"#22c55e",icon:"💰",sub:"total user balances"},
-                {label:"Holdings Value",     value:usd(totalHoldings), color:"#f59e0b",icon:"📈",sub:"crypto portfolios"},
-                {label:"Total Transactions", value:totalTxns,          color:"#60a5fa",icon:"📊",sub:"all time"},
-              ].map(({label,value,color,icon,sub}) => (
-                <div key={label} style={ds.kpiCard}>
-                  <div style={{ width:38, height:38, borderRadius:10, background:`${color}1a`, border:`1px solid ${color}33`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, marginBottom:12 }}>{icon}</div>
-                  <div style={{ fontSize:26, fontWeight:900, color, letterSpacing:"-0.03em", marginBottom:3, fontFamily:"'DM Mono',monospace" }}>{value}</div>
-                  <div style={{ fontSize:11, color:"#475569", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.06em" }}>{label}</div>
-                  <div style={{ fontSize:10, color:"#334155", marginTop:2 }}>{sub}</div>
-                  <div style={{ position:"absolute", bottom:0, left:0, right:0, height:3, background:color, opacity:0.5, borderRadius:"0 0 12px 12px" }} />
+            {/* Stats */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              {[["Total Deposits",usd(deps),C.blue],["Total Withdrawals",usd(wths),C.gold],["All Transactions",txs.length,C.accent],["Saved Cards",cards.length,C.sub]].map(([l,v,c])=>(
+                <div key={l} style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"14px 16px" }}>
+                  <div style={{ fontSize:17, fontWeight:800, color:c, marginBottom:3 }}>{v}</div>
+                  <div style={{ fontSize:11, color:C.sub, fontWeight:600 }}>{l}</div>
                 </div>
               ))}
             </div>
 
-            {/* Recent activity feed */}
-            <div style={{ marginTop:22 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:12 }}>Recent Activity (All Users)</div>
-              <div style={{ background:"#0b1120", borderRadius:12, border:"1px solid rgba(255,255,255,0.05)", overflow:"hidden" }}>
-                <div style={{ display:"grid", gridTemplateColumns:"36px 1fr 130px 90px 90px", padding:"10px 18px", borderBottom:"1px solid rgba(255,255,255,0.06)", fontSize:10, fontWeight:700, color:"#334155", textTransform:"uppercase", letterSpacing:"0.07em" }}>
-                  <span/><span>User / Action</span><span>Coin</span><span style={{textAlign:"right"}}>Amount</span><span style={{textAlign:"right"}}>Date</span>
-                </div>
-                {users.flatMap(u =>
-                  (u.transactions||[]).slice(0,5).map(tx=>({...tx,_user:u.username}))
-                ).sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,15).map((tx,i) => {
-                  const colors = txTypeColor(tx.type);
-                  return (
-                    <div key={i} style={{ display:"grid", gridTemplateColumns:"36px 1fr 130px 90px 90px", padding:"11px 18px", borderBottom:"1px solid rgba(255,255,255,0.03)", alignItems:"center" }} className="table-row-hover">
-                      <span style={{ fontSize:16 }}>{txIcon(tx.type)}</span>
-                      <div>
-                        <div style={{ fontSize:12, fontWeight:700, color:"#cbd5e1" }}>@{tx._user}</div>
-                        <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:20, background:colors.bg, color:colors.text, border:`1px solid ${colors.border}` }}>{tx.type}</span>
-                        {tx.adminAction && <span style={{ marginLeft:4, fontSize:9, color:"#6366f1" }}>🔧</span>}
-                        {tx.adminAdded  && <span style={{ marginLeft:4, fontSize:9, color:"#22c55e" }}>💰</span>}
-                      </div>
-                      <span style={{ fontSize:12, color:"#94a3b8" }}>{tx.coin||"USD"}{tx.amount?` · ${f2(tx.amount,4)}`:""}</span>
-                      <span style={{ fontSize:12, fontWeight:700, color:"#f1f5f9", textAlign:"right", fontFamily:"'DM Mono',monospace" }}>{usd(tx.usd||0)}</span>
-                      <span style={{ fontSize:10, color:"#475569", textAlign:"right" }}>{tx.date||"—"}</span>
-                    </div>
-                  );
-                })}
-                {totalTxns===0 && <div style={{ padding:40, textAlign:"center", color:"#334155", fontSize:13 }}>No activity yet</div>}
-              </div>
+            {/* Actions */}
+            <div style={{ display:"flex", gap:8 }}>
+              {!isBan
+                ? <button onClick={()=>disc(username)} style={{ flex:1, padding:"10px 0", borderRadius:9, border:`1.5px solid ${C.gold}`, background:C.gold+"15", color:C.gold, fontSize:12, fontWeight:700, cursor:"pointer" }}>🚫 Ban User</button>
+                : <button onClick={()=>rest(username)} style={{ flex:1, padding:"10px 0", borderRadius:9, border:`1.5px solid ${C.green}`, background:C.green+"15", color:C.green, fontSize:12, fontWeight:700, cursor:"pointer" }}>✅ Unban</button>}
+              <button onClick={()=>{ del(username); onClose(); }} style={{ flex:1, padding:"10px 0", borderRadius:9, border:`1.5px solid ${C.red}`, background:C.red+"15", color:C.red, fontSize:12, fontWeight:700, cursor:"pointer" }}>🗑 Delete</button>
             </div>
           </div>
         )}
 
-        {/* ── USERS LIST ── */}
-        {tab==="users" && !sel && (
-          <div style={ds.content} className="admin-content">
-            <div style={ds.searchWrap}>
-              <span style={ds.searchIcon}>⌕</span>
-              <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search by username or email…" style={ds.searchInput} />
-            </div>
-            <div style={ds.userTable}>
-              <div style={{ ...ds.tableHeader, gridTemplateColumns:"2fr 2fr 1fr 1fr 70px 70px" }} className="admin-table-header">
-                <span>Username</span><span>Email</span><span>Balance</span><span>Trades</span><span>Credit</span><span>Status</span>
+        {/* ── BALANCE ── */}
+        {tab==="balance" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <BalanceEditor username={username} usersState={usersState} setUsersState={setUsersState} />
+            <ForceTradePanel username={username} usersState={usersState} setUsersState={setUsersState} />
+          </div>
+        )}
+
+        {/* ── TRADES ── */}
+        {tab==="trades" && (
+          <div>
+            {txs.length===0 && <div style={{ textAlign:"center", color:C.sub, padding:"40px 0", fontSize:13 }}>No transactions yet</div>}
+            {txs.map((tx,i)=>(
+              <div key={i} style={{ background:C.card, borderRadius:10, border:`1px solid ${C.border}`, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ fontSize:20, flexShrink:0 }}>{typeIcon(tx.type)}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:20, background:typeColor(tx.type)+"18", color:typeColor(tx.type) }}>{tx.type}</span>
+                    {tx.adminAction && <span style={{ fontSize:10, color:C.accent }}>🔧 admin</span>}
+                    {tx.adminAdded  && <span style={{ fontSize:10, color:C.green }}>💰 admin</span>}
+                    <span style={{ fontSize:10, color:C.sub }}>{tx.date||"—"}</span>
+                  </div>
+                  <div style={{ fontSize:12, color:C.sub, marginTop:3 }}>
+                    {tx.coin||"USD"}{tx.amount?` · ${f2(tx.amount,4)}`:""}{tx.price?` @ ${usd(tx.price)}`:""}
+                    {tx.note && <span style={{ fontStyle:"italic" }}> — {tx.note}</span>}
+                  </div>
+                </div>
+                <div style={{ fontSize:13, fontWeight:800, color:tx.up?C.green:C.red, textAlign:"right" }}>{usd(tx.usd||0)}</div>
               </div>
-              {loading && <div style={ds.emptyState}>Loading users…</div>}
-              {!loading && found.length===0 && <div style={ds.emptyState}>No users found</div>}
-              {!loading && found.map((u,i) => {
-                const isBan      = banned.includes(u.username);
-                const tradeCount = (u.transactions||[]).filter(t=>t.type==="Buy"||t.type==="Sell").length;
-                const score      = u.creditScore??50;
-                const sc         = score>=70?"#22c55e":score>=40?"#f59e0b":"#ef4444";
+            ))}
+          </div>
+        )}
+
+        {/* ── HOLDINGS ── */}
+        {tab==="holdings" && (
+          <div>
+            <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"14px 16px", marginBottom:14 }}>
+              <div style={{ fontSize:11, color:C.sub, fontWeight:600, marginBottom:3 }}>TOTAL HOLDINGS</div>
+              <div style={{ fontSize:24, fontWeight:900, color:C.text }}>{usd(hVal)}</div>
+            </div>
+            {Object.entries(u.holdings||{}).filter(([,q])=>q>0).length===0
+              ? <div style={{ textAlign:"center", color:C.sub, padding:"30px 0", fontSize:13 }}>No holdings</div>
+              : Object.entries(u.holdings||{}).filter(([,q])=>q>0).map(([id,q])=>{
+                const cm = coinMeta(id); const val = q*(PE.p[id]||0);
                 return (
-                  <div key={u.username}
-                    style={{ ...ds.tableRow, gridTemplateColumns:"2fr 2fr 1fr 1fr 70px 70px", animationDelay:`${i*30}ms` }}
-                    onClick={()=>setSel(u)} className="table-row-hover admin-table-row">
-                    <span style={ds.rowUsername} className="admin-row-username">
-                      <span style={ds.rowAvatar}>{u.username[0].toUpperCase()}</span>@{u.username}
-                    </span>
-                    <span style={ds.rowMeta} className="admin-row-email">{u.email||"—"}</span>
-                    <span style={ds.rowBalance} className="admin-row-balance">{usd(u.balance||0)}</span>
-                    <span style={{ fontSize:12, color:"#94a3b8" }}>{tradeCount}</span>
-                    <span style={{ fontSize:12, fontWeight:700, color:sc, fontFamily:"'DM Mono',monospace" }}>{score}</span>
-                    <span>
-                      <span style={{ fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:20, ...(isBan?{background:"rgba(239,68,68,0.12)",color:"#f87171",border:"1px solid rgba(239,68,68,0.25)"}:{background:"rgba(34,197,94,0.12)",color:"#4ade80",border:"1px solid rgba(34,197,94,0.25)"}) }}>
-                        {isBan?"Banned":"Active"}
-                      </span>
-                    </span>
+                  <div key={id} style={{ background:C.card, borderRadius:10, border:`1px solid ${C.border}`, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+                    <div style={{ width:36, height:36, borderRadius:"50%", background:cm.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, color:cm.cl, flexShrink:0 }}>{cm.sym}</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:13, fontWeight:700, color:C.text }}>{id}</div>
+                      <div style={{ fontSize:11, color:C.sub }}>{f2(q,6)} · @ {usd(PE.p[id]||0)}</div>
+                    </div>
+                    <div style={{ fontSize:14, fontWeight:800, color:C.green }}>{usd(val)}</div>
                   </div>
                 );
               })}
-            </div>
           </div>
         )}
 
-        {/* ── USER DETAIL ── */}
-        {tab==="users" && sel && (
-          <div style={ds.content} className="admin-content">
-            <Detail
-              sel={sel} ss={setSel}
-              disc={disc} rest={rest} del={del}
-              changeScore={changeScore} banned={banned}
-              usersState={usersState}
-              setUsersState={setUsersState}
-              onRefresh={fetchUsers}
-            />
+        {/* ── CARDS ── */}
+        {tab==="cards" && (
+          <div>
+            {cards.length===0 && <div style={{ textAlign:"center", color:C.sub, padding:"40px 0", fontSize:13 }}>No saved cards</div>}
+            {cards.map((c,i)=>(
+              <div key={c.id||i} style={{ background:"linear-gradient(135deg,#0c2340,#1a3a5c)", borderRadius:14, padding:"18px 18px 14px", marginBottom:12, position:"relative", overflow:"hidden" }}>
+                <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", letterSpacing:3, marginBottom:12 }}>BANK CARD</div>
+                <div style={{ fontSize:16, fontWeight:900, color:"#fff", letterSpacing:3, marginBottom:14, fontFamily:"monospace" }}>{c.display||"**** **** **** ****"}</div>
+                <div style={{ display:"flex", justifyContent:"space-between" }}>
+                  <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)", fontWeight:600 }}>{c.name||"—"}</div>
+                  <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)" }}>Exp: {c.exp||"—"}</div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
-      </main>
+
+        {/* ── INFO ── */}
+        {tab==="info" && (
+          <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, overflow:"hidden" }}>
+            {[
+              ["Username",      u.username||"—",        "👤"],
+              ["Full Name",     u.fullName||"—",        "📝"],
+              ["Email",         u.email||"—",           "✉️"],
+              ["Phone",         u.phone||"—",           "📞"],
+              ["Date of Birth", u.dob||"—",             "🎂"],
+              ["Country",       u.country||"—",         "🌍"],
+              ["Status",        isBan?"BANNED":"ACTIVE","🔒"],
+              ["Credit Score",  `${score}/100`,         "⭐"],
+              ["Cash Balance",  usd(u.balance||0),      "💰"],
+              ["Holdings Value",usd(hVal),              "📈"],
+              ["Total Trades",  txs.filter(t=>t.type==="Buy"||t.type==="Sell").length,"📊"],
+              ["Saved Cards",   cards.length,           "💳"],
+            ].map(([l,v,ic],i,arr)=>(
+              <div key={l} style={{ display:"flex", alignItems:"center", padding:"13px 18px", borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none" }}>
+                <span style={{ fontSize:16, width:26, flexShrink:0 }}>{ic}</span>
+                <span style={{ flex:1, fontSize:12, color:C.sub, fontWeight:600 }}>{l}</span>
+                <span style={{ fontSize:13, fontWeight:700, color:C.text }}>{v}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-/* ─── STYLES ─── */
-const globalStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800;900&family=DM+Mono:wght@300;400;500&display=swap');
+/* ══════════════════════════════════════════════════════
+   MAIN ADMIN PANEL
+══════════════════════════════════════════════════════ */
+export default function AdminPanel({ onBack, onExit }) {
+  const exit = onBack || onExit;
+
+  const [tab, setTab]               = useState("dashboard");
+  const [usersState, setUsersState] = useState({});
+  const [banned, setBanned]         = useState(loadBanned);
+  const [loading, setLoading]       = useState(true);
+  const [q, setQ]                   = useState("");
+  const [selUser, setSelUser]       = useState(null);
+  const [sideOpen, setSideOpen]     = useState(false); // mobile sidebar
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      let dbUsers = {}, ok = false;
+      if (typeof getAllUsers === "function") {
+        const res = await getAllUsers();
+        const arr = Array.isArray(res)?res:Array.isArray(res?.users)?res.users:Array.isArray(res?.data)?res.data:null;
+        if (arr) { arr.forEach(u=>{ const k=u.username?.toLowerCase(); if(k&&k!=="admin") dbUsers[k]={...u,username:k}; }); ok=true; }
+      }
+      if (ok) { saveUsers(dbUsers); setUsersState(dbUsers); }
+      else      setUsersState(loadLocalUsers());
+    } catch { setUsersState(loadLocalUsers()); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(()=>{ fetchUsers(); },[fetchUsers]);
+  useEffect(()=>{ S.banned=banned; },[banned]);
+
+  const users         = Object.values(usersState);
+  const totalBalance  = users.reduce((a,u)=>a+(u.balance||0),0);
+  const totalHoldings = users.reduce((a,u)=>a+Object.entries(u.holdings||{}).reduce((s,[id,q])=>s+q*(PE.p[id]||0),0),0);
+  const totalTxns     = users.reduce((a,u)=>a+(u.transactions||[]).length,0);
+
+  const allTxns = users.flatMap(u =>
+    (u.transactions||[]).map(tx=>({...tx,_user:u.username}))
+  ).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+  const allDeposits   = allTxns.filter(t=>t.type==="Deposit");
+  const allWithdraws  = allTxns.filter(t=>t.type==="Withdraw");
+  const allTrades     = allTxns.filter(t=>t.type==="Buy"||t.type==="Sell");
+  const allNotifs     = allTxns; // everything is a notification feed
+
+  const found = users.filter(u=>
+    u.username?.toLowerCase().includes(q.toLowerCase())||
+    (u.email||"").toLowerCase().includes(q.toLowerCase())
+  );
+
+  const changeScore = async (username, delta) => {
+    const updated  = { ...usersState };
+    const newScore = Math.max(0,Math.min(100,(updated[username]?.creditScore??50)+delta));
+    updated[username] = { ...updated[username], creditScore: newScore };
+    setUsersState(updated); saveUsers(updated);
+    if (S.users[username]) S.users[username].creditScore = newScore;
+    try { if (typeof updateUserInDB==="function") await updateUserInDB(username,{creditScore:newScore}); } catch {}
+  };
+
+  const disc = (username) => { const n=banned.includes(username)?banned:[...banned,username]; setBanned(n); saveBanned(n); };
+  const rest = (username) => { const n=banned.filter(x=>x!==username); setBanned(n); saveBanned(n); };
+  const del  = async (username) => {
+    try {
+      await fetch(`${BASE_URL}/api/users/${username.toLowerCase()}`,{method:"DELETE"});
+      const local=JSON.parse(localStorage.getItem("users")||"{}");
+      delete local[username.toLowerCase()]; localStorage.setItem("users",JSON.stringify(local));
+      const up={...usersState}; delete up[username]; setUsersState(up); saveUsers(up);
+      const nb=banned.filter(x=>x!==username); setBanned(nb); saveBanned(nb);
+    } catch(e){console.error(e);}
+  };
+
+  /* ── NAV ITEMS ── */
+  const navItems = [
+    {id:"dashboard",label:"Dashboard",   icon:"📊"},
+    {id:"users",    label:"Users",       icon:"👥"},
+    {id:"trades",   label:"All Trades",  icon:"📈"},
+    {id:"deposits", label:"Deposits",    icon:"💰"},
+    {id:"withdraws",label:"Withdrawals", icon:"💸"},
+    {id:"activity", label:"Activity Log",icon:"🔔"},
+  ];
+
+  const NavBtn = ({id,label,icon}) => {
+    const cnt = id==="users"?users.length:id==="trades"?allTrades.length:id==="deposits"?allDeposits.length:id==="withdraws"?allWithdraws.length:id==="activity"?allNotifs.length:null;
+    return (
+      <button onClick={()=>{setTab(id);setSideOpen(false);}}
+        style={{ width:"100%", display:"flex", alignItems:"center", gap:11, padding:"11px 14px", borderRadius:10, border:"none", cursor:"pointer", background:tab===id?"rgba(99,102,241,0.22)":"transparent", color:tab===id?"#a5b4fc":"rgba(255,255,255,0.55)", fontFamily:"inherit", fontSize:13, fontWeight:600, transition:"all .15s", textAlign:"left", position:"relative" }}>
+        <span style={{ fontSize:16, width:22, flexShrink:0 }}>{icon}</span>
+        <span style={{ flex:1 }}>{label}</span>
+        {cnt!==null && <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:20, background:tab===id?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.08)", color:tab===id?"#fff":"rgba(255,255,255,0.4)" }}>{cnt}</span>}
+      </button>
+    );
+  };
+
+  /* ── TRANSACTION TABLE (reusable) ── */
+  const TxTable = ({ rows, title }) => (
+    <div>
+      {title && <div style={{ fontSize:14, fontWeight:800, color:C.text, marginBottom:14 }}>{title}</div>}
+      {rows.length===0 && <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"40px", textAlign:"center", color:C.sub, fontSize:13 }}>No records yet</div>}
+      {rows.map((tx,i)=>(
+        <div key={i} style={{ background:C.card, borderRadius:10, border:`1px solid ${C.border}`, padding:"13px 16px", marginBottom:8, display:"flex", alignItems:"center", gap:14 }}>
+          <div style={{ fontSize:22, flexShrink:0 }}>{typeIcon(tx.type)}</div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:3 }}>
+              <span style={{ fontSize:12, fontWeight:700, color:C.text }}>@{tx._user}</span>
+              <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:20, background:typeColor(tx.type)+"18", color:typeColor(tx.type) }}>{tx.type}</span>
+              {tx.adminAction&&<span style={{ fontSize:10, color:C.accent, fontWeight:600 }}>🔧 admin</span>}
+              {tx.adminAdded &&<span style={{ fontSize:10, color:C.green,  fontWeight:600 }}>💰 admin</span>}
+            </div>
+            <div style={{ fontSize:11, color:C.sub }}>{tx.coin||"USD"}{tx.amount?` · ${f2(tx.amount,4)}`:""}{tx.price?` @ ${usd(tx.price)}`:""}  {tx.date||""}</div>
+            {tx.note&&<div style={{ fontSize:11, color:C.sub, fontStyle:"italic" }}>{tx.note}</div>}
+          </div>
+          <div style={{ textAlign:"right", flexShrink:0 }}>
+            <div style={{ fontSize:14, fontWeight:800, color:tx.up?C.green:C.red }}>{tx.up?"+":"-"}{usd(tx.usd||0)}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  /* ─── RENDER ─── */
+  return (
+    <div style={{ display:"flex", minHeight:"100vh", background:C.bg, fontFamily:"'Inter','Syne',sans-serif", position:"relative" }}>
+      <style>{css}</style>
+
+      {/* OVERLAY for drawer */}
+      {selUser && <div onClick={()=>setSelUser(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", zIndex:999 }} />}
+
+      {/* MOBILE SIDEBAR OVERLAY */}
+      {sideOpen && <div onClick={()=>setSideOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:89 }} />}
+
+      {/* ── SIDEBAR ── */}
+      <aside style={{ width:220, background:C.sidebar, display:"flex", flexDirection:"column", justifyContent:"space-between", padding:"22px 12px", flexShrink:0, position:"sticky", top:0, height:"100vh", overflowY:"auto" }} className="ap-sidebar">
+        <div>
+          {/* Logo */}
+          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"0 4px", marginBottom:28 }}>
+            <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#6366f1,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:18, color:"#fff", flexShrink:0 }}>A</div>
+            <div>
+              <div style={{ fontWeight:800, fontSize:14, color:"#f1f5f9" }}>AdminOS</div>
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", letterSpacing:"0.07em" }}>COINBASE</div>
+            </div>
+          </div>
+
+          <nav style={{ display:"flex", flexDirection:"column", gap:3 }}>
+            {navItems.map(n=><NavBtn key={n.id} {...n} />)}
+          </nav>
+        </div>
+
+        <button onClick={exit} style={{ width:"100%", padding:"10px 0", borderRadius:9, border:"1px solid rgba(255,255,255,0.12)", background:"transparent", color:"rgba(255,255,255,0.4)", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
+          ⎋ Exit Panel
+        </button>
+      </aside>
+
+      {/* MOBILE DRAWER SIDEBAR */}
+      <aside style={{ position:"fixed", top:0, left:0, bottom:0, width:220, background:C.sidebar, display:"flex", flexDirection:"column", justifyContent:"space-between", padding:"22px 12px", transform:sideOpen?"translateX(0)":"translateX(-100%)", transition:"transform .25s", zIndex:90 }} className="ap-sidebar-mob">
+        <div>
+          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"0 4px", marginBottom:28 }}>
+            <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#6366f1,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:18, color:"#fff" }}>A</div>
+            <div><div style={{ fontWeight:800, fontSize:14, color:"#f1f5f9" }}>AdminOS</div><div style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>COINBASE</div></div>
+          </div>
+          <nav style={{ display:"flex", flexDirection:"column", gap:3 }}>{navItems.map(n=><NavBtn key={n.id} {...n} />)}</nav>
+        </div>
+        <button onClick={exit} style={{ width:"100%", padding:"10px 0", borderRadius:9, border:"1px solid rgba(255,255,255,0.12)", background:"transparent", color:"rgba(255,255,255,0.4)", fontSize:12, fontWeight:600, cursor:"pointer" }}>⎋ Exit</button>
+      </aside>
+
+      {/* ── MAIN ── */}
+      <main style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, overflowX:"hidden" }}>
+        {/* Topbar */}
+        <div style={{ background:"#fff", borderBottom:`1px solid ${C.border}`, padding:"0 24px", height:62, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0, position:"sticky", top:0, zIndex:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+            <button className="ap-hamburger" onClick={()=>setSideOpen(v=>!v)} style={{ border:"none", background:"transparent", fontSize:20, cursor:"pointer", padding:4 }}>☰</button>
+            <div>
+              <div style={{ fontSize:18, fontWeight:800, color:C.text }}>
+                {navItems.find(n=>n.id===tab)?.label||"Dashboard"}
+              </div>
+              <div style={{ fontSize:11, color:C.sub }}>CoinBase Admin Panel</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <button onClick={fetchUsers} style={{ padding:"7px 16px", borderRadius:8, border:`1.5px solid ${C.border}`, background:"#fff", color:C.sub, fontSize:12, fontWeight:600, cursor:"pointer" }}>↻ Refresh</button>
+            <div style={{ fontSize:11, color:C.sub }}>{new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
+          </div>
+        </div>
+
+        {/* Content area */}
+        <div style={{ flex:1, padding:"24px", overflowY:"auto" }} className="ap-content">
+
+          {/* ═══ DASHBOARD ═══ */}
+          {tab==="dashboard" && (
+            <div>
+              {/* KPI cards */}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:14, marginBottom:24 }}>
+                {[
+                  {label:"Total Users",    value:users.length,      color:C.accent, icon:"👥"},
+                  {label:"Banned",         value:banned.length,     color:C.red,    icon:"🚫"},
+                  {label:"Platform Cash",  value:usd(totalBalance), color:C.green,  icon:"💰"},
+                  {label:"Holdings",       value:usd(totalHoldings),color:C.gold,   icon:"📈"},
+                  {label:"Transactions",   value:totalTxns,         color:C.blue,   icon:"📊"},
+                ].map(({label,value,color,icon})=>(
+                  <div key={label} style={{ background:C.card, borderRadius:14, border:`1px solid ${C.border}`, padding:"18px 20px", boxShadow:"0 1px 3px rgba(0,0,0,0.05)", position:"relative", overflow:"hidden" }}>
+                    <div style={{ fontSize:22, marginBottom:10 }}>{icon}</div>
+                    <div style={{ fontSize:24, fontWeight:900, color, marginBottom:3 }}>{value}</div>
+                    <div style={{ fontSize:11, color:C.sub, fontWeight:600 }}>{label}</div>
+                    <div style={{ position:"absolute", bottom:0, left:0, right:0, height:3, background:color, opacity:0.6 }} />
+                  </div>
+                ))}
+              </div>
+
+              {/* Recent activity */}
+              <div style={{ fontSize:14, fontWeight:800, color:C.text, marginBottom:12 }}>Recent Activity</div>
+              <TxTable rows={allTxns.slice(0,12)} />
+            </div>
+          )}
+
+          {/* ═══ USERS ═══ */}
+          {tab==="users" && (
+            <div>
+              <div style={{ position:"relative", marginBottom:16 }}>
+                <span style={{ position:"absolute", left:13, top:"50%", transform:"translateY(-50%)", fontSize:16, color:C.sub }}>⌕</span>
+                <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search username or email…"
+                  style={{ width:"100%", padding:"11px 14px 11px 40px", border:`1.5px solid ${C.border}`, borderRadius:10, fontSize:13, color:C.text, outline:"none", background:C.card, fontFamily:"inherit" }} />
+              </div>
+
+              {loading && <div style={{ textAlign:"center", color:C.sub, padding:40 }}>Loading users…</div>}
+
+              {/* User table */}
+              {!loading && (
+                <div style={{ background:C.card, borderRadius:14, border:`1px solid ${C.border}`, overflow:"hidden" }}>
+                  {/* header */}
+                  <div style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr 60px 80px", padding:"11px 16px", borderBottom:`1px solid ${C.border}`, fontSize:11, fontWeight:700, color:C.sub, textTransform:"uppercase", letterSpacing:"0.06em" }} className="ap-th">
+                    <span>Username</span><span>Email</span><span>Balance</span><span>Trades</span><span>Score</span><span>Status</span>
+                  </div>
+                  {found.length===0 && <div style={{ padding:40, textAlign:"center", color:C.sub, fontSize:13 }}>No users found</div>}
+                  {found.map((u,i)=>{
+                    const isBan=banned.includes(u.username);
+                    const tCount=(u.transactions||[]).filter(t=>t.type==="Buy"||t.type==="Sell").length;
+                    const sc=u.creditScore??50; const scC=sc>=70?C.green:sc>=40?C.gold:C.red;
+                    return (
+                      <div key={u.username} onClick={()=>setSelUser(u.username)}
+                        style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr 60px 80px", padding:"13px 16px", borderBottom:i<found.length-1?`1px solid ${C.border}`:"none", cursor:"pointer", transition:"background .15s", alignItems:"center" }}
+                        className="ap-tr ap-th">
+                        <span style={{ display:"flex", alignItems:"center", gap:9 }}>
+                          <span style={{ width:30, height:30, borderRadius:8, background:"linear-gradient(135deg,#6366f1,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, color:"#fff", flexShrink:0 }}>{u.username[0].toUpperCase()}</span>
+                          <span style={{ fontSize:13, fontWeight:600, color:C.text }}>@{u.username}</span>
+                        </span>
+                        <span style={{ fontSize:12, color:C.sub }}>{u.email||"—"}</span>
+                        <span style={{ fontSize:13, fontWeight:700, color:C.green }}>{usd(u.balance||0)}</span>
+                        <span style={{ fontSize:12, color:C.sub }}>{tCount}</span>
+                        <span style={{ fontSize:12, fontWeight:700, color:scC }}>{sc}</span>
+                        <span><span style={{ fontSize:11, fontWeight:700, padding:"3px 9px", borderRadius:20, ...(isBan?{background:C.red+"15",color:C.red}:{background:C.green+"15",color:C.green}) }}>{isBan?"Banned":"Active"}</span></span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═══ ALL TRADES ═══ */}
+          {tab==="trades" && <TxTable rows={allTrades} title="All Trades" />}
+
+          {/* ═══ DEPOSITS ═══ */}
+          {tab==="deposits" && (
+            <div>
+              <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"16px 20px", marginBottom:16, display:"flex", gap:20 }}>
+                <div><div style={{ fontSize:22, fontWeight:900, color:C.blue }}>{allDeposits.length}</div><div style={{ fontSize:11, color:C.sub, fontWeight:600 }}>Total Deposits</div></div>
+                <div><div style={{ fontSize:22, fontWeight:900, color:C.green }}>{usd(allDeposits.reduce((s,t)=>s+(t.usd||0),0))}</div><div style={{ fontSize:11, color:C.sub, fontWeight:600 }}>Total Volume</div></div>
+              </div>
+              <TxTable rows={allDeposits} />
+            </div>
+          )}
+
+          {/* ═══ WITHDRAWALS ═══ */}
+          {tab==="withdraws" && (
+            <div>
+              <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"16px 20px", marginBottom:16, display:"flex", gap:20 }}>
+                <div><div style={{ fontSize:22, fontWeight:900, color:C.gold }}>{allWithdraws.length}</div><div style={{ fontSize:11, color:C.sub, fontWeight:600 }}>Total Withdrawals</div></div>
+                <div><div style={{ fontSize:22, fontWeight:900, color:C.red }}>{usd(allWithdraws.reduce((s,t)=>s+(t.usd||0),0))}</div><div style={{ fontSize:11, color:C.sub, fontWeight:600 }}>Total Volume</div></div>
+              </div>
+              <TxTable rows={allWithdraws} />
+            </div>
+          )}
+
+          {/* ═══ ACTIVITY LOG (Notifications) ═══ */}
+          {tab==="activity" && (
+            <div>
+              <div style={{ fontSize:12, color:C.sub, marginBottom:14 }}>All user activity in real time — trades, deposits, withdrawals, admin actions.</div>
+              <TxTable rows={allNotifs} />
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* USER DETAIL DRAWER */}
+      {selUser && (
+        <UserDrawer
+          username={selUser}
+          usersState={usersState}
+          setUsersState={setUsersState}
+          banned={banned}
+          changeScore={changeScore}
+          disc={disc} rest={rest} del={del}
+          onClose={()=>setSelUser(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─── CSS ─── */
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
   * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:'Syne',sans-serif; }
-  .table-row-hover:hover { background:rgba(99,102,241,0.05) !important; }
-  select option { background:#111827; }
-  @keyframes fadeUp  { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-  @keyframes slideIn { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:translateX(0)} }
-  @media(max-width:640px){
-    .admin-shell{flex-direction:column !important}
-    .admin-sidebar{width:100% !important;flex-direction:row !important;align-items:center !important;padding:10px 14px !important;border-right:none !important;border-bottom:1px solid rgba(255,255,255,0.06) !important;justify-content:space-between !important}
-    .admin-sidebar-top{flex-direction:row !important;align-items:center !important;gap:10px !important}
-    .admin-nav{flex-direction:row !important;gap:4px !important}
-    .admin-logo-sub{display:none !important}
-    .admin-content{padding:14px !important}
-    .admin-topbar{padding:12px 14px !important;flex-wrap:wrap;gap:8px}
-    .admin-kpi-grid{grid-template-columns:1fr 1fr !important;gap:10px !important}
-    .admin-table-header{display:none !important}
-    .admin-table-row{display:flex !important;flex-wrap:wrap !important;gap:6px !important;align-items:center !important;padding:12px !important}
-    .admin-row-email{display:none !important}
-    .admin-row-username{flex:1 !important;min-width:0 !important}
-    .admin-row-balance{font-size:11px !important}
-    .admin-profile-header{flex-wrap:wrap !important}
-    .admin-score-controls{flex-wrap:wrap !important;gap:4px !important}
-    .admin-action-row{flex-direction:column !important}
+  .ap-tr:hover { background:#f8fafc !important; }
+  .ap-sidebar { display:flex !important; }
+  .ap-sidebar-mob { display:flex !important; }
+  .ap-hamburger { display:none !important; }
+  @media(max-width:768px){
+    .ap-sidebar { display:none !important; }
+    .ap-hamburger { display:flex !important; }
+    .ap-content { padding:14px !important; }
+    .ap-th { grid-template-columns: 1fr 1fr 80px !important; }
+    .ap-th span:nth-child(2),.ap-th span:nth-child(4),.ap-th span:nth-child(5) { display:none !important; }
   }
 `;
-
-const ds = {
-  shell:      { display:"flex", minHeight:"100vh", background:"#080c14", color:"#e2e8f0", fontFamily:"'Syne',sans-serif" },
-  sidebar:    { width:230, background:"#0b1120", borderRight:"1px solid rgba(255,255,255,0.05)", display:"flex", flexDirection:"column", justifyContent:"space-between", padding:"24px 14px", flexShrink:0 },
-  sidebarTop: { display:"flex", flexDirection:"column", gap:28 },
-  logo:       { display:"flex", alignItems:"center", gap:10, padding:"0 4px" },
-  logoMark:   { width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#6366f1,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:18, color:"#fff", flexShrink:0 },
-  logoName:   { fontWeight:900, fontSize:15, color:"#f1f5f9", letterSpacing:"0.02em" },
-  logoSub:    { fontSize:10, color:"#475569", letterSpacing:"0.07em", textTransform:"uppercase" },
-  nav:        { display:"flex", flexDirection:"column", gap:2 },
-  navItem:    { display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:9, background:"transparent", border:"none", color:"#64748b", fontFamily:"'Syne',sans-serif", fontSize:13, fontWeight:600, cursor:"pointer", transition:"all .18s", textAlign:"left", position:"relative", width:"100%" },
-  navActive:  { background:"rgba(99,102,241,0.12)", color:"#a5b4fc" },
-  navIcon:    { fontSize:15, width:20, textAlign:"center", flexShrink:0 },
-  navIndicator:{ position:"absolute", right:10, width:5, height:5, borderRadius:"50%", background:"#6366f1" },
-  exitBtn:    { padding:"9px 12px", borderRadius:8, background:"transparent", border:"1px solid rgba(255,255,255,0.07)", color:"#475569", fontFamily:"'Syne',sans-serif", fontSize:12, fontWeight:600, cursor:"pointer" },
-  refreshBtn: { padding:"6px 14px", borderRadius:8, background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.25)", color:"#a5b4fc", fontFamily:"'Syne',sans-serif", fontSize:12, fontWeight:600, cursor:"pointer" },
-  main:       { flex:1, display:"flex", flexDirection:"column", overflow:"hidden" },
-  topbar:     { display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 28px", borderBottom:"1px solid rgba(255,255,255,0.04)", background:"rgba(8,12,20,0.8)", backdropFilter:"blur(12px)", flexShrink:0 },
-  pageTitle:  { fontSize:22, fontWeight:900, color:"#f1f5f9", letterSpacing:"-0.02em" },
-  pageSubtitle:{ fontSize:12, color:"#475569", marginTop:2 },
-  topbarTime: { fontSize:11, color:"#334155", fontFamily:"'DM Mono',monospace" },
-  content:    { padding:"24px 28px", flex:1, overflowY:"auto" },
-  kpiGrid:    { display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))", gap:14, marginBottom:4 },
-  kpiCard:    { background:"#0b1120", borderRadius:12, border:"1px solid rgba(255,255,255,0.05)", padding:"18px 20px", position:"relative", overflow:"hidden", animation:"fadeUp .4s ease both" },
-  searchWrap: { position:"relative", marginBottom:14 },
-  searchIcon: { position:"absolute", left:14, top:"50%", transform:"translateY(-50%)", color:"#334155", fontSize:18, pointerEvents:"none" },
-  searchInput:{ width:"100%", padding:"11px 14px 11px 42px", background:"#0b1120", border:"1px solid rgba(255,255,255,0.06)", borderRadius:10, color:"#e2e8f0", fontFamily:"'Syne',sans-serif", fontSize:13, outline:"none" },
-  userTable:  { background:"#0b1120", borderRadius:12, border:"1px solid rgba(255,255,255,0.05)", overflow:"hidden" },
-  tableHeader:{ display:"grid", padding:"10px 16px", borderBottom:"1px solid rgba(255,255,255,0.06)", fontSize:10, fontWeight:700, color:"#334155", textTransform:"uppercase", letterSpacing:"0.08em" },
-  tableRow:   { display:"grid", padding:"13px 16px", borderBottom:"1px solid rgba(255,255,255,0.03)", cursor:"pointer", transition:"background .15s", alignItems:"center", animation:"slideIn .3s ease both" },
-  rowUsername:{ display:"flex", alignItems:"center", gap:9, fontSize:13, fontWeight:600, color:"#cbd5e1" },
-  rowAvatar:  { width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#6366f1,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:"#fff", flexShrink:0 },
-  rowMeta:    { fontSize:12, color:"#475569", fontFamily:"'DM Mono',monospace" },
-  rowBalance: { fontSize:13, fontWeight:600, color:"#22c55e", fontFamily:"'DM Mono',monospace" },
-  emptyState: { padding:40, textAlign:"center", color:"#334155", fontSize:13 },
-};

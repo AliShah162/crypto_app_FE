@@ -248,15 +248,23 @@ export default function App() {
     addN("Withdrawal Requested", `${usd(amt)} being processed`);
   };
 
-  const onTrade = () => {
+  const onTrade = (tradeInfo) => {
     re();
-    const u = S.get();
-    if (u?.transactions?.length) {
-      const tx = u.transactions[0];
+    if (tradeInfo) {
+      // tradeInfo passed directly from TradePage so we don't miss it
       addN(
-        `${tx.type} Filled`,
-        `${tx.type} ${f2(tx.amount || 0, 4)} ${tx.coin} @ ${usd(tx.price || 0)}`,
+        `${tradeInfo.action} Successful ✅`,
+        `${tradeInfo.action === "Buy" ? "Purchased" : "Sold"} ${f2(tradeInfo.qty || 0, 4)} ${tradeInfo.coin} for ${usd(tradeInfo.cost || 0)}`,
       );
+    } else {
+      const u = S.get();
+      if (u?.transactions?.length) {
+        const tx = u.transactions[0];
+        addN(
+          `${tx.type} Successful ✅`,
+          `${tx.type === "Buy" ? "Purchased" : "Sold"} ${f2(tx.amount || 0, 4)} ${tx.coin} @ ${usd(tx.price || 0)}`,
+        );
+      }
     }
   };
 

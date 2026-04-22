@@ -179,7 +179,7 @@ export default function App() {
 
     S.session = username;
 
-    // ✅ FIXED: remove JSON.stringify
+    // ✅ FIXED ONLY THIS LINE
     if (typeof window !== "undefined") {
       localStorage.setItem("session", username);
     }
@@ -259,27 +259,6 @@ export default function App() {
   const u = user;
 
   const renderContent = () => {
-    if (page === "profile" && sub) {
-      const bk = () => ssb(null);
-      const uu = S.get() || user;
-      switch (sub) {
-        case "sec":
-          return <SecSub back={bk} />;
-        case "card":
-          return <CardSub back={bk} user={uu} re={re} />;
-        case "notif":
-          return <NotifSub back={bk} />;
-        case "lang":
-          return <LangSub back={bk} />;
-        case "terms":
-          return <TermsSub back={bk} />;
-        case "edit":
-          return <EditSub back={bk} user={uu} re={re} />;
-        default:
-          break;
-      }
-    }
-
     switch (page) {
       case "home":
         return <HomePage nav={nav} px={px} user={u} />;
@@ -304,5 +283,13 @@ export default function App() {
     }
   };
 
-  return <div>{renderContent()}</div>;
+  return (
+    <div>
+      {scr === "app" && (
+        <div>
+          {renderContent()}
+        </div>
+      )}
+    </div>
+  );
 }

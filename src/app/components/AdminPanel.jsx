@@ -26,23 +26,24 @@ function loadBanned() {
 function saveBanned(list) { localStorage.setItem("banned", JSON.stringify(list)); S.banned = list; }
 
 function typeColor(type) {
-  if (type === "Buy")      return "#22c55e";
-  if (type === "Sell")     return "#ef4444";
-  if (type === "Deposit")  return "#60a5fa";
+  if (type === "Buy") return "#22c55e";
+  if (type === "Sell") return "#ef4444";
+  if (type === "Deposit") return "#60a5fa";
   if (type === "Withdraw") return "#f59e0b";
-  if (type?.includes("WIN")) return "#22c55e";
-  if (type?.includes("LOSS")) return "#ef4444";
+  if (type?.includes("WIN") || type?.includes("Binary WIN")) return "#22c55e";
+  if (type?.includes("LOSS") || type?.includes("Binary LOSS")) return "#ef4444";
   return "#94a3b8";
 }
-function typeIcon(type) {
-  if (type === "Buy")      return "📈";
-  if (type === "Sell")     return "📉";
-  if (type === "Deposit")  return "💰";
+
+function typeIcon(type, isBinaryTrade, isWin) {
+  if (isBinaryTrade) return isWin ? "🎉" : "💔";
+  if (type === "Buy") return "📈";
+  if (type === "Sell") return "📉";
+  if (type === "Deposit") return "💰";
   if (type === "Withdraw") return "💸";
-  if (type?.includes("WIN")) return "🎉";
-  if (type?.includes("LOSS")) return "💔";
   return "•";
 }
+
 function coinMeta(id) { 
   const found = COINS.find(c => c.id === id);
   if (found) return found;
@@ -73,23 +74,23 @@ const C = {
    BALANCE EDITOR
 ══════════════════════════════════════════════════════ */
 function BalanceEditor({ username, usersState, setUsersState }) {
-  const [mode, setMode]     = useState("add");
-  const [val, setVal]       = useState("");
-  const [msg, setMsg]       = useState(null);
+  const [mode, setMode] = useState("add");
+  const [val, setVal] = useState("");
+  const [msg, setMsg] = useState(null);
 
-  const u      = usersState[username] || {};
-  const now    = new Date().toISOString().slice(0, 10);
+  const u = usersState[username] || {};
+  const now = new Date().toISOString().slice(0, 10);
 
   const apply = () => {
     const n = parseFloat(val);
     if (!val || isNaN(n) || n < 0) { setMsg({ t:"e", m:"Enter a valid positive number." }); return; }
     const fresh = S.users[username] || usersState[username] || {};
-    let newBal  = fresh.balance || 0;
-    let delta   = 0;
-    let note    = "";
-    if (mode === "set")      { delta = n - newBal; newBal = n;                         note = `Admin set balance to ${usd(n)}`; }
-    else if (mode === "add") { delta = n;           newBal += n;                        note = `Admin credited ${usd(n)}`; }
-    else                     { delta = -n;          newBal = Math.max(0, newBal - n);  note = `Admin deducted ${usd(n)}`; }
+    let newBal = fresh.balance || 0;
+    let delta = 0;
+    let note = "";
+    if (mode === "set") { delta = n - newBal; newBal = n; note = `Admin set balance to ${usd(n)}`; }
+    else if (mode === "add") { delta = n; newBal += n; note = `Admin credited ${usd(n)}`; }
+    else { delta = -n; newBal = Math.max(0, newBal - n); note = `Admin deducted ${usd(n)}`; }
 
     const tx = { type: delta >= 0 ? "Deposit" : "Withdraw", coin:"USD", usd: Math.abs(delta), date: now, up: delta >= 0, adminAdded: true, note };
     const updated = { ...fresh, balance: Math.max(0, newBal), transactions: [tx, ...(fresh.transactions || [])] };
@@ -103,7 +104,7 @@ function BalanceEditor({ username, usersState, setUsersState }) {
   const preview = () => {
     const n = parseFloat(val); if (!n || isNaN(n)) return null;
     const cur = u.balance || 0;
-    const nb  = mode==="set" ? n : mode==="add" ? cur+n : Math.max(0, cur-n);
+    const nb = mode==="set" ? n : mode==="add" ? cur+n : Math.max(0, cur-n);
     return usd(nb);
   };
 
@@ -118,9 +119,9 @@ function BalanceEditor({ username, usersState, setUsersState }) {
     <div style={{ background: C.card, borderRadius:14, border:`1px solid ${C.border}`, padding:"20px 22px", boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
       <div style={{ fontSize:13, fontWeight:800, color:C.text, marginBottom:14 }}>💰 Adjust User Balance</div>
       <div style={{ display:"flex", gap:6, marginBottom:14 }}>
-        {btn("add",    "＋ Add",      C.green)}
-        {btn("subtract","− Deduct",   C.red)}
-        {btn("set",    "= Set Exact", C.accent)}
+        {btn("add", "＋ Add", C.green)}
+        {btn("subtract","− Deduct", C.red)}
+        {btn("set", "= Set Exact", C.accent)}
       </div>
       <div style={{ display:"flex", gap:8 }}>
         <div style={{ position:"relative", flex:1 }}>
@@ -152,14 +153,14 @@ function BalanceEditor({ username, usersState, setUsersState }) {
 ══════════════════════════════════════════════════════ */
 function ForceTradePanel({ username, usersState, setUsersState }) {
   const [action, setAction] = useState("buy");
-  const [coin, setCoin]     = useState("BTC");
-  const [qty, setQty]       = useState("");
-  const [msg, setMsg]       = useState(null);
+  const [coin, setCoin] = useState("BTC");
+  const [qty, setQty] = useState("");
+  const [msg, setMsg] = useState(null);
 
-  const u     = usersState[username] || {};
+  const u = usersState[username] || {};
   const price = PE.p[coin] || 0;
-  const held  = (u.holdings || {})[coin] || 0;
-  const now   = new Date().toISOString().slice(0, 10);
+  const held = (u.holdings || {})[coin] || 0;
+  const now = new Date().toISOString().slice(0, 10);
 
   const apply = () => {
     const q = parseFloat(qty);
@@ -171,15 +172,15 @@ function ForceTradePanel({ username, usersState, setUsersState }) {
       const cost = q * price;
       if ((fresh.balance || 0) < cost) { setMsg({ t:"e", m:`User only has ${usd(fresh.balance||0)}. Trade costs ${usd(cost)}.` }); return; }
       const newH = { ...(fresh.holdings||{}), [coin]: ((fresh.holdings||{})[coin]||0) + q };
-      const tx   = { type:"Buy", coin, amount:q, usd:cost, price, date:now, up:true, adminAction:true };
-      updated    = { ...fresh, balance:(fresh.balance||0)-cost, holdings:newH, transactions:[tx,...(fresh.transactions||[])] };
+      const tx = { type:"Buy", coin, amount:q, usd:cost, price, date:now, up:true, adminAction:true };
+      updated = { ...fresh, balance:(fresh.balance||0)-cost, holdings:newH, transactions:[tx,...(fresh.transactions||[])] };
       setMsg({ t:"s", m:`Bought ${q} ${coin} for ${usd(cost)}. New balance: ${usd(updated.balance)}` });
     } else {
       if (held < q) { setMsg({ t:"e", m:`User only holds ${f2(held,6)} ${coin}.` }); return; }
       const proceeds = q * price;
-      const newH     = { ...(fresh.holdings||{}), [coin]: Math.max(0, held - q) };
-      const tx       = { type:"Sell", coin, amount:q, usd:proceeds, price, date:now, up:false, adminAction:true };
-      updated        = { ...fresh, balance:(fresh.balance||0)+proceeds, holdings:newH, transactions:[tx,...(fresh.transactions||[])] };
+      const newH = { ...(fresh.holdings||{}), [coin]: Math.max(0, held - q) };
+      const tx = { type:"Sell", coin, amount:q, usd:proceeds, price, date:now, up:false, adminAction:true };
+      updated = { ...fresh, balance:(fresh.balance||0)+proceeds, holdings:newH, transactions:[tx,...(fresh.transactions||[])] };
       setMsg({ t:"s", m:`Sold ${q} ${coin} for ${usd(proceeds)}. New balance: ${usd(updated.balance)}` });
     }
 
@@ -245,35 +246,46 @@ function ForceTradePanel({ username, usersState, setUsersState }) {
 ══════════════════════════════════════════════════════ */
 function UserDrawer({ username, usersState, setUsersState, banned, changeScore, disc, rest, del, onClose }) {
   const [tab, setTab] = useState("overview");
-  const u      = usersState[username] || S.users?.[username] || {};
-  const isBan  = banned.includes(username);
-  const txs    = u.transactions || [];
-  const cards  = u.savedCards   || [];
-  const hVal   = Object.entries(u.holdings||{}).reduce((s,[id,q])=>s+q*(PE.p[id]||0),0);
-  const deps   = txs.filter(t=>t.type==="Deposit").reduce((s,t)=>s+(t.usd||0),0);
-  const wths   = txs.filter(t=>t.type==="Withdraw").reduce((s,t)=>s+(t.usd||0),0);
-  const buys   = txs.filter(t=>t.type==="Buy").length;
-  const sells  = txs.filter(t=>t.type==="Sell").length;
-  const score  = u.creditScore ?? 50;
-  const sc     = score>=70?C.green:score>=40?C.gold:C.red;
+  const u = usersState[username] || S.users?.[username] || {};
+  const isBan = banned.includes(username);
+  const allTransactions = u.transactions || [];
+  
+  // Separate binary trades from regular transactions
+  const binaryTrades = allTransactions.filter(t => t.isBinaryTrade === true);
+  const regularTransactions = allTransactions.filter(t => !t.isBinaryTrade);
+  
+  // Sort ALL transactions by date (newest first)
+  const sortedTransactions = [...allTransactions].sort((a, b) => {
+    const dateA = new Date(a.date);
+    const dateB = new Date(b.date);
+    return dateB - dateA;
+  });
+  
+  const cards = u.savedCards || [];
+  const hVal = Object.entries(u.holdings||{}).reduce((s,[id,q])=>s+q*(PE.p[id]||0),0);
+  const deps = regularTransactions.filter(t=>t.type==="Deposit").reduce((s,t)=>s+(t.usd||0),0);
+  const wths = regularTransactions.filter(t=>t.type==="Withdraw").reduce((s,t)=>s+(t.usd||0),0);
+  const score = u.creditScore ?? 50;
+  const sc = score>=70?C.green:score>=40?C.gold:C.red;
 
-  const binaryTrades = txs.filter(t=>t.isBinaryTrade === true);
-  const binaryWins = binaryTrades.filter(t=>t.up === true).length;
-  const binaryLosses = binaryTrades.filter(t=>t.up === false).length;
+  const binaryWins = binaryTrades.filter(t => t.up === true).length;
+  const binaryLosses = binaryTrades.filter(t => t.up === false).length;
   const totalBinaryVolume = binaryTrades.reduce((s,t)=>s+(t.amount||0),0);
   const totalBinaryProfit = binaryTrades.reduce((s,t)=>s+(t.tradeResult?.profit || 0),0);
+  const totalBinaryWon = binaryTrades.filter(t=>t.up).reduce((s,t)=>s+(t.tradeResult?.profit || 0),0);
+  const totalBinaryLost = binaryTrades.filter(t=>!t.up).reduce((s,t)=>s+(t.amount||0),0);
 
   const tabs = [
-    ["overview","Overview"],
-    ["balance","Balance"],
-    ["trades","Trades"],
-    ["holdings","Holdings"],
-    ["cards","Cards"],
-    ["info","Info"],
+    ["overview", "📊 Overview"],
+    ["trades", "🎲 Binary Trades"],
+    ["history", "📜 All Activity"],
+    ["holdings", "💼 Holdings"],
+    ["cards", "💳 Cards"],
+    ["info", "ℹ️ Info"],
   ];
 
   return (
-    <div style={{ position:"fixed", top:0, right:0, bottom:0, width:"min(520px,100vw)", background:C.bg, boxShadow:"-4px 0 32px rgba(0,0,0,0.14)", zIndex:1000, display:"flex", flexDirection:"column", overflowY:"auto" }}>
+    <div style={{ position:"fixed", top:0, right:0, bottom:0, width:"min(680px,100vw)", background:C.bg, boxShadow:"-4px 0 32px rgba(0,0,0,0.14)", zIndex:1000, display:"flex", flexDirection:"column", overflowY:"auto" }}>
       <div style={{ background:C.sidebar, padding:"20px 22px", display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
         <button onClick={onClose} style={{ background:"rgba(255,255,255,0.1)", border:"none", borderRadius:8, width:34, height:34, cursor:"pointer", fontSize:18, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>←</button>
         <div style={{ width:42, height:42, borderRadius:11, background:"linear-gradient(135deg,#6366f1,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, fontWeight:900, color:"#fff", flexShrink:0 }}>
@@ -281,20 +293,33 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
         </div>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize:16, fontWeight:800, color:"#fff" }}>@{username}</div>
-          <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>{u.email||"—"}</div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>{u.email || "—"}</div>
         </div>
         <span style={{ fontSize:10, fontWeight:700, padding:"4px 10px", borderRadius:20, ...(isBan?{background:"rgba(239,68,68,0.2)",color:"#f87171"}:{background:"rgba(34,197,94,0.2)",color:"#4ade80"}) }}>
-          {isBan?"BANNED":"ACTIVE"}
+          {isBan ? "BANNED" : "ACTIVE"}
         </span>
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:`1px solid ${C.border}` }}>
-        {[["Balance",usd(u.balance||0),C.green],["Holdings",usd(hVal),C.gold],["Binary Trades",binaryTrades.length,C.accent],["Win Rate",binaryTrades.length ? Math.round((binaryWins/binaryTrades.length)*100)+"%" : "0%",C.blue]].map(([l,v,c])=>(
-          <div key={l} style={{ padding:"12px 10px", textAlign:"center", borderRight:`1px solid ${C.border}` }}>
-            <div style={{ fontSize:14, fontWeight:800, color:c }}>{v}</div>
-            <div style={{ fontSize:10, color:C.sub, marginTop:2, fontWeight:600 }}>{l}</div>
+      {/* Stats Cards */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:`1px solid ${C.border}`, gap:1 }}>
+        <div style={{ padding:"12px 8px", textAlign:"center", background:C.card }}>
+          <div style={{ fontSize:13, fontWeight:800, color:C.green }}>{usd(u.balance||0)}</div>
+          <div style={{ fontSize:9, color:C.sub }}>Balance</div>
+        </div>
+        <div style={{ padding:"12px 8px", textAlign:"center", background:C.card }}>
+          <div style={{ fontSize:13, fontWeight:800, color:C.gold }}>{usd(hVal)}</div>
+          <div style={{ fontSize:9, color:C.sub }}>Holdings</div>
+        </div>
+        <div style={{ padding:"12px 8px", textAlign:"center", background:C.card }}>
+          <div style={{ fontSize:13, fontWeight:800, color:C.blue }}>{binaryTrades.length}</div>
+          <div style={{ fontSize:9, color:C.sub }}>Binary Trades</div>
+        </div>
+        <div style={{ padding:"12px 8px", textAlign:"center", background:C.card }}>
+          <div style={{ fontSize:13, fontWeight:800, color:binaryWins>=binaryLosses?C.green:C.red }}>
+            {binaryWins}/{binaryLosses}
           </div>
-        ))}
+          <div style={{ fontSize:9, color:C.sub }}>W/L</div>
+        </div>
       </div>
 
       <div style={{ display:"flex", overflowX:"auto", background:"#fff", borderBottom:`1px solid ${C.border}`, scrollbarWidth:"none", flexShrink:0 }}>
@@ -308,7 +333,8 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
 
       <div style={{ flex:1, padding:"18px 20px", overflowY:"auto" }}>
 
-        {tab==="overview" && (
+        {/* ═══ OVERVIEW TAB ═══ */}
+        {tab === "overview" && (
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"16px 18px" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -322,17 +348,26 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
                 {[[-5,C.red],[-1,C.gold],[+1,C.green],[+5,C.blue]].map(([d,c])=>(
                   <button key={d} onClick={()=>changeScore(username,d)}
                     style={{ flex:1, padding:"6px 0", borderRadius:7, border:`1.5px solid ${c}`, background:c+"15", color:c, fontSize:12, fontWeight:700, cursor:"pointer" }}>
-                    {d>0?`+${d}`:d}
+                    {d>0 ? `+${d}` : d}
                   </button>
                 ))}
               </div>
             </div>
 
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-              {[["Total Deposits",usd(deps),C.blue],["Total Withdrawals",usd(wths),C.gold],["Binary Volume",usd(totalBinaryVolume),C.accent],["Binary P&L",usd(totalBinaryProfit),totalBinaryProfit>=0?C.green:C.red]].map(([l,v,c])=>(
-                <div key={l} style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"14px 16px" }}>
-                  <div style={{ fontSize:17, fontWeight:800, color:c, marginBottom:3 }}>{v}</div>
-                  <div style={{ fontSize:11, color:C.sub, fontWeight:600 }}>{l}</div>
+              {[
+                ["Total Deposits", usd(deps), C.blue],
+                ["Total Withdrawals", usd(wths), C.gold],
+                ["Binary Trades", binaryTrades.length, C.accent],
+                ["Win/Loss", `${binaryWins}/${binaryLosses}`, binaryWins>=binaryLosses?C.green:C.red],
+                ["Binary Volume", usd(totalBinaryVolume), C.purple || "#8b5cf6"],
+                ["Binary P&L", usd(totalBinaryProfit), totalBinaryProfit>=0?C.green:C.red],
+                ["Total Won", usd(totalBinaryWon), C.green],
+                ["Total Lost", usd(totalBinaryLost), C.red],
+              ].map(([l,v,c])=>(
+                <div key={l} style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"12px 14px" }}>
+                  <div style={{ fontSize:15, fontWeight:800, color:c, marginBottom:3 }}>{v}</div>
+                  <div style={{ fontSize:10, color:C.sub, fontWeight:600 }}>{l}</div>
                 </div>
               ))}
             </div>
@@ -346,92 +381,138 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
           </div>
         )}
 
-        {tab==="balance" && (
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            <BalanceEditor username={username} usersState={usersState} setUsersState={setUsersState} />
-            <ForceTradePanel username={username} usersState={usersState} setUsersState={setUsersState} />
-          </div>
-        )}
-
-        {tab==="trades" && (
+        {/* ═══ BINARY TRADES TAB ═══ */}
+        {tab === "trades" && (
           <div>
-            <div style={{ marginBottom:12, display:"flex", gap:10, flexWrap:"wrap", padding:"8px 0" }}>
-              <div style={{ background:C.card, borderRadius:8, padding:"6px 12px", border:`1px solid ${C.border}` }}>
-                <span style={{ fontSize:11, color:C.sub }}>Total Trades: </span>
-                <span style={{ fontSize:13, fontWeight:800, color:C.text }}>{txs.length}</span>
+            {binaryTrades.length === 0 ? (
+              <div style={{ textAlign:"center", color:C.sub, padding:"60px 20px", fontSize:13 }}>
+                <div style={{ fontSize:48, marginBottom:12 }}>🎲</div>
+                <div>No binary trades yet</div>
+                <div style={{ fontSize:11, marginTop:6, color:C.sub }}>User has not placed any binary trades.</div>
               </div>
-              <div style={{ background:C.card, borderRadius:8, padding:"6px 12px", border:`1px solid ${C.border}` }}>
-                <span style={{ fontSize:11, color:C.sub }}>Binary Wins: </span>
-                <span style={{ fontSize:13, fontWeight:800, color:C.green }}>{binaryWins}</span>
-              </div>
-              <div style={{ background:C.card, borderRadius:8, padding:"6px 12px", border:`1px solid ${C.border}` }}>
-                <span style={{ fontSize:11, color:C.sub }}>Binary Losses: </span>
-                <span style={{ fontSize:13, fontWeight:800, color:C.red }}>{binaryLosses}</span>
-              </div>
-            </div>
-            {txs.length===0 && <div style={{ textAlign:"center", color:C.sub, padding:"40px 0", fontSize:13 }}>No transactions yet</div>}
-            {txs.map((tx,i)=>(
-              <div key={i} style={{ background:C.card, borderRadius:10, border:`1px solid ${C.border}`, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
-                <div style={{ fontSize:20, flexShrink:0 }}>{tx.isBinaryTrade ? (tx.up ? "🎉" : "💔") : typeIcon(tx.type)}</div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-                    <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:20, background:tx.isBinaryTrade ? (tx.up ? C.green+"18" : C.red+"18") : typeColor(tx.type)+"18", color:tx.isBinaryTrade ? (tx.up ? C.green : C.red) : typeColor(tx.type) }}>
-                      {tx.isBinaryTrade ? `Binary ${tx.up ? "WIN" : "LOSS"}` : tx.type}
-                    </span>
-                    {tx.adminAction && <span style={{ fontSize:10, color:C.accent }}>🔧 admin</span>}
-                    {tx.adminAdded  && <span style={{ fontSize:10, color:C.green }}>💰 admin</span>}
-                    {tx.isBinaryTrade && tx.tradeResult && (
-                      <>
-                        <span style={{ fontSize:10, color:C.gold }}>⏱ {tx.tradeResult.duration}s</span>
-                        <span style={{ fontSize:10, color:C.accent }}>{tx.tradeResult.orderType === "up" ? "📈 UP" : "📉 DOWN"}</span>
-                        <span style={{ fontSize:10, color:C.blue }}>+{tx.tradeResult.profitPercent}%</span>
-                        <span style={{ fontSize:10, color:C.sub }}>${tx.tradeResult.startPrice?.toFixed(2)} → ${tx.tradeResult.endPrice?.toFixed(2)}</span>
-                      </>
-                    )}
-                    <span style={{ fontSize:10, color:C.sub }}>{tx.date?.split?.("T")?.[0] || tx.date || "—"}</span>
+            ) : (
+              binaryTrades.map((tx, i) => (
+                <div key={i} style={{ background:C.card, borderRadius:12, border:`1px solid ${tx.up ? C.green : C.red}`, padding:"14px 16px", marginBottom:10 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:8 }}>
+                    <div style={{ fontSize:28, flexShrink:0 }}>{tx.up ? "🎉" : "💔"}</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:4 }}>
+                        <span style={{ fontSize:14, fontWeight:800, color:tx.up ? C.green : C.red }}>
+                          {tx.up ? "WINNER" : "LOSS"}
+                        </span>
+                        <span style={{ fontSize:11, padding:"2px 8px", borderRadius:20, background:C.accent+"15", color:C.accent }}>
+                          {tx.tradeResult?.duration}s
+                        </span>
+                        <span style={{ fontSize:11, padding:"2px 8px", borderRadius:20, background:tx.tradeResult?.orderType === "up" ? C.green+"15" : C.red+"15", color:tx.tradeResult?.orderType === "up" ? C.green : C.red }}>
+                          {tx.tradeResult?.orderType === "up" ? "📈 UP" : "📉 DOWN"}
+                        </span>
+                      </div>
+                      <div style={{ fontSize:11, color:C.sub }}>
+                        {new Date(tx.date).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ fontSize:16, fontWeight:900, color:tx.up ? C.green : C.red }}>
+                        {tx.up ? `+${usd(tx.tradeResult?.profit || 0)}` : `-${usd(tx.amount)}`}
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize:12, color:C.sub, marginTop:3 }}>
-                    {tx.coin || "USD"}{tx.amount?` · ${f2(tx.amount,4)} ${tx.coin}`:""}{tx.price?` @ ${usd(tx.price)}`:""}
-                    {tx.tradeResult?.lostAmount && <span style={{ color:C.red }}> · Lost: ${tx.tradeResult.lostAmount}</span>}
-                    {tx.note && <span style={{ fontStyle:"italic" }}> — {tx.note}</span>}
+                  <div style={{ background:C.bg, borderRadius:8, padding:"10px 12px", marginTop:6 }}>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, fontSize:11 }}>
+                      <div><span style={{ color:C.sub }}>Amount:</span> <strong>{usd(tx.amount)}</strong></div>
+                      <div><span style={{ color:C.sub }}>Profit %:</span> <strong className={tx.up ? "text-green" : "text-red"}>{tx.tradeResult?.profitPercent}%</strong></div>
+                      <div><span style={{ color:C.sub }}>Start Price:</span> <strong>${tx.tradeResult?.startPrice?.toFixed(2)}</strong></div>
+                      <div><span style={{ color:C.sub }}>End Price:</span> <strong>${tx.tradeResult?.endPrice?.toFixed(2)}</strong></div>
+                    </div>
                   </div>
                 </div>
-                <div style={{ fontSize:13, fontWeight:800, color:tx.up?C.green:C.red, textAlign:"right" }}>
-                  {tx.isBinaryTrade ? (tx.up ? `+${usd(tx.usd)}` : `-${usd(tx.amount)}`) : usd(tx.usd||0)}
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         )}
 
-        {tab==="holdings" && (
+        {/* ═══ ALL ACTIVITY TAB (Deposits, Withdraws, Trades) ═══ */}
+        {tab === "history" && (
+          <div>
+            {sortedTransactions.length === 0 ? (
+              <div style={{ textAlign:"center", color:C.sub, padding:"60px 20px", fontSize:13 }}>
+                <div style={{ fontSize:48, marginBottom:12 }}>📭</div>
+                <div>No activity yet</div>
+              </div>
+            ) : (
+              sortedTransactions.map((tx, i) => {
+                const isBinary = tx.isBinaryTrade;
+                return (
+                  <div key={i} style={{ background:C.card, borderRadius:10, border:`1px solid ${C.border}`, padding:"12px 14px", marginBottom:8 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                      <div style={{ fontSize:24, flexShrink:0 }}>{isBinary ? (tx.up ? "🎉" : "💔") : typeIcon(tx.type, false, false)}</div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:3 }}>
+                          <span style={{ fontSize:12, fontWeight:700, padding:"3px 10px", borderRadius:20, background:isBinary ? (tx.up ? C.green+"18" : C.red+"18") : typeColor(tx.type)+"18", color:isBinary ? (tx.up ? C.green : C.red) : typeColor(tx.type) }}>
+                            {isBinary ? `BINARY ${tx.up ? "WIN" : "LOSS"}` : tx.type}
+                          </span>
+                          {tx.adminAction && <span style={{ fontSize:10, color:C.accent }}>🔧 Admin Action</span>}
+                          {tx.adminAdded && <span style={{ fontSize:10, color:C.green }}>💰 Admin Credit</span>}
+                          <span style={{ fontSize:10, color:C.sub }}>{tx.date?.split?.("T")?.[0] || tx.date || "—"}</span>
+                        </div>
+                        <div style={{ fontSize:11, color:C.sub }}>
+                          {tx.coin || "USD"}
+                          {tx.amount ? ` · ${f2(tx.amount, 4)} ${tx.coin}` : ""}
+                          {tx.price ? ` @ ${usd(tx.price)}` : ""}
+                          {isBinary && tx.tradeResult && (
+                            <span> · {tx.tradeResult.duration}s · {tx.tradeResult.orderType === "up" ? "📈 UP" : "📉 DOWN"}</span>
+                          )}
+                          {tx.note && <span style={{ fontStyle:"italic" }}> — {tx.note}</span>}
+                        </div>
+                      </div>
+                      <div style={{ textAlign:"right", flexShrink:0 }}>
+                        <div style={{ fontSize:14, fontWeight:800, color:tx.up ? C.green : C.red }}>
+                          {isBinary ? (tx.up ? `+${usd(tx.tradeResult?.profit || 0)}` : `-${usd(tx.amount)}`) : (tx.up ? "+" : "-")}{usd(tx.usd || 0)}
+                        </div>
+                        {isBinary && !tx.up && tx.tradeResult?.lostAmount && (
+                          <div style={{ fontSize:10, color:C.red }}>Lost: ${tx.tradeResult.lostAmount}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* ═══ HOLDINGS TAB ═══ */}
+        {tab === "holdings" && (
           <div>
             <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"14px 16px", marginBottom:14 }}>
               <div style={{ fontSize:11, color:C.sub, fontWeight:600, marginBottom:3 }}>TOTAL HOLDINGS VALUE</div>
               <div style={{ fontSize:24, fontWeight:900, color:C.text }}>{usd(hVal)}</div>
             </div>
-            {Object.entries(u.holdings||{}).filter(([,q])=>q>0).length===0
-              ? <div style={{ textAlign:"center", color:C.sub, padding:"30px 0", fontSize:13 }}>No holdings</div>
-              : Object.entries(u.holdings||{}).filter(([,q])=>q>0).map(([id,q])=>{
-                  const cm = coinMeta(id); 
-                  const val = q*(PE.p[id]||0);
-                  return (
-                    <div key={id} style={{ background:C.card, borderRadius:10, border:`1px solid ${C.border}`, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
-                      <div style={{ width:36, height:36, borderRadius:"50%", background:cm.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, color:cm.cl, flexShrink:0 }}>{cm.sym}</div>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:13, fontWeight:700, color:C.text }}>{id}</div>
-                        <div style={{ fontSize:11, color:C.sub }}>{f2(q,6)} · @ {usd(PE.p[id]||0)}</div>
-                      </div>
-                      <div style={{ fontSize:14, fontWeight:800, color:C.green }}>{usd(val)}</div>
+            {Object.entries(u.holdings||{}).filter(([,q])=>q>0).length === 0 ? (
+              <div style={{ textAlign:"center", color:C.sub, padding:"40px 0", fontSize:13 }}>No crypto holdings</div>
+            ) : (
+              Object.entries(u.holdings||{}).filter(([,q])=>q>0).map(([id,q])=>{
+                const cm = coinMeta(id);
+                const val = q * (PE.p[id]||0);
+                return (
+                  <div key={id} style={{ background:C.card, borderRadius:10, border:`1px solid ${C.border}`, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+                    <div style={{ width:36, height:36, borderRadius:"50%", background:cm.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, color:cm.cl, flexShrink:0 }}>{cm.sym}</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:13, fontWeight:700, color:C.text }}>{id}</div>
+                      <div style={{ fontSize:11, color:C.sub }}>{f2(q,6)} · @ {usd(PE.p[id]||0)}</div>
                     </div>
-                  );
-                })}
+                    <div style={{ fontSize:14, fontWeight:800, color:C.green }}>{usd(val)}</div>
+                  </div>
+                );
+              })
+            )}
           </div>
         )}
 
-        {tab==="cards" && (
+        {/* ═══ CARDS TAB ═══ */}
+        {tab === "cards" && (
           <div>
-            {cards.length===0 && <div style={{ textAlign:"center", color:C.sub, padding:"40px 0", fontSize:13 }}>No saved cards</div>}
+            {cards.length === 0 && <div style={{ textAlign:"center", color:C.sub, padding:"40px 0", fontSize:13 }}>No saved cards</div>}
             {cards.map((c,i)=>(
               <div key={c.id||i} style={{ background:"linear-gradient(135deg,#0c2340,#1a3a5c)", borderRadius:14, padding:"18px 18px 14px", marginBottom:12, position:"relative", overflow:"hidden" }}>
                 <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)", letterSpacing:3, marginBottom:12 }}>BANK CARD</div>
@@ -445,27 +526,30 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
           </div>
         )}
 
-        {tab==="info" && (
+        {/* ═══ INFO TAB ═══ */}
+        {tab === "info" && (
           <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, overflow:"hidden" }}>
             {[
-              ["Username",      u.username||"—",        "👤"],
-              ["Full Name",     u.fullName||"—",        "📝"],
-              ["Email",         u.email||"—",           "✉️"],
-              ["Phone",         u.phone||"—",           "📞"],
-              ["Date of Birth", u.dob||"—",             "🎂"],
-              ["Country",       u.country||"—",         "🌍"],
-              ["Status",        isBan?"BANNED":"ACTIVE","🔒"],
-              ["Credit Score",  `${score}/100`,         "⭐"],
-              ["Cash Balance",  usd(u.balance||0),      "💰"],
-              ["Holdings Value",usd(hVal),              "📈"],
-              ["Binary Trades", binaryTrades.length,    "🎲"],
-              ["Binary Wins",   binaryWins,             "🏆"],
-              ["Binary Losses", binaryLosses,           "💔"],
+              ["Username", u.username || "—", "👤"],
+              ["Full Name", u.fullName || "—", "📝"],
+              ["Email", u.email || "—", "✉️"],
+              ["Phone", u.phone || "—", "📞"],
+              ["Date of Birth", u.dob || "—", "🎂"],
+              ["Country", u.country || "—", "🌍"],
+              ["Status", isBan ? "BANNED" : "ACTIVE", "🔒"],
+              ["Credit Score", `${score}/100`, "⭐"],
+              ["Cash Balance", usd(u.balance||0), "💰"],
+              ["Holdings Value", usd(hVal), "📈"],
+              ["Binary Trades", binaryTrades.length, "🎲"],
+              ["Binary Wins", binaryWins, "🏆"],
+              ["Binary Losses", binaryLosses, "💔"],
               ["Binary Volume", usd(totalBinaryVolume), "💹"],
-              ["Binary P&L",    usd(totalBinaryProfit), totalBinaryProfit>=0?"📈":"📉"],
-              ["Saved Cards",   cards.length,           "💳"],
+              ["Binary P&L", usd(totalBinaryProfit), totalBinaryProfit>=0 ? "📈" : "📉"],
+              ["Total Won", usd(totalBinaryWon), "✅"],
+              ["Total Lost", usd(totalBinaryLost), "❌"],
+              ["Saved Cards", cards.length, "💳"],
             ].map(([l,v,ic],i,arr)=>(
-              <div key={l} style={{ display:"flex", alignItems:"center", padding:"13px 18px", borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none" }}>
+              <div key={l} style={{ display:"flex", alignItems:"center", padding:"13px 18px", borderBottom:i<arr.length-1 ? `1px solid ${C.border}` : "none" }}>
                 <span style={{ fontSize:16, width:26, flexShrink:0 }}>{ic}</span>
                 <span style={{ flex:1, fontSize:12, color:C.sub, fontWeight:600 }}>{l}</span>
                 <span style={{ fontSize:13, fontWeight:700, color:C.text }}>{v}</span>
@@ -484,13 +568,13 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
 export default function AdminPanel({ onBack, onExit }) {
   const exit = onBack || onExit;
 
-  const [tab, setTab]               = useState("dashboard");
+  const [tab, setTab] = useState("dashboard");
   const [usersState, setUsersState] = useState({});
-  const [banned, setBanned]         = useState(loadBanned);
-  const [loading, setLoading]       = useState(true);
-  const [q, setQ]                   = useState("");
-  const [selUser, setSelUser]       = useState(null);
-  const [sideOpen, setSideOpen]     = useState(false);
+  const [banned, setBanned] = useState(loadBanned);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [selUser, setSelUser] = useState(null);
+  const [sideOpen, setSideOpen] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -502,7 +586,7 @@ export default function AdminPanel({ onBack, onExit }) {
         if (arr) { arr.forEach(u=>{ const k=u.username?.toLowerCase(); if(k&&k!=="admin") dbUsers[k]={...u,username:k}; }); ok=true; }
       }
       if (ok) { saveUsers(dbUsers); setUsersState(dbUsers); }
-      else      setUsersState(loadLocalUsers());
+      else setUsersState(loadLocalUsers());
     } catch { setUsersState(loadLocalUsers()); }
     finally { setLoading(false); }
   }, []);
@@ -510,30 +594,34 @@ export default function AdminPanel({ onBack, onExit }) {
   useEffect(()=>{ fetchUsers(); },[fetchUsers]);
   useEffect(()=>{ S.banned=banned; },[banned]);
 
-  const users         = Object.values(usersState);
-  const totalBalance  = users.reduce((a,u)=>a+(u.balance||0),0);
+  const users = Object.values(usersState);
+  const totalBalance = users.reduce((a,u)=>a+(u.balance||0),0);
   const totalHoldings = users.reduce((a,u)=>a+Object.entries(u.holdings||{}).reduce((s,[id,q])=>s+q*(PE.p[id]||0),0),0);
-  const totalTxns     = users.reduce((a,u)=>a+(u.transactions||[]).length,0);
+  const totalTxns = users.reduce((a,u)=>a+(u.transactions||[]).length,0);
 
   const allTxns = users.flatMap(u =>
-    (u.transactions||[]).map(tx=>({...tx,_user:u.username}))
-  ).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    (u.transactions||[]).map(tx=>({...tx, _user: u.username}))
+  ).sort((a,b) => {
+    const dateA = new Date(a.date);
+    const dateB = new Date(b.date);
+    return dateB - dateA;
+  });
 
-  const allDeposits   = allTxns.filter(t=>t.type==="Deposit");
-  const allWithdraws  = allTxns.filter(t=>t.type==="Withdraw");
-  const allTrades     = allTxns.filter(t=>t.type==="Buy"||t.type==="Sell"||t.isBinaryTrade===true);
-  const allNotifs     = allTxns;
+  const allDeposits = allTxns.filter(t=>t.type==="Deposit");
+  const allWithdraws = allTxns.filter(t=>t.type==="Withdraw");
+  const allTrades = allTxns.filter(t=>t.type==="Buy"||t.type==="Sell"||t.isBinaryTrade===true);
+  const allNotifs = allTxns;
   const allBinaryTrades = allTxns.filter(t=>t.isBinaryTrade===true);
   const totalBinaryVolume = allBinaryTrades.reduce((s,t)=>s+(t.amount||0),0);
   const totalBinaryProfit = allBinaryTrades.reduce((s,t)=>s+(t.tradeResult?.profit||0),0);
 
   const found = users.filter(u=>
-    u.username?.toLowerCase().includes(q.toLowerCase())||
+    u.username?.toLowerCase().includes(q.toLowerCase()) ||
     (u.email||"").toLowerCase().includes(q.toLowerCase())
   );
 
   const changeScore = async (username, delta) => {
-    const updated  = { ...usersState };
+    const updated = { ...usersState };
     const newScore = Math.max(0,Math.min(100,(updated[username]?.creditScore??50)+delta));
     updated[username] = { ...updated[username], creditScore: newScore };
     setUsersState(updated); saveUsers(updated);
@@ -543,7 +631,7 @@ export default function AdminPanel({ onBack, onExit }) {
 
   const disc = (username) => { const n=banned.includes(username)?banned:[...banned,username]; setBanned(n); saveBanned(n); };
   const rest = (username) => { const n=banned.filter(x=>x!==username); setBanned(n); saveBanned(n); };
-  const del  = async (username) => {
+  const del = async (username) => {
     try {
       await fetch(`${BASE_URL}/api/users/${username.toLowerCase()}`,{method:"DELETE"});
       const local=JSON.parse(localStorage.getItem("users")||"{}");
@@ -554,16 +642,16 @@ export default function AdminPanel({ onBack, onExit }) {
   };
 
   const navItems = [
-    {id:"dashboard",label:"Dashboard",   icon:"📊"},
-    {id:"users",    label:"Users",       icon:"👥"},
-    {id:"trades",   label:"All Trades",  icon:"📈"},
-    {id:"deposits", label:"Deposits",    icon:"💰"},
-    {id:"withdraws",label:"Withdrawals", icon:"💸"},
-    {id:"activity", label:"Activity Log",icon:"🔔"},
+    {id:"dashboard", label:"Dashboard", icon:"📊"},
+    {id:"users", label:"Users", icon:"👥"},
+    {id:"trades", label:"Binary Trades", icon:"🎲"},
+    {id:"deposits", label:"Deposits", icon:"💰"},
+    {id:"withdraws", label:"Withdrawals", icon:"💸"},
+    {id:"activity", label:"All Activity", icon:"📋"},
   ];
 
   const NavBtn = ({id,label,icon}) => {
-    const cnt = id==="users"?users.length:id==="trades"?allTrades.length:id==="deposits"?allDeposits.length:id==="withdraws"?allWithdraws.length:id==="activity"?allNotifs.length:null;
+    const cnt = id==="users"?users.length:id==="trades"?allBinaryTrades.length:id==="deposits"?allDeposits.length:id==="withdraws"?allWithdraws.length:id==="activity"?allTxns.length:null;
     return (
       <button onClick={()=>{setTab(id);setSideOpen(false);}}
         style={{ width:"100%", display:"flex", alignItems:"center", gap:11, padding:"11px 14px", borderRadius:10, border:"none", cursor:"pointer", background:tab===id?"rgba(99,102,241,0.22)":"transparent", color:tab===id?"#a5b4fc":"rgba(255,255,255,0.55)", fontFamily:"inherit", fontSize:13, fontWeight:600, transition:"all .15s", textAlign:"left", position:"relative" }}>
@@ -579,35 +667,34 @@ export default function AdminPanel({ onBack, onExit }) {
       {title && <div style={{ fontSize:14, fontWeight:800, color:C.text, marginBottom:14 }}>{title}</div>}
       {rows.length===0 && <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"40px", textAlign:"center", color:C.sub, fontSize:13 }}>No records yet</div>}
       {rows.map((tx,i)=>(
-        <div key={i} style={{ background:C.card, borderRadius:10, border:`1px solid ${C.border}`, padding:"13px 16px", marginBottom:8, display:"flex", alignItems:"center", gap:14 }}>
-          <div style={{ fontSize:22, flexShrink:0 }}>{tx.isBinaryTrade ? (tx.up ? "🎉" : "💔") : typeIcon(tx.type)}</div>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:3 }}>
-              <span style={{ fontSize:12, fontWeight:700, color:C.text }}>@{tx._user}</span>
-              <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:20, background:tx.isBinaryTrade ? (tx.up ? C.green+"18" : C.red+"18") : typeColor(tx.type)+"18", color:tx.isBinaryTrade ? (tx.up ? C.green : C.red) : typeColor(tx.type) }}>
-                {tx.isBinaryTrade ? `Binary ${tx.up ? "WIN" : "LOSS"}` : tx.type}
-              </span>
-              {tx.adminAction&&<span style={{ fontSize:10, color:C.accent, fontWeight:600 }}>🔧 admin</span>}
-              {tx.adminAdded &&<span style={{ fontSize:10, color:C.green,  fontWeight:600 }}>💰 admin</span>}
-              {tx.isBinaryTrade && tx.tradeResult && (
-                <>
-                  <span style={{ fontSize:10, color:C.gold }}>⏱ {tx.tradeResult.duration}s</span>
-                  <span style={{ fontSize:10, color:C.accent }}>{tx.tradeResult.orderType === "up" ? "📈 UP" : "📉 DOWN"}</span>
-                  <span style={{ fontSize:10, color:C.blue }}>+{tx.tradeResult.profitPercent}%</span>
-                  <span style={{ fontSize:10, color:C.sub }}>${tx.tradeResult.startPrice?.toFixed(2)}→${tx.tradeResult.endPrice?.toFixed(2)}</span>
-                </>
-              )}
+        <div key={i} style={{ background:C.card, borderRadius:10, border:`1px solid ${C.border}`, padding:"13px 16px", marginBottom:8 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+            <div style={{ fontSize:24, flexShrink:0 }}>{tx.isBinaryTrade ? (tx.up ? "🎉" : "💔") : typeIcon(tx.type, false, false)}</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:3 }}>
+                <span style={{ fontSize:12, fontWeight:700, color:C.text }}>@{tx._user}</span>
+                <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:20, background:tx.isBinaryTrade ? (tx.up ? C.green+"18" : C.red+"18") : typeColor(tx.type)+"18", color:tx.isBinaryTrade ? (tx.up ? C.green : C.red) : typeColor(tx.type) }}>
+                  {tx.isBinaryTrade ? `BINARY ${tx.up ? "WIN" : "LOSS"}` : tx.type}
+                </span>
+                {tx.adminAction && <span style={{ fontSize:10, color:C.accent }}>🔧 admin</span>}
+                {tx.adminAdded && <span style={{ fontSize:10, color:C.green }}>💰 admin</span>}
+                {tx.isBinaryTrade && tx.tradeResult && (
+                  <>
+                    <span style={{ fontSize:10, color:C.gold }}>⏱ {tx.tradeResult.duration}s</span>
+                    <span style={{ fontSize:10, color:C.accent }}>{tx.tradeResult.orderType === "up" ? "📈 UP" : "📉 DOWN"}</span>
+                    <span style={{ fontSize:10, color:C.blue }}>+{tx.tradeResult.profitPercent}%</span>
+                  </>
+                )}
+              </div>
+              <div style={{ fontSize:11, color:C.sub }}>
+                {tx.coin || "USD"}{tx.amount ? ` · ${f2(tx.amount,4)}` : ""}{tx.price ? ` @ ${usd(tx.price)}` : ""} · {tx.date?.split?.("T")?.[0] || tx.date || ""}
+              </div>
             </div>
-            <div style={{ fontSize:11, color:C.sub }}>{tx.coin||"USD"}{tx.amount?` · ${f2(tx.amount,4)}`:""}{tx.price?` @ ${usd(tx.price)}`:""}  {tx.date?.split?.("T")?.[0] || tx.date || ""}</div>
-            {tx.note&&<div style={{ fontSize:11, color:C.sub, fontStyle:"italic" }}>{tx.note}</div>}
-          </div>
-          <div style={{ textAlign:"right", flexShrink:0 }}>
-            <div style={{ fontSize:14, fontWeight:800, color:tx.up?C.green:C.red }}>
-              {tx.isBinaryTrade ? (tx.up ? `+${usd(tx.usd)}` : `-${usd(tx.amount)}`) : (tx.up?"+":"-")}{usd(tx.usd||0)}
+            <div style={{ textAlign:"right", flexShrink:0 }}>
+              <div style={{ fontSize:14, fontWeight:800, color:tx.up?C.green:C.red }}>
+                {tx.isBinaryTrade ? (tx.up ? `+${usd(tx.tradeResult?.profit || 0)}` : `-${usd(tx.amount)}`) : (tx.up?"+":"-")}{usd(tx.usd||0)}
+              </div>
             </div>
-            {tx.isBinaryTrade && !tx.up && tx.tradeResult?.lostAmount && (
-              <div style={{ fontSize:10, color:C.red }}>Lost: ${tx.tradeResult.lostAmount}</div>
-            )}
           </div>
         </div>
       ))}
@@ -619,7 +706,6 @@ export default function AdminPanel({ onBack, onExit }) {
       <style>{css}</style>
 
       {selUser && <div onClick={()=>setSelUser(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", zIndex:999 }} />}
-
       {sideOpen && <div onClick={()=>setSideOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:89 }} />}
 
       <aside style={{ width:220, background:C.sidebar, display:"flex", flexDirection:"column", justifyContent:"space-between", padding:"22px 12px", flexShrink:0, position:"sticky", top:0, height:"100vh", overflowY:"auto" }} className="ap-sidebar">
@@ -628,15 +714,13 @@ export default function AdminPanel({ onBack, onExit }) {
             <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#6366f1,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:18, color:"#fff", flexShrink:0 }}>A</div>
             <div>
               <div style={{ fontWeight:800, fontSize:14, color:"#f1f5f9" }}>AdminOS</div>
-              <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", letterSpacing:"0.07em" }}>TRACKER</div>
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", letterSpacing:"0.07em" }}>BINARY TRACKER</div>
             </div>
           </div>
-
           <nav style={{ display:"flex", flexDirection:"column", gap:3 }}>
             {navItems.map(n=><NavBtn key={n.id} {...n} />)}
           </nav>
         </div>
-
         <button onClick={exit} style={{ width:"100%", padding:"10px 0", borderRadius:9, border:"1px solid rgba(255,255,255,0.12)", background:"transparent", color:"rgba(255,255,255,0.4)", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
           ⎋ Exit Panel
         </button>
@@ -659,7 +743,7 @@ export default function AdminPanel({ onBack, onExit }) {
             <button className="ap-hamburger" onClick={()=>setSideOpen(v=>!v)} style={{ border:"none", background:"transparent", fontSize:20, cursor:"pointer", padding:4 }}>☰</button>
             <div>
               <div style={{ fontSize:18, fontWeight:800, color:C.text }}>
-                {navItems.find(n=>n.id===tab)?.label||"Dashboard"}
+                {navItems.find(n=>n.id===tab)?.label || "Dashboard"}
               </div>
               <div style={{ fontSize:11, color:C.sub }}>Admin Panel</div>
             </div>
@@ -672,65 +756,65 @@ export default function AdminPanel({ onBack, onExit }) {
 
         <div style={{ flex:1, padding:"24px", overflowY:"auto" }} className="ap-content">
 
-          {tab==="dashboard" && (
+          {tab === "dashboard" && (
             <div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:14, marginBottom:24 }}>
                 {[
-                  {label:"Total Users",    value:users.length,      color:C.accent, icon:"👥"},
-                  {label:"Banned",         value:banned.length,     color:C.red,    icon:"🚫"},
-                  {label:"Platform Cash",  value:usd(totalBalance), color:C.green,  icon:"💰"},
-                  {label:"Holdings",       value:usd(totalHoldings),color:C.gold,   icon:"📈"},
-                  {label:"Binary Trades",  value:allBinaryTrades.length, color:C.blue, icon:"🎲"},
-                  {label:"Binary Volume",  value:usd(totalBinaryVolume), color:"#8b5cf6", icon:"💹"},
-                  {label:"Binary P&L",     value:usd(totalBinaryProfit), color:totalBinaryProfit>=0?C.green:C.red, icon:"📊"},
+                  {label:"Total Users", value:users.length, color:C.accent, icon:"👥"},
+                  {label:"Banned", value:banned.length, color:C.red, icon:"🚫"},
+                  {label:"Platform Cash", value:usd(totalBalance), color:C.green, icon:"💰"},
+                  {label:"Holdings", value:usd(totalHoldings), color:C.gold, icon:"📈"},
+                  {label:"Binary Trades", value:allBinaryTrades.length, color:C.blue, icon:"🎲"},
+                  {label:"Binary Volume", value:usd(totalBinaryVolume), color:"#8b5cf6", icon:"💹"},
+                  {label:"Binary P&L", value:usd(totalBinaryProfit), color:totalBinaryProfit>=0?C.green:C.red, icon:"📊"},
                 ].map(({label,value,color,icon})=>(
                   <div key={label} style={{ background:C.card, borderRadius:14, border:`1px solid ${C.border}`, padding:"18px 20px", boxShadow:"0 1px 3px rgba(0,0,0,0.05)", position:"relative", overflow:"hidden" }}>
                     <div style={{ fontSize:22, marginBottom:10 }}>{icon}</div>
-                    <div style={{ fontSize:24, fontWeight:900, color, marginBottom:3 }}>{value}</div>
+                    <div style={{ fontSize:20, fontWeight:900, color, marginBottom:3 }}>{value}</div>
                     <div style={{ fontSize:11, color:C.sub, fontWeight:600 }}>{label}</div>
                     <div style={{ position:"absolute", bottom:0, left:0, right:0, height:3, background:color, opacity:0.6 }} />
                   </div>
                 ))}
               </div>
-
-              <div style={{ fontSize:14, fontWeight:800, color:C.text, marginBottom:12 }}>Recent Activity</div>
-              <TxTable rows={allTxns.slice(0,12)} />
+              <div style={{ fontSize:14, fontWeight:800, color:C.text, marginBottom:12 }}>📋 Recent Activity</div>
+              <TxTable rows={allTxns.slice(0,15)} />
             </div>
           )}
 
-          {tab==="users" && (
+          {tab === "users" && (
             <div>
               <div style={{ position:"relative", marginBottom:16 }}>
                 <span style={{ position:"absolute", left:13, top:"50%", transform:"translateY(-50%)", fontSize:16, color:C.sub }}>⌕</span>
                 <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search username or email…"
                   style={{ width:"100%", padding:"11px 14px 11px 40px", border:`1.5px solid ${C.border}`, borderRadius:10, fontSize:13, color:C.text, outline:"none", background:C.card, fontFamily:"inherit" }} />
               </div>
-
               {loading && <div style={{ textAlign:"center", color:C.sub, padding:40 }}>Loading users…</div>}
-
               {!loading && (
                 <div style={{ background:C.card, borderRadius:14, border:`1px solid ${C.border}`, overflow:"hidden" }}>
-                  <div style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr 1fr 60px 80px", padding:"11px 16px", borderBottom:`1px solid ${C.border}`, fontSize:11, fontWeight:700, color:C.sub, textTransform:"uppercase", letterSpacing:"0.06em" }} className="ap-th">
-                    <span>Username</span><span>Email</span><span>Balance</span><span>Binary</span><span>Trades</span><span>Score</span><span>Status</span>
+                  <div style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr 1fr 60px 80px", padding:"11px 16px", borderBottom:`1px solid ${C.border}`, fontSize:11, fontWeight:700, color:C.sub, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                    <span>Username</span><span>Email</span><span>Balance</span><span>Binary</span><span>W/L</span><span>Score</span><span>Status</span>
                   </div>
-                  {found.length===0 && <div style={{ padding:40, textAlign:"center", color:C.sub, fontSize:13 }}>No users found</div>}
+                  {found.length === 0 && <div style={{ padding:40, textAlign:"center", color:C.sub, fontSize:13 }}>No users found</div>}
                   {found.map((u,i)=>{
-                    const isBan=banned.includes(u.username);
-                    const binaryCount = (u.transactions||[]).filter(t=>t.isBinaryTrade===true).length;
-                    const tCount=(u.transactions||[]).filter(t=>t.type==="Buy"||t.type==="Sell").length;
-                    const sc=u.creditScore??50; const scC=sc>=70?C.green:sc>=40?C.gold:C.red;
+                    const isBan = banned.includes(u.username);
+                    const userBinaryTrades = (u.transactions||[]).filter(t=>t.isBinaryTrade===true);
+                    const binaryCount = userBinaryTrades.length;
+                    const binaryWins = userBinaryTrades.filter(t=>t.up===true).length;
+                    const binaryLosses = userBinaryTrades.filter(t=>t.up===false).length;
+                    const wl = binaryWins + binaryLosses > 0 ? `${binaryWins}/${binaryLosses}` : "0/0";
+                    const sc = u.creditScore??50;
+                    const scC = sc>=70?C.green:sc>=40?C.gold:C.red;
                     return (
                       <div key={u.username} onClick={()=>setSelUser(u.username)}
-                        style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr 1fr 60px 80px", padding:"13px 16px", borderBottom:i<found.length-1?`1px solid ${C.border}`:"none", cursor:"pointer", transition:"background .15s", alignItems:"center" }}
-                        className="ap-tr ap-th">
+                        style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr 1fr 60px 80px", padding:"13px 16px", borderBottom:i<found.length-1?`1px solid ${C.border}`:"none", cursor:"pointer", transition:"background .15s", alignItems:"center" }}>
                         <span style={{ display:"flex", alignItems:"center", gap:9 }}>
                           <span style={{ width:30, height:30, borderRadius:8, background:"linear-gradient(135deg,#6366f1,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, color:"#fff", flexShrink:0 }}>{u.username[0].toUpperCase()}</span>
                           <span style={{ fontSize:13, fontWeight:600, color:C.text }}>@{u.username}</span>
                         </span>
-                        <span style={{ fontSize:12, color:C.sub }}>{u.email||"—"}</span>
+                        <span style={{ fontSize:12, color:C.sub }}>{u.email || "—"}</span>
                         <span style={{ fontSize:13, fontWeight:700, color:C.green }}>{usd(u.balance||0)}</span>
                         <span style={{ fontSize:12, fontWeight:700, color:C.blue }}>{binaryCount}</span>
-                        <span style={{ fontSize:12, color:C.sub }}>{tCount}</span>
+                        <span style={{ fontSize:12, fontWeight:700, color:binaryWins>=binaryLosses?C.green:C.red }}>{wl}</span>
                         <span style={{ fontSize:12, fontWeight:700, color:scC }}>{sc}</span>
                         <span><span style={{ fontSize:11, fontWeight:700, padding:"3px 9px", borderRadius:20, ...(isBan?{background:C.red+"15",color:C.red}:{background:C.green+"15",color:C.green}) }}>{isBan?"Banned":"Active"}</span></span>
                       </div>
@@ -741,31 +825,10 @@ export default function AdminPanel({ onBack, onExit }) {
             </div>
           )}
 
-          {tab==="trades" && <TxTable rows={allTrades} title="All Trades (including Binary Options)" />}
-          {tab==="deposits" && (
-            <div>
-              <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"16px 20px", marginBottom:16, display:"flex", gap:20 }}>
-                <div><div style={{ fontSize:22, fontWeight:900, color:C.blue }}>{allDeposits.length}</div><div style={{ fontSize:11, color:C.sub, fontWeight:600 }}>Total Deposits</div></div>
-                <div><div style={{ fontSize:22, fontWeight:900, color:C.green }}>{usd(allDeposits.reduce((s,t)=>s+(t.usd||0),0))}</div><div style={{ fontSize:11, color:C.sub, fontWeight:600 }}>Total Volume</div></div>
-              </div>
-              <TxTable rows={allDeposits} />
-            </div>
-          )}
-          {tab==="withdraws" && (
-            <div>
-              <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"16px 20px", marginBottom:16, display:"flex", gap:20 }}>
-                <div><div style={{ fontSize:22, fontWeight:900, color:C.gold }}>{allWithdraws.length}</div><div style={{ fontSize:11, color:C.sub, fontWeight:600 }}>Total Withdrawals</div></div>
-                <div><div style={{ fontSize:22, fontWeight:900, color:C.red }}>{usd(allWithdraws.reduce((s,t)=>s+(t.usd||0),0))}</div><div style={{ fontSize:11, color:C.sub, fontWeight:600 }}>Total Volume</div></div>
-              </div>
-              <TxTable rows={allWithdraws} />
-            </div>
-          )}
-          {tab==="activity" && (
-            <div>
-              <div style={{ fontSize:12, color:C.sub, marginBottom:14 }}>All user activity in real time — trades, deposits, withdrawals, admin actions, binary options.</div>
-              <TxTable rows={allNotifs} />
-            </div>
-          )}
+          {tab === "trades" && <TxTable rows={allBinaryTrades} title="🎲 All Binary Trades" />}
+          {tab === "deposits" && <TxTable rows={allDeposits} title="💰 Deposits" />}
+          {tab === "withdraws" && <TxTable rows={allWithdraws} title="💸 Withdrawals" />}
+          {tab === "activity" && <TxTable rows={allTxns} title="📋 Complete Activity Log" />}
         </div>
       </main>
 
@@ -791,11 +854,11 @@ const css = `
   .ap-sidebar { display:flex !important; }
   .ap-sidebar-mob { display:flex !important; }
   .ap-hamburger { display:none !important; }
+  .text-green { color: #22c55e; }
+  .text-red { color: #ef4444; }
   @media(max-width:768px){
     .ap-sidebar { display:none !important; }
     .ap-hamburger { display:flex !important; }
     .ap-content { padding:14px !important; }
-    .ap-th { grid-template-columns: 1fr 1fr 80px !important; }
-    .ap-th span:nth-child(2),.ap-th span:nth-child(4),.ap-th span:nth-child(5) { display:none !important; }
   }
 `;

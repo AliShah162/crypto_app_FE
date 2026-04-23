@@ -158,10 +158,10 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       };
       
       const newTxns = [{
-        type: `Binary Option ${isWin ? "WIN" : "LOSS"}`,
+        type: `Binary ${isWin ? "WIN" : "LOSS"}`,
         coin: activeOrder.coin,
         amount: activeOrder.amount,
-        usd: isWin ? finalAmount : activeOrder.amount,
+        usd: isWin ? profitAmount : activeOrder.amount,
         price: currentPrice,
         date: new Date().toISOString(),
         up: isWin,
@@ -189,7 +189,8 @@ export default function TradePage({ nav, px, onTrade, coin }) {
         coin: activeOrder.coin, 
         amount: activeOrder.amount,
         profit: isWin ? profitAmount : -activeOrder.amount,
-        isWin 
+        isWin,
+        finalAmount: isWin ? finalAmount : 0
       });
       
       setActiveOrder(null);
@@ -261,7 +262,8 @@ export default function TradePage({ nav, px, onTrade, coin }) {
     forceUpdate(n => n + 1);
   };
 
-  const holds = Object.entries(u?.holdings || {}).filter(([, v]) => v > 0);
+  // Get ACTUAL holdings (coins bought via force trade or regular buy/sell)
+  const holdings = Object.entries(u?.holdings || {}).filter(([, qty]) => qty > 0);
   const availableBalance = u?.balance || 0;
 
   if (done) {
@@ -279,7 +281,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           {done.isWin ? "🎉" : "💔"}
         </div>
         <div style={{ fontSize: 18, fontWeight: 900, color: T.text, marginBottom: 5 }}>
-          {done.action} Order!
+          {done.action}!
         </div>
         <div style={{ fontSize: 12, color: T.dim, marginBottom: 3 }}>
           {done.isWin ? "You won" : "You lost"}{" "}
@@ -288,7 +290,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           </span>
         </div>
         <div style={{ fontSize: 12, color: T.dim, marginBottom: 24 }}>
-          {done.isWin ? "Profit" : "Lost"} from {done.amount} {done.coin}
+          {done.isWin ? `Total: ${usd(done.finalAmount)}` : `Lost: ${usd(done.amount)}`}
         </div>
         <div style={{ width: "100%", marginBottom: 9 }}>
           <PB lbl="Continue Trading" onClick={() => setDone(null)} />
@@ -323,7 +325,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
               {activeOrder.orderType.toUpperCase()} ${activeOrder.amount}
             </div>
             <div style={{ fontSize: 12, color: T.gold, marginTop: 5 }}>
-              Potential Profit: +{activeOrder.profitPercent}%
+              Win: +{activeOrder.profitPercent}% (${(activeOrder.amount * activeOrder.profitPercent / 100).toFixed(2)})
             </div>
           </div>
           <button
@@ -385,7 +387,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 11, color: T.dim }}>
-              Real available balance: <span style={{ color: T.green, fontWeight: 700 }}>{usd(availableBalance)}</span>
+              Balance: <span style={{ color: T.green, fontWeight: 700 }}>{usd(availableBalance)}</span>
             </div>
           </div>
         </div>
@@ -609,12 +611,13 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           Submit Order
         </button>
 
+        {/* POSITIONS SECTION - Only shows ACTUAL holdings */}
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: T.text }}>Positions</span>
-            <span style={{ fontSize: 10, color: T.dim }}>{holds.length}</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: T.text }}>💼 Your Holdings</span>
+            <span style={{ fontSize: 10, color: T.dim }}>{holdings.length} assets</span>
           </div>
-          {holds.length === 0 ? (
+          {holdings.length === 0 ? (
             <div style={{
               textAlign: "center",
               color: T.dim,
@@ -624,12 +627,13 @@ export default function TradePage({ nav, px, onTrade, coin }) {
               borderRadius: 9,
               border: `1px solid ${T.line}`,
             }}>
-              No open positions
+              No crypto holdings yet
             </div>
           ) : (
-            holds.map(([id, q]) => {
+            holdings.map(([id, qty]) => {
               const coinData = COINS.find((c) => c.id === id);
               if (!coinData) return null;
+              const currentValue = qty * (px[id] || 0);
               return (
                 <div
                   key={id}
@@ -661,10 +665,10 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: T.text }}>{id}</div>
-                    <div style={{ fontSize: 9, color: T.dim }}>{f2(q, 4)}</div>
+                    <div style={{ fontSize: 9, color: T.dim }}>{f2(qty, 6)}</div>
                   </div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: T.green }}>
-                    {usd(q * (px[id] || 0))}
+                    {usd(currentValue)}
                   </div>
                 </div>
               );

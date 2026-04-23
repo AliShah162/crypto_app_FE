@@ -1,5 +1,11 @@
 "use client";
-import { useState, useEffect, useCallback, useRef, startTransition } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  startTransition,
+} from "react";
 import { T, S, PE, usd, f2 } from "./lib/store";
 import AdminPanel from "./components/AdminPanel";
 import { WelcomeScreen, SignupScreen, LoginScreen } from "./components/Auth";
@@ -179,27 +185,30 @@ export default function App() {
 
     const userObj = {
       username,
-      email:       u.email       || existingLocal.email       || "",
-      fullName:    u.fullName    || existingLocal.fullName    || username,
-      role:        u.role        || existingLocal.role        || "user",
-      phone:       u.phone       || existingLocal.phone       || "",
-      dob:         u.dob         || existingLocal.dob         || "",
-      country:     (u.country?.trim()) || existingLocal.country || "—",
-      password:    existingLocal.password    || u.password    || "",
+      email: u.email || existingLocal.email || "",
+      fullName: u.fullName || existingLocal.fullName || username,
+      role: u.role || existingLocal.role || "user",
+      phone: u.phone || existingLocal.phone || "",
+      dob: u.dob || existingLocal.dob || "",
+      country: u.country?.trim() || existingLocal.country || "—",
+      password: existingLocal.password || u.password || "",
       adminPassword: existingLocal.adminPassword || "",
       creditScore: u.creditScore ?? existingLocal.creditScore ?? 50,
-      isBanned:    u.isBanned    ?? existingLocal.isBanned    ?? false,
+      isBanned: u.isBanned ?? existingLocal.isBanned ?? false,
 
-      balance:      existingLocal.balance      ?? u.balance      ?? 0,
-      transactions: (existingLocal.transactions?.length > 0)
-                      ? existingLocal.transactions
-                      : (u.transactions || []),
-      holdings:     (Object.keys(existingLocal.holdings || {}).length > 0)
-                      ? existingLocal.holdings
-                      : (u.holdings || {}),
-      savedCards:   (existingLocal.savedCards?.length > 0)
-                      ? existingLocal.savedCards
-                      : (u.savedCards || []),
+      balance: existingLocal.balance ?? u.balance ?? 0,
+      transactions:
+        existingLocal.transactions?.length > 0
+          ? existingLocal.transactions
+          : u.transactions || [],
+      holdings:
+        Object.keys(existingLocal.holdings || {}).length > 0
+          ? existingLocal.holdings
+          : u.holdings || {},
+      savedCards:
+        existingLocal.savedCards?.length > 0
+          ? existingLocal.savedCards
+          : u.savedCards || [],
 
       loggedInAt: Date.now(),
     };
@@ -257,7 +266,13 @@ export default function App() {
     if (!u) return;
     const newBalance = (u.balance || 0) + amt;
     const newTxns = [
-      { type: "Deposit", coin: "USD", usd: amt, date: new Date().toISOString().slice(0, 10), up: true },
+      {
+        type: "Deposit",
+        coin: "USD",
+        usd: amt,
+        date: new Date().toISOString().slice(0, 10),
+        up: true,
+      },
       ...(u.transactions || []),
     ];
     S.updateUser(u.username, { balance: newBalance, transactions: newTxns });
@@ -270,7 +285,13 @@ export default function App() {
     if (!u) return;
     const newBalance = Math.max(0, (u.balance || 0) - amt);
     const newTxns = [
-      { type: "Withdraw", coin: "USD", usd: amt, date: new Date().toISOString().slice(0, 10), up: false },
+      {
+        type: "Withdraw",
+        coin: "USD",
+        usd: amt,
+        date: new Date().toISOString().slice(0, 10),
+        up: false,
+      },
       ...(u.transactions || []),
     ];
     S.updateUser(u.username, { balance: newBalance, transactions: newTxns });
@@ -280,24 +301,24 @@ export default function App() {
 
   const onTrade = (tradeInfo) => {
     re();
-    
+
     // Handle binary trades
     if (tradeInfo && tradeInfo.action === "Binary Trade") {
       const isWin = tradeInfo.result === "WIN";
       const profitAmount = Math.abs(tradeInfo.profit);
-      
+
       if (isWin) {
         addN(
           `🎉 Binary Trade WIN!`,
-          `You won ${usd(profitAmount)} on ${tradeInfo.coin} (${tradeInfo.tradeDetails?.duration}s ${tradeInfo.tradeDetails?.orderType?.toUpperCase()})`
+          `You won ${usd(profitAmount)} on ${tradeInfo.coin} (${tradeInfo.tradeDetails?.duration}s ${tradeInfo.tradeDetails?.orderType?.toUpperCase()})`,
         );
       } else {
         addN(
           `💔 Binary Trade LOSS`,
-          `You lost ${usd(tradeInfo.amount)} on ${tradeInfo.coin}`
+          `You lost ${usd(tradeInfo.amount)} on ${tradeInfo.coin}`,
         );
       }
-    } 
+    }
     // Handle regular buy/sell trades
     else if (tradeInfo && tradeInfo.action) {
       if (tradeInfo.action === "Buy" || tradeInfo.action === "Sell") {
@@ -315,9 +336,9 @@ export default function App() {
         if (latestTx.isBinaryTrade) {
           addN(
             latestTx.up ? "🎉 Binary Trade WIN!" : "💔 Binary Trade LOSS",
-            latestTx.up 
+            latestTx.up
               ? `You won ${usd(latestTx.tradeResult?.profit || 0)} on ${latestTx.coin}`
-              : `You lost ${usd(latestTx.amount)} on ${latestTx.coin}`
+              : `You lost ${usd(latestTx.amount)} on ${latestTx.coin}`,
           );
         } else if (latestTx.type === "Buy" || latestTx.type === "Sell") {
           addN(

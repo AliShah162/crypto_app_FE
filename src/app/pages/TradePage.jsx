@@ -103,7 +103,7 @@ const TIME_OPTIONS = [
 ];
 
 export default function TradePage({ nav, px, onTrade, coin }) {
-  const [sel, ss] = useState(coin || (COINS[0]?.id || "BTC"));
+  const [sel, ss] = useState(coin || COINS[0]?.id || "BTC");
   const [selectedTime, setSelectedTime] = useState(TIME_OPTIONS[0]);
   const [amount, setAmount] = useState("");
   const [orderType, setOrderType] = useState("up");
@@ -118,27 +118,40 @@ export default function TradePage({ nav, px, onTrade, coin }) {
   const u = S.get();
   const price = px[sel] || 0;
   const hist = PE.h[sel] || [];
-  const open = hist.length > 0 ? (hist[Math.max(0, hist.length - 40)].o ?? price) : price;
+  const open =
+    hist.length > 0 ? (hist[Math.max(0, hist.length - 40)].o ?? price) : price;
   const chg = open > 0 ? price - open : 0;
   const cpct = open > 0 ? (chg / open) * 100 : 0;
 
   const completeTrade = useRef(() => {});
-  
+
   useEffect(() => {
     completeTrade.current = () => {
       if (!activeOrder) return;
-      
+
       const currentPrice = px[activeOrder.coin] || 0;
-      const isWin = (activeOrder.orderType === "up" && currentPrice >= activeOrder.startPrice) ||
-                    (activeOrder.orderType === "down" && currentPrice <= activeOrder.startPrice);
-      
+      const isWin =
+        (activeOrder.orderType === "up" &&
+          currentPrice >= activeOrder.startPrice) ||
+        (activeOrder.orderType === "down" &&
+          currentPrice <= activeOrder.startPrice);
+
       const profitPercent = activeOrder.profitPercent / 100;
       const profitAmount = activeOrder.amount * profitPercent;
       const finalAmount = activeOrder.amount + profitAmount;
-      
-      const currentUser = S.get();
+
+      // ✅ FIXED: Read fresh from localStorage using username stored in activeOrder
+      // This prevents stale in-memory S.users from losing transactions written earlier
+      let currentUser;
+      try {
+        const raw = JSON.parse(localStorage.getItem("users") || "{}");
+        currentUser = raw[activeOrder.username] || S.get();
+      } catch {
+        currentUser = S.get();
+      }
+
       const newBalance = (currentUser.balance || 0) + (isWin ? finalAmount : 0);
-      
+
       const binaryTransaction = {
         type: "Binary Trade",
         coin: activeOrder.coin,
@@ -166,50 +179,59 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           duration: activeOrder.timeSeconds,
           profitPercent: activeOrder.profitPercent,
           orderType: activeOrder.orderType,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       };
-      
+
       const newTxns = [binaryTransaction, ...(currentUser.transactions || [])];
-      
+
       const updatedUser = {
         ...currentUser,
         balance: newBalance,
-        transactions: newTxns
+        transactions: newTxns,
       };
-      
-      S.updateUser(currentUser.username, { balance: newBalance, transactions: newTxns });
-      
-      onTrade({ 
-        action: "Binary Trade", 
+
+      S.updateUser(currentUser.username, {
+        balance: newBalance,
+        transactions: newTxns,
+      });
+
+      onTrade({
+        action: "Binary Trade",
         type: isWin ? "WIN" : "LOSS",
-        coin: activeOrder.coin, 
-        amount: activeOrder.amount, 
+        coin: activeOrder.coin,
+        amount: activeOrder.amount,
         result: isWin ? "WIN" : "LOSS",
         profit: isWin ? profitAmount : -activeOrder.amount,
-        tradeDetails: binaryTransaction.tradeDetails
+        tradeDetails: binaryTransaction.tradeDetails,
       });
-      
-      setDone({ 
-        action: isWin ? "WINNER!" : "LOSS!", 
-        coin: activeOrder.coin, 
+
+      setDone({
+        action: isWin ? "WINNER!" : "LOSS!",
+        coin: activeOrder.coin,
         amount: activeOrder.amount,
         profit: isWin ? profitAmount : -activeOrder.amount,
         isWin,
-        finalAmount: isWin ? finalAmount : 0
+        finalAmount: isWin ? finalAmount : 0,
       });
-      
+
       setActiveOrder(null);
       setTimeLeft(null);
-      forceUpdate(n => n + 1);
+      forceUpdate((n) => n + 1);
     };
   }, [activeOrder, px, onTrade]);
 
   useEffect(() => {
     if (coinSelectorRef.current && sel) {
-      const selectedElement = coinSelectorRef.current.querySelector(`[data-coin="${sel}"]`);
+      const selectedElement = coinSelectorRef.current.querySelector(
+        `[data-coin="${sel}"]`,
+      );
       if (selectedElement) {
-        selectedElement.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+        selectedElement.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+          inline: "center",
+        });
       }
     }
   }, [sel]);
@@ -228,20 +250,20 @@ export default function TradePage({ nav, px, onTrade, coin }) {
   const submitOrder = () => {
     setErr("");
     const amt = parseFloat(amount);
-    
+
     if (!amt || amt <= 0) {
       setErr("Enter a valid amount");
       return;
     }
-    
+
     if (!u || (u.balance || 0) < amt) {
       setErr(`Insufficient balance. Available: ${usd(u?.balance || 0)}`);
       return;
     }
-    
+
     const newBalance = (u.balance || 0) - amt;
     S.updateUser(u.username, { balance: newBalance });
-    
+
     const order = {
       coin: sel,
       amount: amt,
@@ -250,12 +272,13 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       profitPercent: selectedTime.profitPercent,
       startPrice: price,
       startTime: Date.now(),
+      username: u.username,
     };
-    
+
     setActiveOrder(order);
     setTimeLeft(selectedTime.seconds);
     setAmount("");
-    forceUpdate(n => n + 1);
+    forceUpdate((n) => n + 1);
   };
 
   const cancelOrder = () => {
@@ -265,37 +288,52 @@ export default function TradePage({ nav, px, onTrade, coin }) {
     S.updateUser(currentUser.username, { balance: refundBalance });
     setActiveOrder(null);
     setTimeLeft(null);
-    forceUpdate(n => n + 1);
+    forceUpdate((n) => n + 1);
   };
 
-  const holdings = Object.entries(u?.holdings || {}).filter(([, qty]) => qty > 0);
+  const holdings = Object.entries(u?.holdings || {}).filter(
+    ([, qty]) => qty > 0,
+  );
   const availableBalance = u?.balance || 0;
 
   if (done) {
     return (
-      <div style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 30,
-        textAlign: "center",
-      }}>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 30,
+          textAlign: "center",
+        }}
+      >
         <div style={{ fontSize: 52, marginBottom: 11 }}>
           {done.isWin ? "🎉" : "💔"}
         </div>
-        <div style={{ fontSize: 18, fontWeight: 900, color: T.text, marginBottom: 5 }}>
+        <div
+          style={{
+            fontSize: 18,
+            fontWeight: 900,
+            color: T.text,
+            marginBottom: 5,
+          }}
+        >
           {done.isWin ? "YOU WON!" : "YOU LOST!"}
         </div>
         <div style={{ fontSize: 12, color: T.dim, marginBottom: 3 }}>
           {done.isWin ? "You won" : "You lost"}{" "}
-          <span style={{ color: done.isWin ? T.green : T.red, fontWeight: 700 }}>
+          <span
+            style={{ color: done.isWin ? T.green : T.red, fontWeight: 700 }}
+          >
             {usd(Math.abs(done.profit))}
           </span>
         </div>
         <div style={{ fontSize: 12, color: T.dim, marginBottom: 24 }}>
-          {done.isWin ? `Total returned: ${usd(done.finalAmount)}` : `Wagered: ${usd(done.amount)}`}
+          {done.isWin
+            ? `Total returned: ${usd(done.finalAmount)}`
+            : `Wagered: ${usd(done.amount)}`}
         </div>
         <div style={{ width: "100%", marginBottom: 9 }}>
           <PB lbl="Continue Trading" onClick={() => setDone(null)} />
@@ -307,30 +345,66 @@ export default function TradePage({ nav, px, onTrade, coin }) {
 
   if (activeOrder) {
     return (
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20 }}>
-        <div style={{
-          background: T.card,
-          borderRadius: 20,
-          padding: 30,
-          textAlign: "center",
-          width: "100%",
-          maxWidth: 350,
-          border: `2px solid ${T.acc}`
-        }}>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 20,
+        }}
+      >
+        <div
+          style={{
+            background: T.card,
+            borderRadius: 20,
+            padding: 30,
+            textAlign: "center",
+            width: "100%",
+            maxWidth: 350,
+            border: `2px solid ${T.acc}`,
+          }}
+        >
           <div style={{ fontSize: 48, marginBottom: 10 }}>⏳</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: T.text, marginBottom: 5 }}>
+          <div
+            style={{
+              fontSize: 20,
+              fontWeight: 900,
+              color: T.text,
+              marginBottom: 5,
+            }}
+          >
             Active Trade
           </div>
-          <div style={{ fontSize: 36, fontWeight: 900, color: T.acc, marginBottom: 10, fontFamily: "monospace" }}>
-            {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+          <div
+            style={{
+              fontSize: 36,
+              fontWeight: 900,
+              color: T.acc,
+              marginBottom: 10,
+              fontFamily: "monospace",
+            }}
+          >
+            {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, "0")}
           </div>
           <div style={{ marginBottom: 15 }}>
             <div style={{ fontSize: 13, color: T.dim }}>{activeOrder.coin}</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: activeOrder.orderType === "up" ? T.green : T.red }}>
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: 700,
+                color: activeOrder.orderType === "up" ? T.green : T.red,
+              }}
+            >
               {activeOrder.orderType.toUpperCase()} ${activeOrder.amount}
             </div>
             <div style={{ fontSize: 12, color: T.gold, marginTop: 5 }}>
-              Win: +{activeOrder.profitPercent}% (${(activeOrder.amount * activeOrder.profitPercent / 100).toFixed(2)})
+              Win: +{activeOrder.profitPercent}% ($
+              {((activeOrder.amount * activeOrder.profitPercent) / 100).toFixed(
+                2,
+              )}
+              )
             </div>
           </div>
           <button
@@ -344,8 +418,9 @@ export default function TradePage({ nav, px, onTrade, coin }) {
               fontSize: 13,
               fontWeight: 700,
               cursor: "pointer",
-              fontFamily: "inherit"
-            }}>
+              fontFamily: "inherit",
+            }}
+          >
             Cancel Order
           </button>
         </div>
@@ -355,59 +430,91 @@ export default function TradePage({ nav, px, onTrade, coin }) {
 
   return (
     <div style={{ flex: 1, overflowY: "auto", paddingBottom: 14 }}>
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "15px 15px 9px",
-        borderBottom: `1px solid ${T.line}`,
-      }}>
-        <button onClick={() => nav("home")} style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          color: T.text,
-          fontSize: 20,
-          lineHeight: 1,
-          padding: 0,
-        }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "15px 15px 9px",
+          borderBottom: `1px solid ${T.line}`,
+        }}
+      >
+        <button
+          onClick={() => nav("home")}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: T.text,
+            fontSize: 20,
+            lineHeight: 1,
+            padding: 0,
+          }}
+        >
           ←
         </button>
-        <span style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{sel}</span>
+        <span style={{ fontSize: 15, fontWeight: 800, color: T.text }}>
+          {sel}
+        </span>
         <div style={{ width: 20 }} />
       </div>
-      
+
       <div style={{ padding: "11px 13px 0" }}>
-        <div style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: 9,
-        }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: 9,
+          }}
+        >
           <div>
-            <div style={{ fontSize: 24, fontWeight: 900, color: T.text }}>{f2(price, 4)}</div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: chg >= 0 ? T.green : T.red, marginTop: 1 }}>
-              {chg >= 0 ? "+" : ""}{f2(chg, 4)} ({cpct >= 0 ? "+" : ""}{f2(cpct, 2)}%)
+            <div style={{ fontSize: 24, fontWeight: 900, color: T.text }}>
+              {f2(price, 4)}
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: chg >= 0 ? T.green : T.red,
+                marginTop: 1,
+              }}
+            >
+              {chg >= 0 ? "+" : ""}
+              {f2(chg, 4)} ({cpct >= 0 ? "+" : ""}
+              {f2(cpct, 2)}%)
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 11, color: T.dim }}>
-              Balance: <span style={{ color: T.green, fontWeight: 700 }}>{usd(availableBalance)}</span>
+              Balance:{" "}
+              <span style={{ color: T.green, fontWeight: 700 }}>
+                {usd(availableBalance)}
+              </span>
             </div>
           </div>
         </div>
 
-        <div style={{
-          background: T.card,
-          borderRadius: 11,
-          padding: "7px 5px",
-          marginBottom: 9,
-          border: `1px solid ${T.line}`,
-        }}>
+        <div
+          style={{
+            background: T.card,
+            borderRadius: 11,
+            padding: "7px 5px",
+            marginBottom: 9,
+            border: `1px solid ${T.line}`,
+          }}
+        >
           <CChart coin={sel} px={px} />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginBottom: 15 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 9,
+            marginBottom: 15,
+          }}
+        >
           <button
             onClick={() => setOrderType("up")}
             style={{
@@ -420,7 +527,8 @@ export default function TradePage({ nav, px, onTrade, coin }) {
               fontWeight: 800,
               cursor: "pointer",
               fontFamily: "inherit",
-            }}>
+            }}
+          >
             Buy Up 📈
           </button>
           <button
@@ -429,19 +537,28 @@ export default function TradePage({ nav, px, onTrade, coin }) {
               padding: "13px 0",
               borderRadius: 12,
               border: `2px solid ${orderType === "down" ? T.red : T.line}`,
-              background: orderType === "down" ? "rgba(239,68,68,0.15)" : T.card,
+              background:
+                orderType === "down" ? "rgba(239,68,68,0.15)" : T.card,
               color: T.red,
               fontSize: 14,
               fontWeight: 800,
               cursor: "pointer",
               fontFamily: "inherit",
-            }}>
+            }}
+          >
             Buy Down 📉
           </button>
         </div>
 
         <div style={{ marginBottom: 15 }}>
-          <div style={{ fontSize: 11, color: T.dim, fontWeight: 600, marginBottom: 8 }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: T.dim,
+              fontWeight: 600,
+              marginBottom: 8,
+            }}
+          >
             Select order period
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -453,55 +570,79 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                   padding: "8px 14px",
                   borderRadius: 10,
                   border: `2px solid ${selectedTime.seconds === opt.seconds ? opt.color : T.line}`,
-                  background: selectedTime.seconds === opt.seconds ? `${opt.color}20` : T.card,
-                  color: selectedTime.seconds === opt.seconds ? opt.color : T.text,
+                  background:
+                    selectedTime.seconds === opt.seconds
+                      ? `${opt.color}20`
+                      : T.card,
+                  color:
+                    selectedTime.seconds === opt.seconds ? opt.color : T.text,
                   fontSize: 12,
                   fontWeight: 700,
                   cursor: "pointer",
                   fontFamily: "inherit",
-                }}>
+                }}
+              >
                 {opt.label}
               </button>
             ))}
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             {TIME_OPTIONS.map((opt) => (
-              <div key={opt.profitPercent} style={{
-                flex: 1,
-                textAlign: "center",
-                padding: "4px",
-                background: selectedTime.seconds === opt.seconds ? `${opt.color}15` : "transparent",
-                borderRadius: 6,
-                fontSize: 11,
-                fontWeight: 600,
-                color: opt.color,
-              }}>
+              <div
+                key={opt.profitPercent}
+                style={{
+                  flex: 1,
+                  textAlign: "center",
+                  padding: "4px",
+                  background:
+                    selectedTime.seconds === opt.seconds
+                      ? `${opt.color}15`
+                      : "transparent",
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: opt.color,
+                }}
+              >
                 {opt.profitPercent}%
               </div>
             ))}
           </div>
         </div>
 
-        <div style={{
-          background: T.card,
-          borderRadius: 11,
-          padding: "9px 8px",
-          marginBottom: 9,
-          border: `1px solid ${T.line}`,
-        }}>
-          <div style={{ fontSize: 10, color: T.acc, fontWeight: 700, marginBottom: 7, paddingLeft: 2 }}>
+        <div
+          style={{
+            background: T.card,
+            borderRadius: 11,
+            padding: "9px 8px",
+            marginBottom: 9,
+            border: `1px solid ${T.line}`,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10,
+              color: T.acc,
+              fontWeight: 700,
+              marginBottom: 7,
+              paddingLeft: 2,
+            }}
+          >
             Currency
           </div>
-          <div ref={coinSelectorRef} style={{
-            display: "flex",
-            gap: 6,
-            overflowX: "auto",
-            overflowY: "visible",
-            WebkitOverflowScrolling: "touch",
-            scrollbarWidth: "none",
-            msOverflowStyle: "none",
-            paddingBottom: 4,
-          }}>
+          <div
+            ref={coinSelectorRef}
+            style={{
+              display: "flex",
+              gap: 6,
+              overflowX: "auto",
+              overflowY: "visible",
+              WebkitOverflowScrolling: "touch",
+              scrollbarWidth: "none",
+              msOverflowStyle: "none",
+              paddingBottom: 4,
+            }}
+          >
             {COINS.map((c) => (
               <div
                 key={c.id}
@@ -515,22 +656,31 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                   background: sel === c.id ? "rgba(0,229,176,0.07)" : T.card2,
                   cursor: "pointer",
                   textAlign: "center",
-                }}>
-                <div style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  background: c.bg,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 14,
-                  color: c.cl,
-                  margin: "0 auto 4px",
-                }}>
+                }}
+              >
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    background: c.bg,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 14,
+                    color: c.cl,
+                    margin: "0 auto 4px",
+                  }}
+                >
                   {c.sym}
                 </div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: sel === c.id ? T.acc : T.text }}>
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: sel === c.id ? T.acc : T.text,
+                  }}
+                >
                   {c.id}
                 </div>
                 <div style={{ fontSize: 8, color: T.dim, marginTop: 1 }}>
@@ -541,23 +691,56 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           </div>
         </div>
 
-        <div style={{
-          background: T.card,
-          borderRadius: 11,
-          padding: "11px",
-          marginBottom: 9,
-          border: `1px solid ${T.line}`,
-        }}>
+        <div
+          style={{
+            background: T.card,
+            borderRadius: 11,
+            padding: "11px",
+            marginBottom: 9,
+            border: `1px solid ${T.line}`,
+          }}
+        >
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 10, color: T.dim, fontWeight: 600, marginBottom: 4 }}>Currency</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{sel}</div>
+            <div
+              style={{
+                fontSize: 10,
+                color: T.dim,
+                fontWeight: 600,
+                marginBottom: 4,
+              }}
+            >
+              Currency
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>
+              {sel}
+            </div>
           </div>
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 10, color: T.dim, fontWeight: 600, marginBottom: 4 }}>Price</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: T.acc }}>{usd(price)}</div>
+            <div
+              style={{
+                fontSize: 10,
+                color: T.dim,
+                fontWeight: 600,
+                marginBottom: 4,
+              }}
+            >
+              Price
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: T.acc }}>
+              {usd(price)}
+            </div>
           </div>
           <div>
-            <div style={{ fontSize: 10, color: T.dim, fontWeight: 600, marginBottom: 4 }}>Amount</div>
+            <div
+              style={{
+                fontSize: 10,
+                color: T.dim,
+                fontWeight: 600,
+                marginBottom: 4,
+              }}
+            >
+              Amount
+            </div>
             <input
               type="number"
               value={amount}
@@ -577,22 +760,25 @@ export default function TradePage({ nav, px, onTrade, coin }) {
             />
             {amount && !isNaN(parseFloat(amount)) && (
               <div style={{ fontSize: 11, color: T.gold, marginTop: 5 }}>
-                Potential win: {usd(parseFloat(amount) * (selectedTime.profitPercent / 100))}
+                Potential win:{" "}
+                {usd(parseFloat(amount) * (selectedTime.profitPercent / 100))}
               </div>
             )}
           </div>
         </div>
 
         {err && (
-          <div style={{
-            color: T.red,
-            fontSize: 11,
-            marginBottom: 8,
-            textAlign: "center",
-            padding: "7px",
-            background: "rgba(239,68,68,0.09)",
-            borderRadius: 8,
-          }}>
+          <div
+            style={{
+              color: T.red,
+              fontSize: 11,
+              marginBottom: 8,
+              textAlign: "center",
+              padding: "7px",
+              background: "rgba(239,68,68,0.09)",
+              borderRadius: 8,
+            }}
+          >
             {err}
           </div>
         )}
@@ -612,25 +798,38 @@ export default function TradePage({ nav, px, onTrade, coin }) {
             fontFamily: "inherit",
             marginBottom: 15,
             boxShadow: "0 4px 13px rgba(99,102,241,0.3)",
-          }}>
+          }}
+        >
           Submit Order
         </button>
 
         <div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: T.text }}>💼 Your Crypto Holdings</span>
-            <span style={{ fontSize: 10, color: T.dim }}>{holdings.length} assets</span>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: 6,
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 800, color: T.text }}>
+              💼 Your Crypto Holdings
+            </span>
+            <span style={{ fontSize: 10, color: T.dim }}>
+              {holdings.length} assets
+            </span>
           </div>
           {holdings.length === 0 ? (
-            <div style={{
-              textAlign: "center",
-              color: T.dim,
-              fontSize: 11,
-              padding: "12px",
-              background: T.card,
-              borderRadius: 9,
-              border: `1px solid ${T.line}`,
-            }}>
+            <div
+              style={{
+                textAlign: "center",
+                color: T.dim,
+                fontSize: 11,
+                padding: "12px",
+                background: T.card,
+                borderRadius: 9,
+                border: `1px solid ${T.line}`,
+              }}
+            >
               No crypto holdings yet.
             </div>
           ) : (
@@ -652,26 +851,37 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                     border: `1px solid ${T.line}`,
                     cursor: "pointer",
                   }}
-                  onClick={() => ss(id)}>
-                  <div style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: "50%",
-                    background: coinData.bg,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 13,
-                    color: coinData.cl,
-                    flexShrink: 0,
-                  }}>
+                  onClick={() => ss(id)}
+                >
+                  <div
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: "50%",
+                      background: coinData.bg,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 13,
+                      color: coinData.cl,
+                      flexShrink: 0,
+                    }}
+                  >
                     {coinData.sym}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: T.text }}>{id}</div>
-                    <div style={{ fontSize: 9, color: T.dim }}>{f2(qty, 6)}</div>
+                    <div
+                      style={{ fontSize: 11, fontWeight: 700, color: T.text }}
+                    >
+                      {id}
+                    </div>
+                    <div style={{ fontSize: 9, color: T.dim }}>
+                      {f2(qty, 6)}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: T.green }}>
+                  <div
+                    style={{ fontSize: 11, fontWeight: 700, color: T.green }}
+                  >
                     {usd(currentValue)}
                   </div>
                 </div>

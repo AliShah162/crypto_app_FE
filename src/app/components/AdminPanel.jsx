@@ -390,7 +390,7 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
               <div style={{ textAlign:"center", color:C.sub, padding:"60px 20px", fontSize:13 }}>
                 <div style={{ fontSize:48, marginBottom:12 }}>🎲</div>
                 <div>No binary trades yet</div>
-                <div style={{ fontSize:11, marginTop:6, color:C.sub }}>User hasn't placed any binary trades</div>
+                <div style={{ fontSize:11, marginTop:6, color:C.sub }}>User has not placed any binary trades</div>
               </div>
             ) : (
               binaryTrades.map((tx, i) => {
@@ -487,7 +487,7 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
             <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"14px 16px", marginBottom:14 }}>
               <div style={{ fontSize:11, color:C.sub, fontWeight:600, marginBottom:3 }}>TOTAL HOLDINGS VALUE</div>
               <div style={{ fontSize:24, fontWeight:900, color:C.text }}>{usd(hVal)}</div>
-              <div style={{ fontSize:10, color:C.sub, marginTop:4 }}>Holdings are created via "Force Trade" only</div>
+              <div style={{ fontSize:10, color:C.sub, marginTop:4 }}>Holdings are created via Force Trade only</div>
             </div>
             {Object.entries(u.holdings||{}).filter(([,q])=>q>0).length === 0 ? (
               <div style={{ textAlign:"center", color:C.sub, padding:"40px 0", fontSize:13 }}>No crypto holdings. Use Force Trade to add.</div>

@@ -178,13 +178,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
         transactions: newTxns
       };
       
-      // Use only forceSaveUser - no direct S.users assignment
-      if (typeof S.forceSaveUser === "function") {
-        S.forceSaveUser(currentUser.username, updatedUser);
-      } else {
-        // Fallback for compatibility
-        S.updateUser(currentUser.username, { balance: newBalance, transactions: newTxns });
-      }
+      S.updateUser(currentUser.username, { balance: newBalance, transactions: newTxns });
       
       onTrade({ 
         action: "Binary Trade", 
@@ -246,14 +240,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
     }
     
     const newBalance = (u.balance || 0) - amt;
-    const updatedUser = { ...u, balance: newBalance };
-    
-    // Use only forceSaveUser - no direct S.users assignment
-    if (typeof S.forceSaveUser === "function") {
-      S.forceSaveUser(u.username, updatedUser);
-    } else {
-      S.updateUser(u.username, { balance: newBalance });
-    }
+    S.updateUser(u.username, { balance: newBalance });
     
     const order = {
       coin: sel,
@@ -275,15 +262,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
     if (timerRef.current) clearTimeout(timerRef.current);
     const currentUser = S.get();
     const refundBalance = (currentUser.balance || 0) + activeOrder.amount;
-    const updatedUser = { ...currentUser, balance: refundBalance };
-    
-    // Use only forceSaveUser - no direct S.users assignment
-    if (typeof S.forceSaveUser === "function") {
-      S.forceSaveUser(currentUser.username, updatedUser);
-    } else {
-      S.updateUser(currentUser.username, { balance: refundBalance });
-    }
-    
+    S.updateUser(currentUser.username, { balance: refundBalance });
     setActiveOrder(null);
     setTimeLeft(null);
     forceUpdate(n => n + 1);
@@ -652,7 +631,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
               borderRadius: 9,
               border: `1px solid ${T.line}`,
             }}>
-              No crypto holdings yet. Use Force Trade from admin to add holdings.
+              No crypto holdings yet.
             </div>
           ) : (
             holdings.map(([id, qty]) => {

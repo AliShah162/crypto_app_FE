@@ -155,7 +155,7 @@ export const S = {
     return this.users[u];
   },
 
-  // ✅ NEW: Force save user data directly to localStorage (for binary trades)
+  // Force save user data directly to localStorage
   forceSaveUser(username, userData) {
     if (typeof window === "undefined") return null;
     this.hydrate();
@@ -163,19 +163,14 @@ export const S = {
     
     if (!userData && !this.users[u]) return null;
     
-    // Update in-memory
     this.users[u] = userData || { ...this.users[u] };
-    
-    // Force save to localStorage
     saveLS("users", this.users);
     
     // Also trigger storage event for other tabs
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new StorageEvent("storage", {
-        key: "users",
-        newValue: JSON.stringify(this.users)
-      }));
-    }
+    window.dispatchEvent(new StorageEvent("storage", {
+      key: "users",
+      newValue: JSON.stringify(this.users)
+    }));
     
     return this.users[u];
   },

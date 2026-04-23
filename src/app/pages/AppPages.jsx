@@ -345,31 +345,47 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
 
   // sync from DB once on open
   useEffect(() => {
-    async function syncUser() {
-      try {
-        const res = await getAllUsers();
-        if (Array.isArray(res)) {
-          const map = {};
-          res.forEach(u => { map[u.username] = u; });
-          S.users = map;
-          setTick(n => n + 1);
+  async function syncUser() {
+    try {
+      const res = await getAllUsers();
+
+      if (Array.isArray(res)) {
+        const map = {};
+
+        res.forEach(u => {
+          map[u.username] = u;
+        });
+
+        // ✅ merge correctly (DO NOT overwrite later)
+        S.users = {
+          ...S.users,
+          ...map,
+        };
+
+        // ✅ persist
+        if (typeof window !== "undefined") {
+          localStorage.setItem("users", JSON.stringify(S.users));
         }
-      } catch (e) { /* silent */ }
+
+        setTick(n => n + 1);
+      }
+    } catch (e) {
+      /* silent */
     }
-    syncUser();
-  }, []);
+  }
+
+  syncUser();
+}, []);
 
   // ALWAYS read from S.users so admin balance changes reflect instantly
-  const liveUser = S.users[user?.username] || user;
-
+const liveUser = S.users?.[user?.username] ?? user;
   const isBan = (S.banned || []).includes(user?.username);
 
   const hVal = Object.entries(liveUser?.holdings || {}).reduce(
     (s, [id, q]) => s + q * (PE.p[id] || 0), 0
   );
 
-  const tot = (liveUser?.balance || 0) + hVal;
-
+const tot = Number(liveUser?.balance ?? 0) + hVal;
   const creditScore =
     S.users[user?.username]?.creditScore ??
     liveUser?.creditScore ??

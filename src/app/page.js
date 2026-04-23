@@ -75,6 +75,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [page, sp] = useState("home");
   const [sub, ssb] = useState(null);
+  const [coin, ssCoin] = useState("BTC");
   const [nPanel, snp] = useState(false);
   const [notifs, sn] = useState([]);
   const [, tick] = useState(0);
@@ -251,10 +252,14 @@ export default function App() {
     ssb(null);
   };
 
-  const nav = (p) => {
-    ssb(null);
-    sp(p);
-  };
+  const nav = (p, coin) => {
+  ssb(null);
+  sp(p);
+
+  if (p === "trade" && coin) {
+    ssCoin(coin); // or whatever state controls selected coin
+  }
+};
 
   const addN = (title, body) =>
     sn((n) => [...n, { title, body, time: new Date().toLocaleTimeString() }]);
@@ -344,7 +349,7 @@ export default function App() {
       case "home":
         return <HomePage nav={nav} px={px} user={u} />;
       case "trade":
-        return <TradePage nav={nav} px={px} onTrade={onTrade} />;
+        return <TradePage nav={nav} px={px} onTrade={onTrade} coin={coin} />;
       case "news":
         return <NewsPage nav={nav} />;
       case "deposit":

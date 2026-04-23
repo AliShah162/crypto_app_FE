@@ -121,7 +121,7 @@ const qa = [
           const prev = h.length > 1 ? h[h.length - 2].c : p;
           const chg = prev ? ((p - prev) / prev) * 100 : 0;
           return (
-            <div key={c.id} onClick={() => nav("trade")} style={{
+            <div key={c.id} onClick={() => nav("trade",c.id)} style={{
               minWidth: 90, background: T.card, borderRadius: 15, padding: "11px 8px",
               display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
               border: `1px solid ${T.line}`, cursor: "pointer",
@@ -150,7 +150,7 @@ const qa = [
           const mn = Math.min(...sl.map((x) => x.c)), mx = Math.max(...sl.map((x) => x.c)), rg = mx - mn || 0.001;
           const pts = sl.map((x, i) => `${i * 5},${20 - ((x.c - mn) / rg) * 18}`).join(" ");
           return (
-            <div key={c.id} style={{
+            <div key={c.id}  onClick={() => nav("trade", c.id)} style={{
               background: T.card, borderRadius: 13, padding: "11px 13px",
               display: "flex", alignItems: "center", gap: 11, marginBottom: 8,
               border: `1px solid ${T.line}`,
@@ -249,7 +249,7 @@ export function MarketPage({ px, nav }) {
           const prev = h.length > 1 ? h[Math.max(0, h.length - 20)].c : p;
           const chg = ((p - prev) / prev) * 100;
           return (
-            <div key={c.id} onClick={() => nav("trade")} style={{
+            <div key={c.id} onClick={() => nav("trade",c.id)} style={{
               background: T.card, borderRadius: 13, padding: "11px 13px",
               display: "flex", alignItems: "center", gap: 11, marginBottom: 8,
               border: `1px solid ${T.line}`, cursor: "pointer",

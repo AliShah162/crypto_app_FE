@@ -94,13 +94,15 @@ function CChart({ coin, px }) {
   );
 }
 
-export default function TradePage({ nav, px, onTrade }) {
-  const [sel, ss] = useState("BTC");
+export default function TradePage({ nav, px, onTrade, coin }) {
+  const [sel, ss] = useState(coin || "BTC");
+
   const [tf, stf] = useState("5M");
   const [qty, sq] = useState("");
   const [done, sd] = useState(null);
   const [err, se] = useState("");
-  const [, forceUpdate] = useState(0); // triggers re-render after buy/sell
+  const [, forceUpdate] = useState(0);
+
 
   const u = S.get();
   const price = px[sel] || 0;

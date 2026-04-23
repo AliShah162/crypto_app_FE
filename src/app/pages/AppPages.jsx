@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { T, S, COINS, NEWS, PE, f2, usd } from "../lib/store";
 import { PB, BHdr, CoinIcon } from "../components/UI";
-import { getAllUsers } from "../lib/api";
 
 // ── Banner ─────────────────────────────────────────────
 export function Banner() {
@@ -277,9 +276,7 @@ export function MarketPage({ px, nav }) {
 // ── History ────────────────────────────────────────────
 export function HistoryPage({ user }) {
   const [filt, sf] = useState("All");
-  // Always read fresh from store so trades appear immediately
-  const liveUser = S.users?.[user?.username] || user;
-  const all = liveUser?.transactions || [];
+  const all = user?.transactions || [];
   const list = filt === "All" ? all : all.filter((t) => t.type === filt);
   return (
     <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none", paddingBottom: 80 }}>
@@ -338,53 +335,15 @@ export function HistoryPage({ user }) {
 
 // ── Profile ────────────────────────────────────────────
 export function ProfilePage({ user, onLogout, onSub, re }) {
-  // ✅ FIX: tick was used but never declared — this caused a ReferenceError crash + re-mount loop
+  // tick forces re-render so balance updates from trades/admin appear instantly
   const [tick, setTick] = useState(0);
 
-  // Re-render every 2 seconds to catch admin balance changes
+  // Poll every 1.5s — triggers re-render so balance updates from trades/admin
+  // appear instantly. S.users is already kept current by S.updateUser + saveUsers.
+  // NO DB sync here — DB sync overwrites local changes made by admin or trades.
   useEffect(() => {
-    const t = setInterval(() => setTick(n => n + 1), 2000);
+    const t = setInterval(() => setTick(n => n + 1), 1500);
     return () => clearInterval(t);
-  }, []);
-
-  // Sync from DB once on open — but NEVER overwrite local balance/holdings/transactions
-  // because the user may have just made a trade that hasn't reached the server yet
-  useEffect(() => {
-    async function syncUser() {
-      try {
-        const res = await getAllUsers();
-        if (!Array.isArray(res)) return;
-        S.users = S.users || {};
-        res.forEach(serverUser => {
-          const un = serverUser.username;
-          if (!un) return;
-          const local = S.users[un];
-          if (local) {
-            // Only update fields that can't be changed locally (profile info, credit score)
-            // Never overwrite balance/holdings/transactions — those are managed locally first
-            S.users[un] = {
-              ...local,
-              fullName:    serverUser.fullName    ?? local.fullName,
-              email:       serverUser.email       ?? local.email,
-              phone:       serverUser.phone       ?? local.phone,
-              country:     serverUser.country     ?? local.country,
-              dob:         serverUser.dob         ?? local.dob,
-              creditScore: serverUser.creditScore ?? local.creditScore,
-            };
-          } else {
-            // User not in local store yet — take server version fully
-            S.users[un] = serverUser;
-          }
-        });
-        if (typeof window !== "undefined") {
-          localStorage.setItem("users", JSON.stringify(S.users));
-        }
-        setTick(n => n + 1);
-      } catch (err) {
-        // silent — local data is still correct
-      }
-    }
-    syncUser();
   }, []);
 
   // ALWAYS read from S.users so admin balance changes reflect instantly

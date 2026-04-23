@@ -103,7 +103,7 @@ const TIME_OPTIONS = [
 ];
 
 export default function TradePage({ nav, px, onTrade, coin }) {
-  const [sel, ss] = useState(coin || "BTC");
+  const [sel, ss] = useState(coin || (COINS[0]?.id || "BTC"));
   const [selectedTime, setSelectedTime] = useState(TIME_OPTIONS[0]);
   const [amount, setAmount] = useState("");
   const [orderType, setOrderType] = useState("up");
@@ -122,10 +122,8 @@ export default function TradePage({ nav, px, onTrade, coin }) {
   const chg = open > 0 ? price - open : 0;
   const cpct = open > 0 ? (chg / open) * 100 : 0;
 
-  // Define completeTrade first before using it in useEffect
   const completeTrade = useRef(() => {});
   
-  // Update completeTrade function when dependencies change
   useEffect(() => {
     completeTrade.current = () => {
       if (!activeOrder) return;
@@ -139,13 +137,16 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       const finalAmount = activeOrder.amount + profitAmount;
       
       const currentUser = S.get();
-      const newBalance = (currentUser.balance || 0) + finalAmount;
+      const newBalance = (currentUser.balance || 0) + (isWin ? finalAmount : 0);
+      const lostAmount = isWin ? 0 : activeOrder.amount;
+      
       const tradeResult = {
         type: isWin ? "WIN" : "LOSS",
         coin: activeOrder.coin,
         amount: activeOrder.amount,
         profit: isWin ? profitAmount : -activeOrder.amount,
-        finalAmount: finalAmount,
+        finalAmount: isWin ? finalAmount : 0,
+        lostAmount: lostAmount,
         startPrice: activeOrder.startPrice,
         endPrice: currentPrice,
         duration: activeOrder.timeSeconds,
@@ -160,7 +161,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
         type: `Binary Option ${isWin ? "WIN" : "LOSS"}`,
         coin: activeOrder.coin,
         amount: activeOrder.amount,
-        usd: finalAmount,
+        usd: isWin ? finalAmount : activeOrder.amount,
         price: currentPrice,
         date: new Date().toISOString(),
         up: isWin,
@@ -287,7 +288,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           </span>
         </div>
         <div style={{ fontSize: 12, color: T.dim, marginBottom: 24 }}>
-          Trading {done.amount} {done.coin}
+          {done.isWin ? "Profit" : "Lost"} from {done.amount} {done.coin}
         </div>
         <div style={{ width: "100%", marginBottom: 9 }}>
           <PB lbl="Continue Trading" onClick={() => setDone(null)} />
@@ -319,7 +320,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           <div style={{ marginBottom: 15 }}>
             <div style={{ fontSize: 13, color: T.dim }}>{activeOrder.coin}</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: activeOrder.orderType === "up" ? T.green : T.red }}>
-              {activeOrder.orderType.toUpperCase()} {usd(activeOrder.amount)}
+              {activeOrder.orderType.toUpperCase()} ${activeOrder.amount}
             </div>
             <div style={{ fontSize: 12, color: T.gold, marginTop: 5 }}>
               Potential Profit: +{activeOrder.profitPercent}%
@@ -627,7 +628,8 @@ export default function TradePage({ nav, px, onTrade, coin }) {
             </div>
           ) : (
             holds.map(([id, q]) => {
-              const m = COINS.find((c) => c.id === id);
+              const coinData = COINS.find((c) => c.id === id);
+              if (!coinData) return null;
               return (
                 <div
                   key={id}
@@ -647,15 +649,15 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                     width: 34,
                     height: 34,
                     borderRadius: "50%",
-                    background: m?.bg,
+                    background: coinData.bg,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontSize: 13,
-                    color: m?.cl,
+                    color: coinData.cl,
                     flexShrink: 0,
                   }}>
-                    {m?.sym}
+                    {coinData.sym}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: T.text }}>{id}</div>

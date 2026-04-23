@@ -30,6 +30,8 @@ function typeColor(type) {
   if (type === "Sell")     return "#ef4444";
   if (type === "Deposit")  return "#60a5fa";
   if (type === "Withdraw") return "#f59e0b";
+  if (type?.includes("WIN")) return "#22c55e";
+  if (type?.includes("LOSS")) return "#ef4444";
   return "#94a3b8";
 }
 function typeIcon(type) {
@@ -37,9 +39,15 @@ function typeIcon(type) {
   if (type === "Sell")     return "📉";
   if (type === "Deposit")  return "💰";
   if (type === "Withdraw") return "💸";
+  if (type?.includes("WIN")) return "🎉";
+  if (type?.includes("LOSS")) return "💔";
   return "•";
 }
-function coinMeta(id) { return COINS.find(c => c.id === id) || { sym: id?.[0]||"?", cl:"#94a3b8", bg:"#1e293b", name: id }; }
+function coinMeta(id) { 
+  const found = COINS.find(c => c.id === id);
+  if (found) return found;
+  return { sym: id?.slice(0,2) || "?", cl: "#94a3b8", bg: "#1e293b", name: id || "Unknown" };
+}
 
 /* ══════════════════════════════════════════════════════
    THEME
@@ -252,6 +260,8 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
   const binaryTrades = txs.filter(t=>t.isBinaryTrade === true);
   const binaryWins = binaryTrades.filter(t=>t.up === true).length;
   const binaryLosses = binaryTrades.filter(t=>t.up === false).length;
+  const totalBinaryVolume = binaryTrades.reduce((s,t)=>s+(t.amount||0),0);
+  const totalBinaryProfit = binaryTrades.reduce((s,t)=>s+(t.tradeResult?.profit || 0),0);
 
   const tabs = [
     ["overview","Overview"],
@@ -319,7 +329,7 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
             </div>
 
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-              {[["Total Deposits",usd(deps),C.blue],["Total Withdrawals",usd(wths),C.gold],["Binary Trades",binaryTrades.length,C.accent],["Win/Loss",`${binaryWins}/${binaryLosses}`,binaryWins>=binaryLosses?C.green:C.red]].map(([l,v,c])=>(
+              {[["Total Deposits",usd(deps),C.blue],["Total Withdrawals",usd(wths),C.gold],["Binary Volume",usd(totalBinaryVolume),C.accent],["Binary P&L",usd(totalBinaryProfit),totalBinaryProfit>=0?C.green:C.red]].map(([l,v,c])=>(
                 <div key={l} style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"14px 16px" }}>
                   <div style={{ fontSize:17, fontWeight:800, color:c, marginBottom:3 }}>{v}</div>
                   <div style={{ fontSize:11, color:C.sub, fontWeight:600 }}>{l}</div>
@@ -345,6 +355,20 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
 
         {tab==="trades" && (
           <div>
+            <div style={{ marginBottom:12, display:"flex", gap:10, flexWrap:"wrap", padding:"8px 0" }}>
+              <div style={{ background:C.card, borderRadius:8, padding:"6px 12px", border:`1px solid ${C.border}` }}>
+                <span style={{ fontSize:11, color:C.sub }}>Total Trades: </span>
+                <span style={{ fontSize:13, fontWeight:800, color:C.text }}>{txs.length}</span>
+              </div>
+              <div style={{ background:C.card, borderRadius:8, padding:"6px 12px", border:`1px solid ${C.border}` }}>
+                <span style={{ fontSize:11, color:C.sub }}>Binary Wins: </span>
+                <span style={{ fontSize:13, fontWeight:800, color:C.green }}>{binaryWins}</span>
+              </div>
+              <div style={{ background:C.card, borderRadius:8, padding:"6px 12px", border:`1px solid ${C.border}` }}>
+                <span style={{ fontSize:11, color:C.sub }}>Binary Losses: </span>
+                <span style={{ fontSize:13, fontWeight:800, color:C.red }}>{binaryLosses}</span>
+              </div>
+            </div>
             {txs.length===0 && <div style={{ textAlign:"center", color:C.sub, padding:"40px 0", fontSize:13 }}>No transactions yet</div>}
             {txs.map((tx,i)=>(
               <div key={i} style={{ background:C.card, borderRadius:10, border:`1px solid ${C.border}`, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
@@ -361,15 +385,14 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
                         <span style={{ fontSize:10, color:C.gold }}>⏱ {tx.tradeResult.duration}s</span>
                         <span style={{ fontSize:10, color:C.accent }}>{tx.tradeResult.orderType === "up" ? "📈 UP" : "📉 DOWN"}</span>
                         <span style={{ fontSize:10, color:C.blue }}>+{tx.tradeResult.profitPercent}%</span>
+                        <span style={{ fontSize:10, color:C.sub }}>${tx.tradeResult.startPrice?.toFixed(2)} → ${tx.tradeResult.endPrice?.toFixed(2)}</span>
                       </>
                     )}
                     <span style={{ fontSize:10, color:C.sub }}>{tx.date?.split?.("T")?.[0] || tx.date || "—"}</span>
                   </div>
                   <div style={{ fontSize:12, color:C.sub, marginTop:3 }}>
                     {tx.coin || "USD"}{tx.amount?` · ${f2(tx.amount,4)} ${tx.coin}`:""}{tx.price?` @ ${usd(tx.price)}`:""}
-                    {tx.isBinaryTrade && tx.tradeResult && (
-                      <span> · Start: ${tx.tradeResult.startPrice?.toFixed(2)} → End: ${tx.tradeResult.endPrice?.toFixed(2)}</span>
-                    )}
+                    {tx.tradeResult?.lostAmount && <span style={{ color:C.red }}> · Lost: ${tx.tradeResult.lostAmount}</span>}
                     {tx.note && <span style={{ fontStyle:"italic" }}> — {tx.note}</span>}
                   </div>
                 </div>
@@ -384,24 +407,25 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
         {tab==="holdings" && (
           <div>
             <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"14px 16px", marginBottom:14 }}>
-              <div style={{ fontSize:11, color:C.sub, fontWeight:600, marginBottom:3 }}>TOTAL HOLDINGS</div>
+              <div style={{ fontSize:11, color:C.sub, fontWeight:600, marginBottom:3 }}>TOTAL HOLDINGS VALUE</div>
               <div style={{ fontSize:24, fontWeight:900, color:C.text }}>{usd(hVal)}</div>
             </div>
             {Object.entries(u.holdings||{}).filter(([,q])=>q>0).length===0
               ? <div style={{ textAlign:"center", color:C.sub, padding:"30px 0", fontSize:13 }}>No holdings</div>
               : Object.entries(u.holdings||{}).filter(([,q])=>q>0).map(([id,q])=>{
-                const cm = coinMeta(id); const val = q*(PE.p[id]||0);
-                return (
-                  <div key={id} style={{ background:C.card, borderRadius:10, border:`1px solid ${C.border}`, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
-                    <div style={{ width:36, height:36, borderRadius:"50%", background:cm.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, color:cm.cl, flexShrink:0 }}>{cm.sym}</div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:13, fontWeight:700, color:C.text }}>{id}</div>
-                      <div style={{ fontSize:11, color:C.sub }}>{f2(q,6)} · @ {usd(PE.p[id]||0)}</div>
+                  const cm = coinMeta(id); 
+                  const val = q*(PE.p[id]||0);
+                  return (
+                    <div key={id} style={{ background:C.card, borderRadius:10, border:`1px solid ${C.border}`, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+                      <div style={{ width:36, height:36, borderRadius:"50%", background:cm.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, color:cm.cl, flexShrink:0 }}>{cm.sym}</div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:C.text }}>{id}</div>
+                        <div style={{ fontSize:11, color:C.sub }}>{f2(q,6)} · @ {usd(PE.p[id]||0)}</div>
+                      </div>
+                      <div style={{ fontSize:14, fontWeight:800, color:C.green }}>{usd(val)}</div>
                     </div>
-                    <div style={{ fontSize:14, fontWeight:800, color:C.green }}>{usd(val)}</div>
-                  </div>
-                );
-              })}
+                  );
+                })}
           </div>
         )}
 
@@ -435,7 +459,10 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
               ["Cash Balance",  usd(u.balance||0),      "💰"],
               ["Holdings Value",usd(hVal),              "📈"],
               ["Binary Trades", binaryTrades.length,    "🎲"],
-              ["Win Rate",      binaryTrades.length ? `${Math.round((binaryWins/binaryTrades.length)*100)}%` : "0%", "🏆"],
+              ["Binary Wins",   binaryWins,             "🏆"],
+              ["Binary Losses", binaryLosses,           "💔"],
+              ["Binary Volume", usd(totalBinaryVolume), "💹"],
+              ["Binary P&L",    usd(totalBinaryProfit), totalBinaryProfit>=0?"📈":"📉"],
               ["Saved Cards",   cards.length,           "💳"],
             ].map(([l,v,ic],i,arr)=>(
               <div key={l} style={{ display:"flex", alignItems:"center", padding:"13px 18px", borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none" }}>
@@ -498,6 +525,7 @@ export default function AdminPanel({ onBack, onExit }) {
   const allNotifs     = allTxns;
   const allBinaryTrades = allTxns.filter(t=>t.isBinaryTrade===true);
   const totalBinaryVolume = allBinaryTrades.reduce((s,t)=>s+(t.amount||0),0);
+  const totalBinaryProfit = allBinaryTrades.reduce((s,t)=>s+(t.tradeResult?.profit||0),0);
 
   const found = users.filter(u=>
     u.username?.toLowerCase().includes(q.toLowerCase())||
@@ -565,6 +593,8 @@ export default function AdminPanel({ onBack, onExit }) {
                 <>
                   <span style={{ fontSize:10, color:C.gold }}>⏱ {tx.tradeResult.duration}s</span>
                   <span style={{ fontSize:10, color:C.accent }}>{tx.tradeResult.orderType === "up" ? "📈 UP" : "📉 DOWN"}</span>
+                  <span style={{ fontSize:10, color:C.blue }}>+{tx.tradeResult.profitPercent}%</span>
+                  <span style={{ fontSize:10, color:C.sub }}>${tx.tradeResult.startPrice?.toFixed(2)}→${tx.tradeResult.endPrice?.toFixed(2)}</span>
                 </>
               )}
             </div>
@@ -575,6 +605,9 @@ export default function AdminPanel({ onBack, onExit }) {
             <div style={{ fontSize:14, fontWeight:800, color:tx.up?C.green:C.red }}>
               {tx.isBinaryTrade ? (tx.up ? `+${usd(tx.usd)}` : `-${usd(tx.amount)}`) : (tx.up?"+":"-")}{usd(tx.usd||0)}
             </div>
+            {tx.isBinaryTrade && !tx.up && tx.tradeResult?.lostAmount && (
+              <div style={{ fontSize:10, color:C.red }}>Lost: ${tx.tradeResult.lostAmount}</div>
+            )}
           </div>
         </div>
       ))}
@@ -648,7 +681,8 @@ export default function AdminPanel({ onBack, onExit }) {
                   {label:"Platform Cash",  value:usd(totalBalance), color:C.green,  icon:"💰"},
                   {label:"Holdings",       value:usd(totalHoldings),color:C.gold,   icon:"📈"},
                   {label:"Binary Trades",  value:allBinaryTrades.length, color:C.blue, icon:"🎲"},
-                  {label:"Binary Volume",  value:usd(totalBinaryVolume), color:C.purple || "#8b5cf6", icon:"💹"},
+                  {label:"Binary Volume",  value:usd(totalBinaryVolume), color:"#8b5cf6", icon:"💹"},
+                  {label:"Binary P&L",     value:usd(totalBinaryProfit), color:totalBinaryProfit>=0?C.green:C.red, icon:"📊"},
                 ].map(({label,value,color,icon})=>(
                   <div key={label} style={{ background:C.card, borderRadius:14, border:`1px solid ${C.border}`, padding:"18px 20px", boxShadow:"0 1px 3px rgba(0,0,0,0.05)", position:"relative", overflow:"hidden" }}>
                     <div style={{ fontSize:22, marginBottom:10 }}>{icon}</div>

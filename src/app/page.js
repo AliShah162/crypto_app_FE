@@ -43,8 +43,6 @@ function initLocalStorage() {
   }
 }
 
-
-
 function usePX() {
   const [p, sp] = useState({ ...PE.p });
   useEffect(() => PE.on(sp), []);
@@ -81,7 +79,6 @@ export default function App() {
   const [, tick] = useState(0);
   const px = usePX();
 
-  // ✅ FIX: session restore reads role from a separate key so two tabs don't bleed
   useEffect(() => {
     initLocalStorage();
     S.hydrate();
@@ -97,7 +94,6 @@ export default function App() {
         const tabRole =
           sessionStorage.getItem("tabRole") || current.role || "user";
 
-        // ✅ Wrap in startTransition to avoid "setState synchronously in effect" warning
         startTransition(() => {
           setUser({ ...current });
           ss(tabRole === "admin" ? "admin" : "app");
@@ -178,15 +174,10 @@ export default function App() {
 
     const username = u.username.toLowerCase().trim();
 
-    // ── CRITICAL: always read existing local data first ──
-    // The backend only stores identity (email, name, role etc).
-    // Balance, transactions, holdings, savedCards live in localStorage only.
-    // We must NEVER let the backend's empty arrays overwrite local data.
     S.hydrate();
     const existingLocal = S.users[username] || {};
 
     const userObj = {
-      // Identity fields — take from backend (most up to date)
       username,
       email:       u.email       || existingLocal.email       || "",
       fullName:    u.fullName    || existingLocal.fullName    || username,
@@ -199,7 +190,6 @@ export default function App() {
       creditScore: u.creditScore ?? existingLocal.creditScore ?? 50,
       isBanned:    u.isBanned    ?? existingLocal.isBanned    ?? false,
 
-      // Financial fields — ALWAYS prefer localStorage, NEVER overwrite with backend's empty values
       balance:      existingLocal.balance      ?? u.balance      ?? 0,
       transactions: (existingLocal.transactions?.length > 0)
                       ? existingLocal.transactions
@@ -214,7 +204,6 @@ export default function App() {
       loggedInAt: Date.now(),
     };
 
-    // Merge into S.users (don't replace — merge so we keep any extra fields)
     S.users[username] = { ...existingLocal, ...userObj };
     if (typeof window !== "undefined") {
       localStorage.setItem("users", JSON.stringify(S.users));
@@ -253,13 +242,12 @@ export default function App() {
   };
 
   const nav = (p, coin) => {
-  ssb(null);
-  sp(p);
-
-  if (p === "trade" && coin) {
-    ssCoin(coin); // or whatever state controls selected coin
-  }
-};
+    ssb(null);
+    sp(p);
+    if (p === "trade" && coin) {
+      ssCoin(coin);
+    }
+  };
 
   const addN = (title, body) =>
     sn((n) => [...n, { title, body, time: new Date().toLocaleTimeString() }]);
@@ -292,20 +280,51 @@ export default function App() {
 
   const onTrade = (tradeInfo) => {
     re();
-    if (tradeInfo) {
-      // tradeInfo passed directly from TradePage so we don't miss it
-      addN(
-        `${tradeInfo.action} Successful ✅`,
-        `${tradeInfo.action === "Buy" ? "Purchased" : "Sold"} ${f2(tradeInfo.qty || 0, 4)} ${tradeInfo.coin} for ${usd(tradeInfo.cost || 0)}`,
-      );
-    } else {
+    
+    // Handle binary trades
+    if (tradeInfo && tradeInfo.action === "Binary Trade") {
+      const isWin = tradeInfo.result === "WIN";
+      const profitAmount = Math.abs(tradeInfo.profit);
+      
+      if (isWin) {
+        addN(
+          `🎉 Binary Trade WIN!`,
+          `You won ${usd(profitAmount)} on ${tradeInfo.coin} (${tradeInfo.tradeDetails?.duration}s ${tradeInfo.tradeDetails?.orderType?.toUpperCase()})`
+        );
+      } else {
+        addN(
+          `💔 Binary Trade LOSS`,
+          `You lost ${usd(tradeInfo.amount)} on ${tradeInfo.coin}`
+        );
+      }
+    } 
+    // Handle regular buy/sell trades
+    else if (tradeInfo && tradeInfo.action) {
+      if (tradeInfo.action === "Buy" || tradeInfo.action === "Sell") {
+        addN(
+          `${tradeInfo.action} Successful ✅`,
+          `${tradeInfo.action === "Buy" ? "Purchased" : "Sold"} ${f2(tradeInfo.qty || 0, 4)} ${tradeInfo.coin} for ${usd(tradeInfo.cost || 0)}`,
+        );
+      }
+    }
+    // Fallback for any other trade
+    else {
       const u = S.get();
       if (u?.transactions?.length) {
-        const tx = u.transactions[0];
-        addN(
-          `${tx.type} Successful ✅`,
-          `${tx.type === "Buy" ? "Purchased" : "Sold"} ${f2(tx.amount || 0, 4)} ${tx.coin} @ ${usd(tx.price || 0)}`,
-        );
+        const latestTx = u.transactions[0];
+        if (latestTx.isBinaryTrade) {
+          addN(
+            latestTx.up ? "🎉 Binary Trade WIN!" : "💔 Binary Trade LOSS",
+            latestTx.up 
+              ? `You won ${usd(latestTx.tradeResult?.profit || 0)} on ${latestTx.coin}`
+              : `You lost ${usd(latestTx.amount)} on ${latestTx.coin}`
+          );
+        } else if (latestTx.type === "Buy" || latestTx.type === "Sell") {
+          addN(
+            `${latestTx.type} Successful ✅`,
+            `${latestTx.type === "Buy" ? "Purchased" : "Sold"} ${f2(latestTx.amount || 0, 4)} ${latestTx.coin} for ${usd(latestTx.usd || 0)}`,
+          );
+        }
       }
     }
   };

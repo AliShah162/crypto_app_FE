@@ -380,8 +380,7 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
           transactions: [], holdings: {}, savedCards: [],
         };
         if (typeof window !== "undefined") {
-          localStorage.setItem("users", JSON.stringify(S.users));
-        }
+saveLS("users", S.users);        }
       }
 
       onAuth(adminSession);
@@ -402,7 +401,7 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
     // user.adminPassword. If either exists, we must validate against it FIRST
     // before the backend (which still has the old password).
     try {
-      const localUsers = JSON.parse(localStorage.getItem("users") || "{}");
+const localUsers = loadLS("users", {});
       const localUser  = localUsers[cleanUser];
       if (localUser) {
         // Prefer adminPassword (set by admin panel); fall back to password field

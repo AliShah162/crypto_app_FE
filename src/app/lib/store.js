@@ -29,37 +29,66 @@ export const S = {
   session: null,
   banned: [],
   _hydrated: false,
+  _ensureBaseKeys() {
+    if (typeof window === "undefined") return;
+
+    if (!localStorage.getItem("users")) {
+      localStorage.setItem("users", JSON.stringify({}));
+    }
+
+    if (!localStorage.getItem("banned")) {
+      localStorage.setItem("banned", JSON.stringify([]));
+    }
+
+    if (!localStorage.getItem("session")) {
+      localStorage.setItem("session", JSON.stringify(null));
+    }
+  },
 
   hydrate() {
-    if (this._hydrated) return;
+  if (this._hydrated) return;
 
-    const users = loadLS("users", {});
-    const banned = loadLS("banned", []);
-    const rawSession = loadLS("session", null);
+  const users = loadLS("users", {});
+  const banned = loadLS("banned", []);
+  const rawSession = loadLS("session", null);
 
-    this.users = users || {};
-    this.banned = Array.isArray(banned) ? banned : [];
+  // ✅ ENSURE DEFAULT STRUCTURE ALWAYS EXISTS
+  this.users = users && typeof users === "object" ? users : {};
+  this.banned = Array.isArray(banned) ? banned : [];
 
-    if (typeof rawSession === "string") {
-      this.session = rawSession;
-    } else if (rawSession && rawSession.username) {
-      this.session = rawSession.username.toLowerCase().trim();
-      saveLS("session", this.session);
-    } else {
-      this.session = null;
-    }
+  // ✅ normalize session safely
+  if (typeof rawSession === "string" && rawSession.trim()) {
+    this.session = rawSession.toLowerCase().trim();
+  } else if (rawSession && typeof rawSession === "object" && rawSession.username) {
+    this.session = rawSession.username.toLowerCase().trim();
+    saveLS("session", this.session);
+  } else {
+    this.session = null;
+    saveLS("session", null); // 👈 important for fresh browser sync
+  }
 
-    for (const u of Object.values(this.users)) {
-      u.creditScore = Math.max(0, Math.min(100, Number(u.creditScore ?? 50)));
-    }
+  // ✅ FIX: always ensure users object is valid
+  if (!this.users || typeof this.users !== "object") {
+    this.users = {};
+    saveLS("users", this.users);
+  }
 
-    if (this.session && this.banned.includes(this.session)) {
-      this.session = null;
-      saveLS("session", null);
-    }
+  // sanitize credit score safely
+  for (const u of Object.values(this.users)) {
+    u.creditScore = Math.max(0, Math.min(100, Number(u.creditScore ?? 50)));
+  }
 
-    this._hydrated = true;
-  },
+  // session banned safety
+  if (this.session && this.banned.includes(this.session)) {
+    this.session = null;
+    saveLS("session", null);
+  }
+
+  this._hydrated = true;
+
+  // ✅ IMPORTANT: ensure base keys always exist in LS
+  this._ensureBaseKeys();
+},
 
   // ✅ FIXED: removed hydrate() here
   get() {

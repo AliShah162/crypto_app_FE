@@ -140,7 +140,7 @@ const qa = [
         <span style={{ fontSize: 14, fontWeight: 800, color: T.text }}>Markets</span>
         <span onClick={() => nav("market")} style={{ fontSize: 11, color: T.acc, fontWeight: 700, cursor: "pointer" }}>View All</span>
       </div>
-      <div style={{ padding: "0 13px" }}>
+      <div style={{ padding: "0 13px", cursor:"pointer"}}>
         {COINS.map((c) => {
           const p = px[c.id] || 0;
           const h = PE.h[c.id] || [];
@@ -152,7 +152,7 @@ const qa = [
           return (
             <div key={c.id}  onClick={() => nav("trade", c.id)} style={{
               background: T.card, borderRadius: 13, padding: "11px 13px",
-              display: "flex", alignItems: "center", gap: 11, marginBottom: 8,
+              display: "flex", alignItems: "center", gap: 11, cursor:"pointer", marginBottom: 8,
               border: `1px solid ${T.line}`,
             }}>
               <CoinIcon c={c} size={38} />

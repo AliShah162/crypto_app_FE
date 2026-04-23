@@ -62,10 +62,10 @@ const C = {
 };
 
 /* ══════════════════════════════════════════════════════
-   BALANCE EDITOR  (clean modal-style inline form)
+   BALANCE EDITOR
 ══════════════════════════════════════════════════════ */
 function BalanceEditor({ username, usersState, setUsersState }) {
-  const [mode, setMode]     = useState("add");   // add | subtract | set
+  const [mode, setMode]     = useState("add");
   const [val, setVal]       = useState("");
   const [msg, setMsg]       = useState(null);
 
@@ -233,7 +233,7 @@ function ForceTradePanel({ username, usersState, setUsersState }) {
 }
 
 /* ══════════════════════════════════════════════════════
-   USER DETAIL DRAWER  (slides in from right on click)
+   USER DETAIL DRAWER
 ══════════════════════════════════════════════════════ */
 function UserDrawer({ username, usersState, setUsersState, banned, changeScore, disc, rest, del, onClose }) {
   const [tab, setTab] = useState("overview");
@@ -249,6 +249,10 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
   const score  = u.creditScore ?? 50;
   const sc     = score>=70?C.green:score>=40?C.gold:C.red;
 
+  const binaryTrades = txs.filter(t=>t.isBinaryTrade === true);
+  const binaryWins = binaryTrades.filter(t=>t.up === true).length;
+  const binaryLosses = binaryTrades.filter(t=>t.up === false).length;
+
   const tabs = [
     ["overview","Overview"],
     ["balance","Balance"],
@@ -260,7 +264,6 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
 
   return (
     <div style={{ position:"fixed", top:0, right:0, bottom:0, width:"min(520px,100vw)", background:C.bg, boxShadow:"-4px 0 32px rgba(0,0,0,0.14)", zIndex:1000, display:"flex", flexDirection:"column", overflowY:"auto" }}>
-      {/* Header */}
       <div style={{ background:C.sidebar, padding:"20px 22px", display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
         <button onClick={onClose} style={{ background:"rgba(255,255,255,0.1)", border:"none", borderRadius:8, width:34, height:34, cursor:"pointer", fontSize:18, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>←</button>
         <div style={{ width:42, height:42, borderRadius:11, background:"linear-gradient(135deg,#6366f1,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, fontWeight:900, color:"#fff", flexShrink:0 }}>
@@ -275,9 +278,8 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
         </span>
       </div>
 
-      {/* Quick stats */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:`1px solid ${C.border}` }}>
-        {[["Balance",usd(u.balance||0),C.green],["Holdings",usd(hVal),C.gold],["Buys",buys,C.accent],["Sells",sells,C.red]].map(([l,v,c])=>(
+        {[["Balance",usd(u.balance||0),C.green],["Holdings",usd(hVal),C.gold],["Binary Trades",binaryTrades.length,C.accent],["Win Rate",binaryTrades.length ? Math.round((binaryWins/binaryTrades.length)*100)+"%" : "0%",C.blue]].map(([l,v,c])=>(
           <div key={l} style={{ padding:"12px 10px", textAlign:"center", borderRight:`1px solid ${C.border}` }}>
             <div style={{ fontSize:14, fontWeight:800, color:c }}>{v}</div>
             <div style={{ fontSize:10, color:C.sub, marginTop:2, fontWeight:600 }}>{l}</div>
@@ -285,7 +287,6 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
         ))}
       </div>
 
-      {/* Tab bar */}
       <div style={{ display:"flex", overflowX:"auto", background:"#fff", borderBottom:`1px solid ${C.border}`, scrollbarWidth:"none", flexShrink:0 }}>
         {tabs.map(([t,l])=>(
           <button key={t} onClick={()=>setTab(t)}
@@ -295,13 +296,10 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
         ))}
       </div>
 
-      {/* Tab content */}
       <div style={{ flex:1, padding:"18px 20px", overflowY:"auto" }}>
 
-        {/* ── OVERVIEW ── */}
         {tab==="overview" && (
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            {/* Credit score */}
             <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"16px 18px" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
                 <div style={{ fontSize:12, fontWeight:700, color:C.sub, textTransform:"uppercase", letterSpacing:"0.06em" }}>Credit Score</div>
@@ -320,9 +318,8 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
               </div>
             </div>
 
-            {/* Stats */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-              {[["Total Deposits",usd(deps),C.blue],["Total Withdrawals",usd(wths),C.gold],["All Transactions",txs.length,C.accent],["Saved Cards",cards.length,C.sub]].map(([l,v,c])=>(
+              {[["Total Deposits",usd(deps),C.blue],["Total Withdrawals",usd(wths),C.gold],["Binary Trades",binaryTrades.length,C.accent],["Win/Loss",`${binaryWins}/${binaryLosses}`,binaryWins>=binaryLosses?C.green:C.red]].map(([l,v,c])=>(
                 <div key={l} style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"14px 16px" }}>
                   <div style={{ fontSize:17, fontWeight:800, color:c, marginBottom:3 }}>{v}</div>
                   <div style={{ fontSize:11, color:C.sub, fontWeight:600 }}>{l}</div>
@@ -330,7 +327,6 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
               ))}
             </div>
 
-            {/* Actions */}
             <div style={{ display:"flex", gap:8 }}>
               {!isBan
                 ? <button onClick={()=>disc(username)} style={{ flex:1, padding:"10px 0", borderRadius:9, border:`1.5px solid ${C.gold}`, background:C.gold+"15", color:C.gold, fontSize:12, fontWeight:700, cursor:"pointer" }}>🚫 Ban User</button>
@@ -340,7 +336,6 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
           </div>
         )}
 
-        {/* ── BALANCE ── */}
         {tab==="balance" && (
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <BalanceEditor username={username} usersState={usersState} setUsersState={setUsersState} />
@@ -348,32 +343,44 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
           </div>
         )}
 
-        {/* ── TRADES ── */}
         {tab==="trades" && (
           <div>
             {txs.length===0 && <div style={{ textAlign:"center", color:C.sub, padding:"40px 0", fontSize:13 }}>No transactions yet</div>}
             {txs.map((tx,i)=>(
               <div key={i} style={{ background:C.card, borderRadius:10, border:`1px solid ${C.border}`, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
-                <div style={{ fontSize:20, flexShrink:0 }}>{typeIcon(tx.type)}</div>
+                <div style={{ fontSize:20, flexShrink:0 }}>{tx.isBinaryTrade ? (tx.up ? "🎉" : "💔") : typeIcon(tx.type)}</div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-                    <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:20, background:typeColor(tx.type)+"18", color:typeColor(tx.type) }}>{tx.type}</span>
+                    <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:20, background:tx.isBinaryTrade ? (tx.up ? C.green+"18" : C.red+"18") : typeColor(tx.type)+"18", color:tx.isBinaryTrade ? (tx.up ? C.green : C.red) : typeColor(tx.type) }}>
+                      {tx.isBinaryTrade ? `Binary ${tx.up ? "WIN" : "LOSS"}` : tx.type}
+                    </span>
                     {tx.adminAction && <span style={{ fontSize:10, color:C.accent }}>🔧 admin</span>}
                     {tx.adminAdded  && <span style={{ fontSize:10, color:C.green }}>💰 admin</span>}
-                    <span style={{ fontSize:10, color:C.sub }}>{tx.date||"—"}</span>
+                    {tx.isBinaryTrade && tx.tradeResult && (
+                      <>
+                        <span style={{ fontSize:10, color:C.gold }}>⏱ {tx.tradeResult.duration}s</span>
+                        <span style={{ fontSize:10, color:C.accent }}>{tx.tradeResult.orderType === "up" ? "📈 UP" : "📉 DOWN"}</span>
+                        <span style={{ fontSize:10, color:C.blue }}>+{tx.tradeResult.profitPercent}%</span>
+                      </>
+                    )}
+                    <span style={{ fontSize:10, color:C.sub }}>{tx.date?.split?.("T")?.[0] || tx.date || "—"}</span>
                   </div>
                   <div style={{ fontSize:12, color:C.sub, marginTop:3 }}>
-                    {tx.coin||"USD"}{tx.amount?` · ${f2(tx.amount,4)}`:""}{tx.price?` @ ${usd(tx.price)}`:""}
+                    {tx.coin || "USD"}{tx.amount?` · ${f2(tx.amount,4)} ${tx.coin}`:""}{tx.price?` @ ${usd(tx.price)}`:""}
+                    {tx.isBinaryTrade && tx.tradeResult && (
+                      <span> · Start: ${tx.tradeResult.startPrice?.toFixed(2)} → End: ${tx.tradeResult.endPrice?.toFixed(2)}</span>
+                    )}
                     {tx.note && <span style={{ fontStyle:"italic" }}> — {tx.note}</span>}
                   </div>
                 </div>
-                <div style={{ fontSize:13, fontWeight:800, color:tx.up?C.green:C.red, textAlign:"right" }}>{usd(tx.usd||0)}</div>
+                <div style={{ fontSize:13, fontWeight:800, color:tx.up?C.green:C.red, textAlign:"right" }}>
+                  {tx.isBinaryTrade ? (tx.up ? `+${usd(tx.usd)}` : `-${usd(tx.amount)}`) : usd(tx.usd||0)}
+                </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* ── HOLDINGS ── */}
         {tab==="holdings" && (
           <div>
             <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"14px 16px", marginBottom:14 }}>
@@ -398,7 +405,6 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
           </div>
         )}
 
-        {/* ── CARDS ── */}
         {tab==="cards" && (
           <div>
             {cards.length===0 && <div style={{ textAlign:"center", color:C.sub, padding:"40px 0", fontSize:13 }}>No saved cards</div>}
@@ -415,7 +421,6 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
           </div>
         )}
 
-        {/* ── INFO ── */}
         {tab==="info" && (
           <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, overflow:"hidden" }}>
             {[
@@ -429,7 +434,8 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
               ["Credit Score",  `${score}/100`,         "⭐"],
               ["Cash Balance",  usd(u.balance||0),      "💰"],
               ["Holdings Value",usd(hVal),              "📈"],
-              ["Total Trades",  txs.filter(t=>t.type==="Buy"||t.type==="Sell").length,"📊"],
+              ["Binary Trades", binaryTrades.length,    "🎲"],
+              ["Win Rate",      binaryTrades.length ? `${Math.round((binaryWins/binaryTrades.length)*100)}%` : "0%", "🏆"],
               ["Saved Cards",   cards.length,           "💳"],
             ].map(([l,v,ic],i,arr)=>(
               <div key={l} style={{ display:"flex", alignItems:"center", padding:"13px 18px", borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none" }}>
@@ -457,7 +463,7 @@ export default function AdminPanel({ onBack, onExit }) {
   const [loading, setLoading]       = useState(true);
   const [q, setQ]                   = useState("");
   const [selUser, setSelUser]       = useState(null);
-  const [sideOpen, setSideOpen]     = useState(false); // mobile sidebar
+  const [sideOpen, setSideOpen]     = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -488,8 +494,10 @@ export default function AdminPanel({ onBack, onExit }) {
 
   const allDeposits   = allTxns.filter(t=>t.type==="Deposit");
   const allWithdraws  = allTxns.filter(t=>t.type==="Withdraw");
-  const allTrades     = allTxns.filter(t=>t.type==="Buy"||t.type==="Sell");
-  const allNotifs     = allTxns; // everything is a notification feed
+  const allTrades     = allTxns.filter(t=>t.type==="Buy"||t.type==="Sell"||t.isBinaryTrade===true);
+  const allNotifs     = allTxns;
+  const allBinaryTrades = allTxns.filter(t=>t.isBinaryTrade===true);
+  const totalBinaryVolume = allBinaryTrades.reduce((s,t)=>s+(t.amount||0),0);
 
   const found = users.filter(u=>
     u.username?.toLowerCase().includes(q.toLowerCase())||
@@ -517,7 +525,6 @@ export default function AdminPanel({ onBack, onExit }) {
     } catch(e){console.error(e);}
   };
 
-  /* ── NAV ITEMS ── */
   const navItems = [
     {id:"dashboard",label:"Dashboard",   icon:"📊"},
     {id:"users",    label:"Users",       icon:"👥"},
@@ -539,52 +546,56 @@ export default function AdminPanel({ onBack, onExit }) {
     );
   };
 
-  /* ── TRANSACTION TABLE (reusable) ── */
   const TxTable = ({ rows, title }) => (
     <div>
       {title && <div style={{ fontSize:14, fontWeight:800, color:C.text, marginBottom:14 }}>{title}</div>}
       {rows.length===0 && <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"40px", textAlign:"center", color:C.sub, fontSize:13 }}>No records yet</div>}
       {rows.map((tx,i)=>(
         <div key={i} style={{ background:C.card, borderRadius:10, border:`1px solid ${C.border}`, padding:"13px 16px", marginBottom:8, display:"flex", alignItems:"center", gap:14 }}>
-          <div style={{ fontSize:22, flexShrink:0 }}>{typeIcon(tx.type)}</div>
+          <div style={{ fontSize:22, flexShrink:0 }}>{tx.isBinaryTrade ? (tx.up ? "🎉" : "💔") : typeIcon(tx.type)}</div>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:3 }}>
               <span style={{ fontSize:12, fontWeight:700, color:C.text }}>@{tx._user}</span>
-              <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:20, background:typeColor(tx.type)+"18", color:typeColor(tx.type) }}>{tx.type}</span>
+              <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:20, background:tx.isBinaryTrade ? (tx.up ? C.green+"18" : C.red+"18") : typeColor(tx.type)+"18", color:tx.isBinaryTrade ? (tx.up ? C.green : C.red) : typeColor(tx.type) }}>
+                {tx.isBinaryTrade ? `Binary ${tx.up ? "WIN" : "LOSS"}` : tx.type}
+              </span>
               {tx.adminAction&&<span style={{ fontSize:10, color:C.accent, fontWeight:600 }}>🔧 admin</span>}
               {tx.adminAdded &&<span style={{ fontSize:10, color:C.green,  fontWeight:600 }}>💰 admin</span>}
+              {tx.isBinaryTrade && tx.tradeResult && (
+                <>
+                  <span style={{ fontSize:10, color:C.gold }}>⏱ {tx.tradeResult.duration}s</span>
+                  <span style={{ fontSize:10, color:C.accent }}>{tx.tradeResult.orderType === "up" ? "📈 UP" : "📉 DOWN"}</span>
+                </>
+              )}
             </div>
-            <div style={{ fontSize:11, color:C.sub }}>{tx.coin||"USD"}{tx.amount?` · ${f2(tx.amount,4)}`:""}{tx.price?` @ ${usd(tx.price)}`:""}  {tx.date||""}</div>
+            <div style={{ fontSize:11, color:C.sub }}>{tx.coin||"USD"}{tx.amount?` · ${f2(tx.amount,4)}`:""}{tx.price?` @ ${usd(tx.price)}`:""}  {tx.date?.split?.("T")?.[0] || tx.date || ""}</div>
             {tx.note&&<div style={{ fontSize:11, color:C.sub, fontStyle:"italic" }}>{tx.note}</div>}
           </div>
           <div style={{ textAlign:"right", flexShrink:0 }}>
-            <div style={{ fontSize:14, fontWeight:800, color:tx.up?C.green:C.red }}>{tx.up?"+":"-"}{usd(tx.usd||0)}</div>
+            <div style={{ fontSize:14, fontWeight:800, color:tx.up?C.green:C.red }}>
+              {tx.isBinaryTrade ? (tx.up ? `+${usd(tx.usd)}` : `-${usd(tx.amount)}`) : (tx.up?"+":"-")}{usd(tx.usd||0)}
+            </div>
           </div>
         </div>
       ))}
     </div>
   );
 
-  /* ─── RENDER ─── */
   return (
     <div style={{ display:"flex", minHeight:"100vh", background:C.bg, fontFamily:"'Inter','Syne',sans-serif", position:"relative" }}>
       <style>{css}</style>
 
-      {/* OVERLAY for drawer */}
       {selUser && <div onClick={()=>setSelUser(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", zIndex:999 }} />}
 
-      {/* MOBILE SIDEBAR OVERLAY */}
       {sideOpen && <div onClick={()=>setSideOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:89 }} />}
 
-      {/* ── SIDEBAR ── */}
       <aside style={{ width:220, background:C.sidebar, display:"flex", flexDirection:"column", justifyContent:"space-between", padding:"22px 12px", flexShrink:0, position:"sticky", top:0, height:"100vh", overflowY:"auto" }} className="ap-sidebar">
         <div>
-          {/* Logo */}
           <div style={{ display:"flex", alignItems:"center", gap:10, padding:"0 4px", marginBottom:28 }}>
             <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#6366f1,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:18, color:"#fff", flexShrink:0 }}>A</div>
             <div>
               <div style={{ fontWeight:800, fontSize:14, color:"#f1f5f9" }}>AdminOS</div>
-              <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", letterSpacing:"0.07em" }}>COINBASE</div>
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", letterSpacing:"0.07em" }}>TRACKER</div>
             </div>
           </div>
 
@@ -598,21 +609,18 @@ export default function AdminPanel({ onBack, onExit }) {
         </button>
       </aside>
 
-      {/* MOBILE DRAWER SIDEBAR */}
       <aside style={{ position:"fixed", top:0, left:0, bottom:0, width:220, background:C.sidebar, display:"flex", flexDirection:"column", justifyContent:"space-between", padding:"22px 12px", transform:sideOpen?"translateX(0)":"translateX(-100%)", transition:"transform .25s", zIndex:90 }} className="ap-sidebar-mob">
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:10, padding:"0 4px", marginBottom:28 }}>
             <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#6366f1,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:18, color:"#fff" }}>A</div>
-            <div><div style={{ fontWeight:800, fontSize:14, color:"#f1f5f9" }}>AdminOS</div><div style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>COINBASE</div></div>
+            <div><div style={{ fontWeight:800, fontSize:14, color:"#f1f5f9" }}>AdminOS</div><div style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>TRACKER</div></div>
           </div>
           <nav style={{ display:"flex", flexDirection:"column", gap:3 }}>{navItems.map(n=><NavBtn key={n.id} {...n} />)}</nav>
         </div>
         <button onClick={exit} style={{ width:"100%", padding:"10px 0", borderRadius:9, border:"1px solid rgba(255,255,255,0.12)", background:"transparent", color:"rgba(255,255,255,0.4)", fontSize:12, fontWeight:600, cursor:"pointer" }}>⎋ Exit</button>
       </aside>
 
-      {/* ── MAIN ── */}
       <main style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, overflowX:"hidden" }}>
-        {/* Topbar */}
         <div style={{ background:"#fff", borderBottom:`1px solid ${C.border}`, padding:"0 24px", height:62, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0, position:"sticky", top:0, zIndex:10 }}>
           <div style={{ display:"flex", alignItems:"center", gap:14 }}>
             <button className="ap-hamburger" onClick={()=>setSideOpen(v=>!v)} style={{ border:"none", background:"transparent", fontSize:20, cursor:"pointer", padding:4 }}>☰</button>
@@ -620,7 +628,7 @@ export default function AdminPanel({ onBack, onExit }) {
               <div style={{ fontSize:18, fontWeight:800, color:C.text }}>
                 {navItems.find(n=>n.id===tab)?.label||"Dashboard"}
               </div>
-              <div style={{ fontSize:11, color:C.sub }}>CoinBase Admin Panel</div>
+              <div style={{ fontSize:11, color:C.sub }}>Admin Panel</div>
             </div>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -629,20 +637,18 @@ export default function AdminPanel({ onBack, onExit }) {
           </div>
         </div>
 
-        {/* Content area */}
         <div style={{ flex:1, padding:"24px", overflowY:"auto" }} className="ap-content">
 
-          {/* ═══ DASHBOARD ═══ */}
           {tab==="dashboard" && (
             <div>
-              {/* KPI cards */}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:14, marginBottom:24 }}>
                 {[
                   {label:"Total Users",    value:users.length,      color:C.accent, icon:"👥"},
                   {label:"Banned",         value:banned.length,     color:C.red,    icon:"🚫"},
                   {label:"Platform Cash",  value:usd(totalBalance), color:C.green,  icon:"💰"},
                   {label:"Holdings",       value:usd(totalHoldings),color:C.gold,   icon:"📈"},
-                  {label:"Transactions",   value:totalTxns,         color:C.blue,   icon:"📊"},
+                  {label:"Binary Trades",  value:allBinaryTrades.length, color:C.blue, icon:"🎲"},
+                  {label:"Binary Volume",  value:usd(totalBinaryVolume), color:C.purple || "#8b5cf6", icon:"💹"},
                 ].map(({label,value,color,icon})=>(
                   <div key={label} style={{ background:C.card, borderRadius:14, border:`1px solid ${C.border}`, padding:"18px 20px", boxShadow:"0 1px 3px rgba(0,0,0,0.05)", position:"relative", overflow:"hidden" }}>
                     <div style={{ fontSize:22, marginBottom:10 }}>{icon}</div>
@@ -653,13 +659,11 @@ export default function AdminPanel({ onBack, onExit }) {
                 ))}
               </div>
 
-              {/* Recent activity */}
               <div style={{ fontSize:14, fontWeight:800, color:C.text, marginBottom:12 }}>Recent Activity</div>
               <TxTable rows={allTxns.slice(0,12)} />
             </div>
           )}
 
-          {/* ═══ USERS ═══ */}
           {tab==="users" && (
             <div>
               <div style={{ position:"relative", marginBottom:16 }}>
@@ -670,21 +674,20 @@ export default function AdminPanel({ onBack, onExit }) {
 
               {loading && <div style={{ textAlign:"center", color:C.sub, padding:40 }}>Loading users…</div>}
 
-              {/* User table */}
               {!loading && (
                 <div style={{ background:C.card, borderRadius:14, border:`1px solid ${C.border}`, overflow:"hidden" }}>
-                  {/* header */}
-                  <div style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr 60px 80px", padding:"11px 16px", borderBottom:`1px solid ${C.border}`, fontSize:11, fontWeight:700, color:C.sub, textTransform:"uppercase", letterSpacing:"0.06em" }} className="ap-th">
-                    <span>Username</span><span>Email</span><span>Balance</span><span>Trades</span><span>Score</span><span>Status</span>
+                  <div style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr 1fr 60px 80px", padding:"11px 16px", borderBottom:`1px solid ${C.border}`, fontSize:11, fontWeight:700, color:C.sub, textTransform:"uppercase", letterSpacing:"0.06em" }} className="ap-th">
+                    <span>Username</span><span>Email</span><span>Balance</span><span>Binary</span><span>Trades</span><span>Score</span><span>Status</span>
                   </div>
                   {found.length===0 && <div style={{ padding:40, textAlign:"center", color:C.sub, fontSize:13 }}>No users found</div>}
                   {found.map((u,i)=>{
                     const isBan=banned.includes(u.username);
+                    const binaryCount = (u.transactions||[]).filter(t=>t.isBinaryTrade===true).length;
                     const tCount=(u.transactions||[]).filter(t=>t.type==="Buy"||t.type==="Sell").length;
                     const sc=u.creditScore??50; const scC=sc>=70?C.green:sc>=40?C.gold:C.red;
                     return (
                       <div key={u.username} onClick={()=>setSelUser(u.username)}
-                        style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr 60px 80px", padding:"13px 16px", borderBottom:i<found.length-1?`1px solid ${C.border}`:"none", cursor:"pointer", transition:"background .15s", alignItems:"center" }}
+                        style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1fr 1fr 1fr 60px 80px", padding:"13px 16px", borderBottom:i<found.length-1?`1px solid ${C.border}`:"none", cursor:"pointer", transition:"background .15s", alignItems:"center" }}
                         className="ap-tr ap-th">
                         <span style={{ display:"flex", alignItems:"center", gap:9 }}>
                           <span style={{ width:30, height:30, borderRadius:8, background:"linear-gradient(135deg,#6366f1,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, color:"#fff", flexShrink:0 }}>{u.username[0].toUpperCase()}</span>
@@ -692,6 +695,7 @@ export default function AdminPanel({ onBack, onExit }) {
                         </span>
                         <span style={{ fontSize:12, color:C.sub }}>{u.email||"—"}</span>
                         <span style={{ fontSize:13, fontWeight:700, color:C.green }}>{usd(u.balance||0)}</span>
+                        <span style={{ fontSize:12, fontWeight:700, color:C.blue }}>{binaryCount}</span>
                         <span style={{ fontSize:12, color:C.sub }}>{tCount}</span>
                         <span style={{ fontSize:12, fontWeight:700, color:scC }}>{sc}</span>
                         <span><span style={{ fontSize:11, fontWeight:700, padding:"3px 9px", borderRadius:20, ...(isBan?{background:C.red+"15",color:C.red}:{background:C.green+"15",color:C.green}) }}>{isBan?"Banned":"Active"}</span></span>
@@ -703,10 +707,7 @@ export default function AdminPanel({ onBack, onExit }) {
             </div>
           )}
 
-          {/* ═══ ALL TRADES ═══ */}
-          {tab==="trades" && <TxTable rows={allTrades} title="All Trades" />}
-
-          {/* ═══ DEPOSITS ═══ */}
+          {tab==="trades" && <TxTable rows={allTrades} title="All Trades (including Binary Options)" />}
           {tab==="deposits" && (
             <div>
               <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"16px 20px", marginBottom:16, display:"flex", gap:20 }}>
@@ -716,8 +717,6 @@ export default function AdminPanel({ onBack, onExit }) {
               <TxTable rows={allDeposits} />
             </div>
           )}
-
-          {/* ═══ WITHDRAWALS ═══ */}
           {tab==="withdraws" && (
             <div>
               <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"16px 20px", marginBottom:16, display:"flex", gap:20 }}>
@@ -727,18 +726,15 @@ export default function AdminPanel({ onBack, onExit }) {
               <TxTable rows={allWithdraws} />
             </div>
           )}
-
-          {/* ═══ ACTIVITY LOG (Notifications) ═══ */}
           {tab==="activity" && (
             <div>
-              <div style={{ fontSize:12, color:C.sub, marginBottom:14 }}>All user activity in real time — trades, deposits, withdrawals, admin actions.</div>
+              <div style={{ fontSize:12, color:C.sub, marginBottom:14 }}>All user activity in real time — trades, deposits, withdrawals, admin actions, binary options.</div>
               <TxTable rows={allNotifs} />
             </div>
           )}
         </div>
       </main>
 
-      {/* USER DETAIL DRAWER */}
       {selUser && (
         <UserDrawer
           username={selUser}
@@ -754,7 +750,6 @@ export default function AdminPanel({ onBack, onExit }) {
   );
 }
 
-/* ─── CSS ─── */
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
   * { box-sizing:border-box; margin:0; padding:0; }

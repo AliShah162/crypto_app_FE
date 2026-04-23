@@ -207,7 +207,7 @@ export const S = {
 const BASES = {
   BTC: 71320, ETH: 2251, LINK: 9.19, SOL: 148,
   XMR: 0.004, MATIC: 0.89, BNB: 612,
-  XRP: 0.62, ADA: 0.45, DOGE: 0.18,
+  XRP: 0.62, ADA: 0.45, DOGE: 0.18, BTG: 455.7,
 };
 
 export const PE = {
@@ -274,6 +274,7 @@ export const COINS = [
   { id: "XRP", name: "XRP", sym: "✕", cl: "#94a3b8", bg: "#1e293b" },
   { id: "ADA", name: "Cardano", sym: "₳", cl: "#3b82f6", bg: "#172554" },
   { id: "DOGE", name: "Dogecoin", sym: "Ð", cl: "#eab308", bg: "#422006" },
+  { id: "BTG", name: "Bitcoin Gold", sym: "Ƀ", cl: "#f59e0b", bg: "#451a03" },
 ];
 
 export const NEWS = [
@@ -301,3 +302,40 @@ export const f2 = (n, d = 2) =>
   typeof n === "number" ? n.toFixed(d) : "0.00";
 
 export const usd = (n) => "$" + f2(n);
+// ───── PENDING TRADES (admin-approval system) ─────
+export const PT = {
+  _key: "pending_trades",
+
+  getAll() {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(localStorage.getItem(this._key) || "[]"); } catch { return []; }
+  },
+
+  add(trade) {
+    const list = this.getAll();
+    const entry = { ...trade, id: Date.now() + Math.random(), status: "pending", createdAt: new Date().toISOString() };
+    list.unshift(entry);
+    localStorage.setItem(this._key, JSON.stringify(list));
+    return entry;
+  },
+
+  approve(id) {
+    const list = this.getAll().map(t => t.id === id ? { ...t, status: "approved", resolvedAt: new Date().toISOString() } : t);
+    localStorage.setItem(this._key, JSON.stringify(list));
+    return list.find(t => t.id === id);
+  },
+
+  reject(id) {
+    const list = this.getAll().map(t => t.id === id ? { ...t, status: "rejected", resolvedAt: new Date().toISOString() } : t);
+    localStorage.setItem(this._key, JSON.stringify(list));
+    return list.find(t => t.id === id);
+  },
+
+  forUser(username) {
+    return this.getAll().filter(t => t.username === username?.toLowerCase());
+  },
+
+  pendingCount() {
+    return this.getAll().filter(t => t.status === "pending").length;
+  },
+};

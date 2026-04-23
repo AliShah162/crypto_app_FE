@@ -343,6 +343,7 @@ export default function TradePage({ nav, px, onTrade }) {
             padding: "9px 8px",
             marginBottom: 9,
             border: `1px solid ${T.line}`,
+            overflow: "hidden",
           }}
         >
           <div
@@ -356,8 +357,17 @@ export default function TradePage({ nav, px, onTrade }) {
           >
             Crypto
           </div>
-          <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
-            {COINS.slice(0, 4).map((c) => (
+          <div style={{
+            display: "flex",
+            gap: 6,
+            overflowX: "auto",
+            overflowY: "visible",
+            WebkitOverflowScrolling: "touch",
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
+            paddingBottom: 4,
+          }}>
+            {COINS.map((c) => (
               <div
                 key={c.id}
                 onClick={() => ss(c.id)}

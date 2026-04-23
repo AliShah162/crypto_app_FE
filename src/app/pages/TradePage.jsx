@@ -138,37 +138,34 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       
       const currentUser = S.get();
       const newBalance = (currentUser.balance || 0) + (isWin ? finalAmount : 0);
-      const lostAmount = isWin ? 0 : activeOrder.amount;
       
-      const tradeResult = {
-        type: isWin ? "WIN" : "LOSS",
-        coin: activeOrder.coin,
-        amount: activeOrder.amount,
-        profit: isWin ? profitAmount : -activeOrder.amount,
-        finalAmount: isWin ? finalAmount : 0,
-        lostAmount: lostAmount,
-        startPrice: activeOrder.startPrice,
-        endPrice: currentPrice,
-        duration: activeOrder.timeSeconds,
-        profitPercent: activeOrder.profitPercent,
-        orderType: activeOrder.orderType,
-        date: new Date().toISOString().slice(0, 10),
-        time: new Date().toLocaleTimeString(),
-        adminTrack: true
-      };
-      
-      const newTxns = [{
-        type: `Binary ${isWin ? "WIN" : "LOSS"}`,
+      // Create a properly structured binary trade transaction
+      const binaryTransaction = {
+        type: "Binary Trade",
         coin: activeOrder.coin,
         amount: activeOrder.amount,
         usd: isWin ? profitAmount : activeOrder.amount,
         price: currentPrice,
         date: new Date().toISOString(),
         up: isWin,
-        tradeResult,
-        adminAction: false,
-        isBinaryTrade: true
-      }, ...(currentUser.transactions || [])];
+        isBinaryTrade: true,
+        tradeDetails: {
+          type: isWin ? "WIN" : "LOSS",
+          coin: activeOrder.coin,
+          amount: activeOrder.amount,
+          profit: isWin ? profitAmount : -activeOrder.amount,
+          finalAmount: isWin ? finalAmount : 0,
+          lostAmount: isWin ? 0 : activeOrder.amount,
+          startPrice: activeOrder.startPrice,
+          endPrice: currentPrice,
+          duration: activeOrder.timeSeconds,
+          profitPercent: activeOrder.profitPercent,
+          orderType: activeOrder.orderType,
+          timestamp: new Date().toISOString()
+        }
+      };
+      
+      const newTxns = [binaryTransaction, ...(currentUser.transactions || [])];
       
       S.updateUser(currentUser.username, { 
         balance: newBalance, 
@@ -177,15 +174,16 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       
       onTrade({ 
         action: "Binary Trade", 
+        type: isWin ? "WIN" : "LOSS",
         coin: activeOrder.coin, 
         amount: activeOrder.amount, 
         result: isWin ? "WIN" : "LOSS",
         profit: isWin ? profitAmount : -activeOrder.amount,
-        tradeDetails: tradeResult
+        tradeDetails: binaryTransaction.tradeDetails
       });
       
       setDone({ 
-        action: `Binary ${isWin ? "WIN" : "LOSS"}`, 
+        action: isWin ? "WINNER!" : "LOSS!", 
         coin: activeOrder.coin, 
         amount: activeOrder.amount,
         profit: isWin ? profitAmount : -activeOrder.amount,
@@ -262,7 +260,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
     forceUpdate(n => n + 1);
   };
 
-  // Get ACTUAL holdings (coins bought via force trade or regular buy/sell)
+  // Get ACTUAL holdings from user (only regular buys, not binary trades)
   const holdings = Object.entries(u?.holdings || {}).filter(([, qty]) => qty > 0);
   const availableBalance = u?.balance || 0;
 
@@ -281,7 +279,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           {done.isWin ? "🎉" : "💔"}
         </div>
         <div style={{ fontSize: 18, fontWeight: 900, color: T.text, marginBottom: 5 }}>
-          {done.action}!
+          {done.isWin ? "YOU WON!" : "YOU LOST!"}
         </div>
         <div style={{ fontSize: 12, color: T.dim, marginBottom: 3 }}>
           {done.isWin ? "You won" : "You lost"}{" "}
@@ -290,7 +288,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           </span>
         </div>
         <div style={{ fontSize: 12, color: T.dim, marginBottom: 24 }}>
-          {done.isWin ? `Total: ${usd(done.finalAmount)}` : `Lost: ${usd(done.amount)}`}
+          {done.isWin ? `Total returned: ${usd(done.finalAmount)}` : `Wagered: ${usd(done.amount)}`}
         </div>
         <div style={{ width: "100%", marginBottom: 9 }}>
           <PB lbl="Continue Trading" onClick={() => setDone(null)} />
@@ -316,8 +314,8 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           <div style={{ fontSize: 20, fontWeight: 900, color: T.text, marginBottom: 5 }}>
             Active Trade
           </div>
-          <div style={{ fontSize: 32, fontWeight: 900, color: T.acc, marginBottom: 10 }}>
-            {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+          <div style={{ fontSize: 36, fontWeight: 900, color: T.acc, marginBottom: 10, fontFamily: "monospace" }}>
+            {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
           </div>
           <div style={{ marginBottom: 15 }}>
             <div style={{ fontSize: 13, color: T.dim }}>{activeOrder.coin}</div>
@@ -611,10 +609,10 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           Submit Order
         </button>
 
-        {/* POSITIONS SECTION - Only shows ACTUAL holdings */}
+        {/* POSITIONS SECTION - Only shows ACTUAL crypto holdings */}
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: T.text }}>💼 Your Holdings</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: T.text }}>💼 Your Crypto Holdings</span>
             <span style={{ fontSize: 10, color: T.dim }}>{holdings.length} assets</span>
           </div>
           {holdings.length === 0 ? (
@@ -627,7 +625,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
               borderRadius: 9,
               border: `1px solid ${T.line}`,
             }}>
-              No crypto holdings yet
+              No crypto holdings yet. Use Force Trade from admin to add holdings.
             </div>
           ) : (
             holdings.map(([id, qty]) => {

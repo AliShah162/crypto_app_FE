@@ -29,6 +29,7 @@ export const S = {
   session: null,
   banned: [],
   _hydrated: false,
+  
   _ensureBaseKeys() {
     if (typeof window === "undefined") return;
 
@@ -46,52 +47,45 @@ export const S = {
   },
 
   hydrate() {
-  if (this._hydrated) return;
+    if (this._hydrated) return;
 
-  const users = loadLS("users", {});
-  const banned = loadLS("banned", []);
-  const rawSession = loadLS("session", null);
+    const users = loadLS("users", {});
+    const banned = loadLS("banned", []);
+    const rawSession = loadLS("session", null);
 
-  // ✅ ENSURE DEFAULT STRUCTURE ALWAYS EXISTS
-  this.users = users && typeof users === "object" ? users : {};
-  this.banned = Array.isArray(banned) ? banned : [];
+    this.users = users && typeof users === "object" ? users : {};
+    this.banned = Array.isArray(banned) ? banned : [];
 
-  // ✅ normalize session safely
-  if (typeof rawSession === "string" && rawSession.trim()) {
-    this.session = rawSession.toLowerCase().trim();
-  } else if (rawSession && typeof rawSession === "object" && rawSession.username) {
-    this.session = rawSession.username.toLowerCase().trim();
-    saveLS("session", this.session);
-  } else {
-    this.session = null;
-    saveLS("session", null); // 👈 important for fresh browser sync
-  }
+    if (typeof rawSession === "string" && rawSession.trim()) {
+      this.session = rawSession.toLowerCase().trim();
+    } else if (rawSession && typeof rawSession === "object" && rawSession.username) {
+      this.session = rawSession.username.toLowerCase().trim();
+      saveLS("session", this.session);
+    } else {
+      this.session = null;
+      saveLS("session", null);
+    }
 
-  // ✅ FIX: always ensure users object is valid
-  if (!this.users || typeof this.users !== "object") {
-    this.users = {};
-    saveLS("users", this.users);
-  }
+    if (!this.users || typeof this.users !== "object") {
+      this.users = {};
+      saveLS("users", this.users);
+    }
 
-  // sanitize credit score safely
-  for (const u of Object.values(this.users)) {
-    u.creditScore = Math.max(0, Math.min(100, Number(u.creditScore ?? 50)));
-  }
+    for (const u of Object.values(this.users)) {
+      u.creditScore = Math.max(0, Math.min(100, Number(u.creditScore ?? 50)));
+    }
 
-  // session banned safety
-  if (this.session && this.banned.includes(this.session)) {
-    this.session = null;
-    saveLS("session", null);
-  }
+    if (this.session && this.banned.includes(this.session)) {
+      this.session = null;
+      saveLS("session", null);
+    }
 
-  this._hydrated = true;
+    this._hydrated = true;
+    this._ensureBaseKeys();
+  },
 
-  // ✅ IMPORTANT: ensure base keys always exist in LS
-  this._ensureBaseKeys();
-},
-
-  // ✅ FIXED: removed hydrate() here
   get() {
+    this.hydrate();
     return this.session ? (this.users[this.session] || null) : null;
   },
 
@@ -158,6 +152,31 @@ export const S = {
 
     this.users[u] = { ...this.users[u], ...data };
     saveLS("users", this.users);
+    return this.users[u];
+  },
+
+  // ✅ NEW: Force save user data directly to localStorage (for binary trades)
+  forceSaveUser(username, userData) {
+    if (typeof window === "undefined") return null;
+    this.hydrate();
+    const u = username.toLowerCase().trim();
+    
+    if (!userData && !this.users[u]) return null;
+    
+    // Update in-memory
+    this.users[u] = userData || { ...this.users[u] };
+    
+    // Force save to localStorage
+    saveLS("users", this.users);
+    
+    // Also trigger storage event for other tabs
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new StorageEvent("storage", {
+        key: "users",
+        newValue: JSON.stringify(this.users)
+      }));
+    }
+    
     return this.users[u];
   },
 
@@ -302,6 +321,7 @@ export const f2 = (n, d = 2) =>
   typeof n === "number" ? n.toFixed(d) : "0.00";
 
 export const usd = (n) => "$" + f2(n);
+
 // ───── PENDING TRADES (admin-approval system) ─────
 export const PT = {
   _key: "pending_trades",

@@ -26,10 +26,10 @@ function loadBanned() {
 function saveBanned(list) { localStorage.setItem("banned", JSON.stringify(list)); S.banned = list; }
 
 function isBinaryTrade(tx) {
-  // Check multiple ways to detect binary trades
+  if (!tx) return false;
   return tx.isBinaryTrade === true || 
          tx.type === "Binary Trade" || 
-         tx.type?.includes("Binary") ||
+         (tx.type && tx.type.includes("Binary")) ||
          (tx.tradeDetails && (tx.tradeDetails.type === "WIN" || tx.tradeDetails.type === "LOSS"));
 }
 
@@ -259,11 +259,7 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
   const isBan = banned.includes(username);
   const allTransactions = u.transactions || [];
   
-  // Detect binary trades using the helper function
   const binaryTrades = allTransactions.filter(t => isBinaryTrade(t));
-  const regularTransactions = allTransactions.filter(t => !isBinaryTrade(t) && t.type !== "Binary Trade");
-  
-  // Sort ALL transactions by date (newest first)
   const sortedTransactions = [...allTransactions].sort((a, b) => {
     const dateA = new Date(a.date);
     const dateB = new Date(b.date);
@@ -280,8 +276,8 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
   const binaryWins = binaryTrades.filter(t => t.up === true).length;
   const binaryLosses = binaryTrades.filter(t => t.up === false).length;
   const totalBinaryVolume = binaryTrades.reduce((s,t)=>s+(t.amount||0),0);
-  const totalBinaryProfit = binaryTrades.reduce((s,t)=>s+(t.tradeDetails?.profit || 0),0);
-  const totalBinaryWon = binaryTrades.filter(t=>t.up).reduce((s,t)=>s+(t.tradeDetails?.profit || 0),0);
+  const totalBinaryProfit = binaryTrades.reduce((s,t)=>s+(t.profitAmount || t.tradeDetails?.profit || 0),0);
+  const totalBinaryWon = binaryTrades.filter(t=>t.up).reduce((s,t)=>s+(t.profitAmount || t.tradeDetails?.profit || 0),0);
   const totalBinaryLost = binaryTrades.filter(t=>!t.up).reduce((s,t)=>s+(t.amount||0),0);
 
   const tabs = [
@@ -309,7 +305,6 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
         </span>
       </div>
 
-      {/* Stats Cards */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:`1px solid ${C.border}`, gap:1 }}>
         <div style={{ padding:"12px 8px", textAlign:"center", background:C.card }}>
           <div style={{ fontSize:13, fontWeight:800, color:C.green }}>{usd(u.balance||0)}</div>
@@ -342,7 +337,6 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
 
       <div style={{ flex:1, padding:"18px 20px", overflowY:"auto" }}>
 
-        {/* ═══ OVERVIEW TAB ═══ */}
         {tab === "overview" && (
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"16px 18px" }}>
@@ -390,14 +384,13 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
           </div>
         )}
 
-        {/* ═══ BINARY TRADES TAB ═══ */}
         {tab === "binary" && (
           <div>
             {binaryTrades.length === 0 ? (
               <div style={{ textAlign:"center", color:C.sub, padding:"60px 20px", fontSize:13 }}>
                 <div style={{ fontSize:48, marginBottom:12 }}>🎲</div>
                 <div>No binary trades yet</div>
-                <div style={{ fontSize:11, marginTop:6, color:C.sub }}>User has not placed any binary trades</div>
+                <div style={{ fontSize:11, marginTop:6, color:C.sub }}>User hasn't placed any binary trades</div>
               </div>
             ) : (
               binaryTrades.map((tx, i) => {
@@ -412,10 +405,10 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
                             {tx.up ? "WINNER" : "LOSS"}
                           </span>
                           <span style={{ fontSize:11, padding:"2px 8px", borderRadius:20, background:C.accent+"15", color:C.accent }}>
-                            {details.duration || tx.duration || "?"}s
+                            {tx.duration || details.duration || "?"}s
                           </span>
-                          <span style={{ fontSize:11, padding:"2px 8px", borderRadius:20, background:details.orderType === "up" ? C.green+"15" : C.red+"15", color:details.orderType === "up" ? C.green : C.red }}>
-                            {details.orderType === "up" ? "📈 UP" : "📉 DOWN"}
+                          <span style={{ fontSize:11, padding:"2px 8px", borderRadius:20, background:(tx.orderType === "up" || details.orderType === "up") ? C.green+"15" : C.red+"15", color:(tx.orderType === "up" || details.orderType === "up") ? C.green : C.red }}>
+                            {(tx.orderType === "up" || details.orderType === "up") ? "📈 UP" : "📉 DOWN"}
                           </span>
                         </div>
                         <div style={{ fontSize:11, color:C.sub }}>
@@ -424,16 +417,16 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
                       </div>
                       <div style={{ textAlign:"right" }}>
                         <div style={{ fontSize:16, fontWeight:900, color:tx.up ? C.green : C.red }}>
-                          {tx.up ? `+${usd(tx.tradeDetails?.profit || 0)}` : `-${usd(tx.amount)}`}
+                          {tx.up ? `+${usd(tx.profitAmount || details.profit || 0)}` : `-${usd(tx.amount)}`}
                         </div>
                       </div>
                     </div>
                     <div style={{ background:C.bg, borderRadius:8, padding:"10px 12px", marginTop:6 }}>
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, fontSize:11 }}>
                         <div><span style={{ color:C.sub }}>Amount:</span> <strong>{usd(tx.amount)}</strong></div>
-                        <div><span style={{ color:C.sub }}>Profit %:</span> <strong style={{ color: tx.up ? C.green : C.red }}>{details.profitPercent || tx.profitPercent || "?"}%</strong></div>
-                        <div><span style={{ color:C.sub }}>Start Price:</span> <strong>${(details.startPrice || tx.startPrice || 0).toFixed(2)}</strong></div>
-                        <div><span style={{ color:C.sub }}>End Price:</span> <strong>${(details.endPrice || tx.endPrice || 0).toFixed(2)}</strong></div>
+                        <div><span style={{ color:C.sub }}>Profit %:</span> <strong style={{ color: tx.up ? C.green : C.red }}>{tx.profitPercent || details.profitPercent || "?"}%</strong></div>
+                        <div><span style={{ color:C.sub }}>Start Price:</span> <strong>${(tx.startPrice || details.startPrice || 0).toFixed(2)}</strong></div>
+                        <div><span style={{ color:C.sub }}>End Price:</span> <strong>${(tx.endPrice || details.endPrice || 0).toFixed(2)}</strong></div>
                       </div>
                     </div>
                   </div>
@@ -443,7 +436,6 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
           </div>
         )}
 
-        {/* ═══ ALL ACTIVITY TAB ═══ */}
         {tab === "history" && (
           <div>
             {sortedTransactions.length === 0 ? (
@@ -471,15 +463,15 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
                           {tx.coin || "USD"}
                           {tx.amount ? ` · ${f2(tx.amount, 4)} ${tx.coin}` : ""}
                           {tx.price ? ` @ ${usd(tx.price)}` : ""}
-                          {isBin && tx.tradeDetails && (
-                            <span> · {tx.tradeDetails.duration}s · {tx.tradeDetails.orderType === "up" ? "📈 UP" : "📉 DOWN"}</span>
+                          {isBin && (tx.duration || tx.tradeDetails?.duration) && (
+                            <span> · {tx.duration || tx.tradeDetails?.duration}s · {(tx.orderType || tx.tradeDetails?.orderType) === "up" ? "📈 UP" : "📉 DOWN"}</span>
                           )}
                           {tx.note && <span style={{ fontStyle:"italic" }}> — {tx.note}</span>}
                         </div>
                       </div>
                       <div style={{ textAlign:"right", flexShrink:0 }}>
                         <div style={{ fontSize:14, fontWeight:800, color:tx.up ? C.green : C.red }}>
-                          {isBin ? (tx.up ? `+${usd(tx.tradeDetails?.profit || 0)}` : `-${usd(tx.amount)}`) : (tx.up ? "+" : "-")}{usd(tx.usd || 0)}
+                          {isBin ? (tx.up ? `+${usd(tx.profitAmount || tx.tradeDetails?.profit || 0)}` : `-${usd(tx.amount)}`) : (tx.up ? "+" : "-")}{usd(tx.usd || 0)}
                         </div>
                       </div>
                     </div>
@@ -490,13 +482,12 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
           </div>
         )}
 
-        {/* ═══ HOLDINGS TAB ═══ */}
         {tab === "holdings" && (
           <div>
             <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, padding:"14px 16px", marginBottom:14 }}>
               <div style={{ fontSize:11, color:C.sub, fontWeight:600, marginBottom:3 }}>TOTAL HOLDINGS VALUE</div>
               <div style={{ fontSize:24, fontWeight:900, color:C.text }}>{usd(hVal)}</div>
-              <div style={{ fontSize:10, color:C.sub, marginTop:4 }}>Holdings are created via Force Trade only</div>
+              <div style={{ fontSize:10, color:C.sub, marginTop:4 }}>Holdings are created via "Force Trade" only</div>
             </div>
             {Object.entries(u.holdings||{}).filter(([,q])=>q>0).length === 0 ? (
               <div style={{ textAlign:"center", color:C.sub, padding:"40px 0", fontSize:13 }}>No crypto holdings. Use Force Trade to add.</div>
@@ -519,7 +510,6 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
           </div>
         )}
 
-        {/* ═══ CARDS TAB ═══ */}
         {tab === "cards" && (
           <div>
             {cards.length === 0 && <div style={{ textAlign:"center", color:C.sub, padding:"40px 0", fontSize:13 }}>No saved cards</div>}
@@ -536,7 +526,6 @@ function UserDrawer({ username, usersState, setUsersState, banned, changeScore, 
           </div>
         )}
 
-        {/* ═══ INFO TAB ═══ */}
         {tab === "info" && (
           <div style={{ background:C.card, borderRadius:12, border:`1px solid ${C.border}`, overflow:"hidden" }}>
             {[
@@ -608,7 +597,6 @@ export default function AdminPanel({ onBack, onExit }) {
   const totalBalance = users.reduce((a,u)=>a+(u.balance||0),0);
   const totalHoldings = users.reduce((a,u)=>a+Object.entries(u.holdings||{}).reduce((s,[id,q])=>s+q*(PE.p[id]||0),0),0);
 
-  // Get all transactions and detect binary trades properly
   const allTxns = users.flatMap(u =>
     (u.transactions||[]).map(tx=>({...tx, _user: u.username}))
   ).sort((a,b) => {
@@ -621,7 +609,7 @@ export default function AdminPanel({ onBack, onExit }) {
   const allDeposits = allTxns.filter(t=>t.type==="Deposit");
   const allWithdraws = allTxns.filter(t=>t.type==="Withdraw");
   const totalBinaryVolume = allBinaryTrades.reduce((s,t)=>s+(t.amount||0),0);
-  const totalBinaryProfit = allBinaryTrades.reduce((s,t)=>s+(t.tradeDetails?.profit||0),0);
+  const totalBinaryProfit = allBinaryTrades.reduce((s,t)=>s+(t.profitAmount || t.tradeDetails?.profit || 0),0);
 
   const found = users.filter(u=>
     u.username?.toLowerCase().includes(q.toLowerCase()) ||
@@ -692,10 +680,10 @@ export default function AdminPanel({ onBack, onExit }) {
                 </span>
                 {tx.adminAction && <span style={{ fontSize:10, color:C.accent }}>🔧 admin</span>}
                 {tx.adminAdded && <span style={{ fontSize:10, color:C.green }}>💰 admin</span>}
-                {isBinaryTrade(tx) && tx.tradeDetails && (
+                {isBinaryTrade(tx) && (tx.duration || tx.tradeDetails?.duration) && (
                   <>
-                    <span style={{ fontSize:10, color:C.gold }}>⏱ {tx.tradeDetails.duration}s</span>
-                    <span style={{ fontSize:10, color:C.accent }}>{tx.tradeDetails.orderType === "up" ? "📈 UP" : "📉 DOWN"}</span>
+                    <span style={{ fontSize:10, color:C.gold }}>⏱ {tx.duration || tx.tradeDetails?.duration}s</span>
+                    <span style={{ fontSize:10, color:C.accent }}>{(tx.orderType || tx.tradeDetails?.orderType) === "up" ? "📈 UP" : "📉 DOWN"}</span>
                   </>
                 )}
               </div>
@@ -705,7 +693,7 @@ export default function AdminPanel({ onBack, onExit }) {
             </div>
             <div style={{ textAlign:"right", flexShrink:0 }}>
               <div style={{ fontSize:14, fontWeight:800, color:tx.up?C.green:C.red }}>
-                {isBinaryTrade(tx) ? (tx.up ? `+${usd(tx.tradeDetails?.profit || 0)}` : `-${usd(tx.amount)}`) : (tx.up?"+":"-")}{usd(tx.usd||0)}
+                {isBinaryTrade(tx) ? (tx.up ? `+${usd(tx.profitAmount || tx.tradeDetails?.profit || 0)}` : `-${usd(tx.amount)}`) : (tx.up?"+":"-")}{usd(tx.usd||0)}
               </div>
             </div>
           </div>

@@ -139,7 +139,6 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       const currentUser = S.get();
       const newBalance = (currentUser.balance || 0) + (isWin ? finalAmount : 0);
       
-      // Create a properly structured binary trade transaction
       const binaryTransaction = {
         type: "Binary Trade",
         coin: activeOrder.coin,
@@ -149,6 +148,12 @@ export default function TradePage({ nav, px, onTrade, coin }) {
         date: new Date().toISOString(),
         up: isWin,
         isBinaryTrade: true,
+        duration: activeOrder.timeSeconds,
+        profitPercent: activeOrder.profitPercent,
+        orderType: activeOrder.orderType,
+        startPrice: activeOrder.startPrice,
+        endPrice: currentPrice,
+        profitAmount: isWin ? profitAmount : -activeOrder.amount,
         tradeDetails: {
           type: isWin ? "WIN" : "LOSS",
           coin: activeOrder.coin,
@@ -167,10 +172,19 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       
       const newTxns = [binaryTransaction, ...(currentUser.transactions || [])];
       
-      S.updateUser(currentUser.username, { 
-        balance: newBalance, 
-        transactions: newTxns 
-      });
+      const updatedUser = {
+        ...currentUser,
+        balance: newBalance,
+        transactions: newTxns
+      };
+      
+      // Use only forceSaveUser - no direct S.users assignment
+      if (typeof S.forceSaveUser === "function") {
+        S.forceSaveUser(currentUser.username, updatedUser);
+      } else {
+        // Fallback for compatibility
+        S.updateUser(currentUser.username, { balance: newBalance, transactions: newTxns });
+      }
       
       onTrade({ 
         action: "Binary Trade", 
@@ -232,7 +246,14 @@ export default function TradePage({ nav, px, onTrade, coin }) {
     }
     
     const newBalance = (u.balance || 0) - amt;
-    S.updateUser(u.username, { balance: newBalance });
+    const updatedUser = { ...u, balance: newBalance };
+    
+    // Use only forceSaveUser - no direct S.users assignment
+    if (typeof S.forceSaveUser === "function") {
+      S.forceSaveUser(u.username, updatedUser);
+    } else {
+      S.updateUser(u.username, { balance: newBalance });
+    }
     
     const order = {
       coin: sel,
@@ -254,13 +275,20 @@ export default function TradePage({ nav, px, onTrade, coin }) {
     if (timerRef.current) clearTimeout(timerRef.current);
     const currentUser = S.get();
     const refundBalance = (currentUser.balance || 0) + activeOrder.amount;
-    S.updateUser(currentUser.username, { balance: refundBalance });
+    const updatedUser = { ...currentUser, balance: refundBalance };
+    
+    // Use only forceSaveUser - no direct S.users assignment
+    if (typeof S.forceSaveUser === "function") {
+      S.forceSaveUser(currentUser.username, updatedUser);
+    } else {
+      S.updateUser(currentUser.username, { balance: refundBalance });
+    }
+    
     setActiveOrder(null);
     setTimeLeft(null);
     forceUpdate(n => n + 1);
   };
 
-  // Get ACTUAL holdings from user (only regular buys, not binary trades)
   const holdings = Object.entries(u?.holdings || {}).filter(([, qty]) => qty > 0);
   const availableBalance = u?.balance || 0;
 
@@ -609,7 +637,6 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           Submit Order
         </button>
 
-        {/* POSITIONS SECTION - Only shows ACTUAL crypto holdings */}
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 800, color: T.text }}>💼 Your Crypto Holdings</span>

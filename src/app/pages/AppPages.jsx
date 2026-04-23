@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { T, S, COINS, NEWS, PE, f2, usd } from "../lib/store";
 import { PB, BHdr, CoinIcon } from "../components/UI";
-import { getAllUsers } from "../lib/api";
 
 // ── Banner ─────────────────────────────────────────────
 export function Banner() {
@@ -336,13 +335,12 @@ export function HistoryPage({ user }) {
 
 // ── Profile ────────────────────────────────────────────
 export function ProfilePage({ user, onLogout, onSub, re }) {
-  const [tick, setTick] = useState(0);
-  // Frozen holdings value — recalculate only when tick fires (not on every price update)
-  // This prevents the total from flickering as coin prices change every 1.5s
   const [frozenHVal, setFrozenHVal] = useState(0);
+  const [frozenBalance, setFrozenBalance] = useState(0);
+  const [, setTick] = useState(0);
 
-  // Recalculate displayed values every 3s — slow enough to avoid flicker,
-  // fast enough to catch admin balance changes and trade updates
+  // Recalculate every 4s — avoids flicker from 1.5s price ticks
+  // but still catches admin balance changes and trades quickly
   useEffect(() => {
     const calc = () => {
       const u = S.users?.[user?.username];
@@ -351,31 +349,26 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
         (s, [id, q]) => s + Number(q || 0) * Number(PE.p[id] || 0), 0
       );
       setFrozenHVal(hv);
+      setFrozenBalance(Number(u.balance || 0));
       setTick(n => n + 1);
     };
-    calc(); // run immediately on mount
-    const t = setInterval(calc, 3000);
+    calc();
+    const t = setInterval(calc, 4000);
     return () => clearInterval(t);
   }, [user?.username]); // eslint-disable-line
 
-  // ALWAYS read from S.users so admin balance changes reflect instantly
-const liveUser = S.users?.[user?.username] || user || {};
+  // ALWAYS read from S.users so admin balance changes reflect
+  const liveUser = S.users?.[user?.username] || user || {};
   const isBan = (S.banned || []).includes(user?.username);
+  const tot = frozenBalance + frozenHVal;
 
- const hVal = Object.entries(S.users?.[user?.username]?.holdings || {}).reduce(
-  (s, [id, q]) => s + Number(q || 0) * Number(PE.p[id] || 0),
-  0
-);
-
-const balance = Number(S.users?.[user?.username]?.balance ?? 0);
-const tot = balance + hVal;
   const creditScore =
-    S.users[user?.username]?.creditScore ??
+    S.users?.[user?.username]?.creditScore ??
     liveUser?.creditScore ??
     50;
 
   const country =
-    S.users[user?.username]?.country ||
+    S.users?.[user?.username]?.country ||
     liveUser?.country ||
     user?.country ||
     "—";
@@ -438,11 +431,11 @@ const tot = balance + hVal;
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <div style={{ background: "rgba(0,0,0,0.22)", borderRadius: 9, padding: "8px 10px" }}>
               <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 2 }}>Cash Balance</div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: T.acc }}>{usd(S.users?.[user?.username]?.balance ?? 0)}</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: T.acc }}>{usd(frozenBalance)}</div>
             </div>
             <div style={{ background: "rgba(0,0,0,0.22)", borderRadius: 9, padding: "8px 10px" }}>
               <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 2 }}>Holdings</div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: T.gold }}>{usd(hVal)}</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: T.gold }}>{usd(frozenHVal)}</div>
             </div>
           </div>
         </div>

@@ -177,29 +177,46 @@ export default function App() {
 
     const username = u.username.toLowerCase().trim();
 
+    // ── CRITICAL: always read existing local data first ──
+    // The backend only stores identity (email, name, role etc).
+    // Balance, transactions, holdings, savedCards live in localStorage only.
+    // We must NEVER let the backend's empty arrays overwrite local data.
+    S.hydrate();
+    const existingLocal = S.users[username] || {};
+
     const userObj = {
+      // Identity fields — take from backend (most up to date)
       username,
-      email: u.email || "",
-      fullName: u.fullName || username,
-      role: u.role || "user",
-      balance: u.balance || 0,
-      transactions: u.transactions || [],
-      holdings: u.holdings || {},
-      savedCards: u.savedCards || [],
-      creditScore: u.creditScore ?? 50,
-      phone: u.phone || "",
-      dob: u.dob || "",
-      country: u.country?.trim() || "—",
+      email:       u.email       || existingLocal.email       || "",
+      fullName:    u.fullName    || existingLocal.fullName    || username,
+      role:        u.role        || existingLocal.role        || "user",
+      phone:       u.phone       || existingLocal.phone       || "",
+      dob:         u.dob         || existingLocal.dob         || "",
+      country:     (u.country?.trim()) || existingLocal.country || "—",
+      password:    existingLocal.password    || u.password    || "",
+      adminPassword: existingLocal.adminPassword || "",
+      creditScore: u.creditScore ?? existingLocal.creditScore ?? 50,
+      isBanned:    u.isBanned    ?? existingLocal.isBanned    ?? false,
+
+      // Financial fields — ALWAYS prefer localStorage, NEVER overwrite with backend's empty values
+      balance:      existingLocal.balance      ?? u.balance      ?? 0,
+      transactions: (existingLocal.transactions?.length > 0)
+                      ? existingLocal.transactions
+                      : (u.transactions || []),
+      holdings:     (Object.keys(existingLocal.holdings || {}).length > 0)
+                      ? existingLocal.holdings
+                      : (u.holdings || {}),
+      savedCards:   (existingLocal.savedCards?.length > 0)
+                      ? existingLocal.savedCards
+                      : (u.savedCards || []),
+
       loggedInAt: Date.now(),
     };
 
-    if (!S.users[username]) {
-      S.users[username] = userObj;
-      if (typeof window !== "undefined") {
-        localStorage.setItem("users", JSON.stringify(S.users));
-      }
-    } else {
-      S.updateUser(username, userObj);
+    // Merge into S.users (don't replace — merge so we keep any extra fields)
+    S.users[username] = { ...existingLocal, ...userObj };
+    if (typeof window !== "undefined") {
+      localStorage.setItem("users", JSON.stringify(S.users));
     }
 
     S.session = username;
@@ -207,14 +224,12 @@ export default function App() {
       localStorage.setItem("session", JSON.stringify(username));
     }
 
-    setUser(userObj);
+    setUser(S.users[username]);
 
     if (u.role === "admin") {
-      // ✅ Store role in sessionStorage (tab-scoped) so other tabs aren't affected
       sessionStorage.setItem("tabRole", "admin");
       ss("admin");
     } else {
-      // ✅ Clear any leftover admin role from this tab
       sessionStorage.setItem("tabRole", "user");
       ss("app");
       sp("home");

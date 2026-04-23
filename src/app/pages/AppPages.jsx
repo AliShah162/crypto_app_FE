@@ -84,8 +84,9 @@ export function Banner() {
 
 // ── Home ───────────────────────────────────────────────
 export function HomePage({ nav, px, user }) {
-  const txs = (user?.transactions || []).slice(0, 3);
-  const qa = [
+const txs = (S.users?.[user?.username]?.transactions || user?.transactions || []).slice(0, 3);
+const qa = [
+
     { l: "News",     c: T.acc,     p: "news",     d: "M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2M18 14h-8M15 18h-5M10 6h8v4h-8V6Z" },
     { l: "Deposit",  c: T.blue,    p: "deposit",  d: "M12 3v12m0 0-4-4m4 4 4-4M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2" },
     { l: "Withdraw", c: T.gold,    p: "withdraw", d: "M12 21V9m0 0 4 4m-4-4-4 4M3 7V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2" },
@@ -119,7 +120,7 @@ export function HomePage({ nav, px, user }) {
           const p = px[c.id] || 0;
           const h = PE.h[c.id] || [];
           const prev = h.length > 1 ? h[h.length - 2].c : p;
-          const chg = ((p - prev) / prev) * 100;
+          const chg = prev ? ((p - prev) / prev) * 100 : 0;
           return (
             <div key={c.id} onClick={() => nav("trade")} style={{
               minWidth: 90, background: T.card, borderRadius: 15, padding: "11px 8px",
@@ -336,6 +337,7 @@ export function HistoryPage({ user }) {
 // ── Profile ────────────────────────────────────────────
 export function ProfilePage({ user, onLogout, onSub, re }) {
   const [tick, setTick] = useState(0);
+  const forceUpdate = tick;
 
   // Re-render every 2 seconds to catch balance/trade updates from admin or trades
   useEffect(() => {
@@ -348,29 +350,42 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
   async function syncUser() {
     try {
       const res = await getAllUsers();
+      if (!Array.isArray(res)) return;
 
-      if (Array.isArray(res)) {
-        const map = {};
+      // Ensure store exists
+      S.users = S.users || {};
 
-        res.forEach(u => {
-          map[u.username] = u;
-        });
+      // Build server map
+      const serverMap = {};
+      res.forEach(u => {
+        serverMap[u.username] = u;
+      });
 
-        // ✅ merge correctly (DO NOT overwrite later)
-        S.users = {
-          ...S.users,
-          ...map,
+      // Merge server + local safely
+      for (const username in serverMap) {
+        const serverUser = serverMap[username];
+        const localUser = S.users[username];
+
+        S.users[username] = {
+          ...serverUser,
+
+          // preserve local changes if they exist
+          balance: localUser?.balance ?? serverUser.balance ?? 0,
+          holdings: localUser?.holdings ?? serverUser.holdings ?? {},
+          transactions: localUser?.transactions ?? serverUser.transactions ?? [],
         };
-
-        // ✅ persist
-        if (typeof window !== "undefined") {
-          localStorage.setItem("users", JSON.stringify(S.users));
-        }
-
-        setTick(n => n + 1);
       }
-    } catch (e) {
-      /* silent */
+
+      // persist to localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem("users", JSON.stringify(S.users));
+      }
+
+      // force UI refresh
+      setTick(n => n + 1);
+
+    } catch (err) {
+      console.log("syncUser error:", err);
     }
   }
 
@@ -378,14 +393,16 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
 }, []);
 
   // ALWAYS read from S.users so admin balance changes reflect instantly
-const liveUser = S.users?.[user?.username] ?? user;
+const liveUser = S.users?.[user?.username] || user || {};
   const isBan = (S.banned || []).includes(user?.username);
 
-  const hVal = Object.entries(liveUser?.holdings || {}).reduce(
-    (s, [id, q]) => s + q * (PE.p[id] || 0), 0
-  );
+ const hVal = Object.entries(S.users?.[user?.username]?.holdings || {}).reduce(
+  (s, [id, q]) => s + Number(q || 0) * Number(PE.p[id] || 0),
+  0
+);
 
-const tot = Number(liveUser?.balance ?? 0) + hVal;
+const balance = Number(S.users?.[user?.username]?.balance ?? 0);
+const tot = balance + hVal;
   const creditScore =
     S.users[user?.username]?.creditScore ??
     liveUser?.creditScore ??
@@ -455,7 +472,7 @@ const tot = Number(liveUser?.balance ?? 0) + hVal;
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <div style={{ background: "rgba(0,0,0,0.22)", borderRadius: 9, padding: "8px 10px" }}>
               <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 2 }}>Cash Balance</div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: T.acc }}>{usd(liveUser?.balance || 0)}</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: T.acc }}>{usd(S.users?.[user?.username]?.balance ?? 0)}</div>
             </div>
             <div style={{ background: "rgba(0,0,0,0.22)", borderRadius: 9, padding: "8px 10px" }}>
               <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 2 }}>Holdings</div>

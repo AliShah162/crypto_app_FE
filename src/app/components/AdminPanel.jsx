@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { S, PE, COINS, usd, f2 } from "../lib/store";
-import { getAllUsers, updateUserInDB } from "../lib/api";
+import { getAllUsers, updateUserInDB, getBinaryTrades } from "../lib/api";
 
 const BASE_URL = "https://crypto-backend-production-11dc.up.railway.app";
 
@@ -639,7 +639,13 @@ function UserDrawer({
   const isBan = banned.includes(username);
   const allTransactions = u.transactions || [];
 
-  const binaryTrades = allTransactions.filter((t) => isBinaryTrade(t));
+  const binaryTrades = [
+    ...allTransactions.filter((t) => isBinaryTrade(t)),
+    ...(u.binaryTrades || []),
+  ].filter(
+    (t, i, arr) =>
+      arr.findIndex((x) => x.date === t.date && x.coin === t.coin) === i,
+  );
   const sortedTransactions = [...allTransactions].sort((a, b) => {
     const dateA = new Date(a.date);
     const dateB = new Date(b.date);
@@ -1202,6 +1208,7 @@ function UserDrawer({
                           display: "grid",
                           gridTemplateColumns: "1fr 1fr",
                           gap: 8,
+                          color: "black",
                           fontSize: 11,
                         }}
                       >
@@ -1640,6 +1647,17 @@ export default function AdminPanel({ onBack, onExit }) {
         }
       }
       if (ok) {
+        // ✅ Fetch binaryTrades from MongoDB for each user and merge in
+        await Promise.all(
+          Object.keys(dbUsers).map(async (username) => {
+            try {
+              const trades = await getBinaryTrades(username);
+              if (Array.isArray(trades) && trades.length > 0) {
+                dbUsers[username].binaryTrades = trades;
+              }
+            } catch {}
+          }),
+        );
         saveUsers(dbUsers);
         setUsersState(dbUsers);
       } else setUsersState(loadLocalUsers());
@@ -1650,13 +1668,23 @@ export default function AdminPanel({ onBack, onExit }) {
     }
   }, []);
 
-
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
-  useEffect(() => {  
+
+  useEffect(() => {
     const interval = setInterval(() => {
-      setUsersState(loadLocalUsers());
+      setUsersState((prev) => {
+        const fresh = loadLocalUsers();
+        // ✅ Preserve binaryTrades fetched from MongoDB
+        const merged = { ...fresh };
+        for (const k in prev) {
+          if (prev[k].binaryTrades) {
+            merged[k] = { ...merged[k], binaryTrades: prev[k].binaryTrades };
+          }
+        }
+        return merged;
+      });
     }, 3000);
     return () => clearInterval(interval);
   }, []);
@@ -1685,7 +1713,18 @@ export default function AdminPanel({ onBack, onExit }) {
       return dateB - dateA;
     });
 
-  const allBinaryTrades = allTxns.filter((t) => isBinaryTrade(t));
+  const allBinaryTrades = [
+    ...allTxns.filter((t) => isBinaryTrade(t)),
+    ...users.flatMap((u) =>
+      (u.binaryTrades || []).map((t) => ({ ...t, _user: u.username })),
+    ),
+  ].filter(
+    (t, i, arr) =>
+      // deduplicate by timestamp+coin in case a trade exists in both places
+      arr.findIndex(
+        (x) => x._user === t._user && x.date === t.date && x.coin === t.coin,
+      ) === i,
+  );
   const allDeposits = allTxns.filter((t) => t.type === "Deposit");
   const allWithdraws = allTxns.filter((t) => t.type === "Withdraw");
   const totalBinaryVolume = allBinaryTrades.reduce(
@@ -1814,7 +1853,7 @@ export default function AdminPanel({ onBack, onExit }) {
     );
   };
 
- const TxTable = ({ rows, title }) => (
+  const TxTable = ({ rows, title }) => (
     <div>
       {title && (
         <div
@@ -1908,12 +1947,19 @@ export default function AdminPanel({ onBack, onExit }) {
               <div style={{ fontSize: 11, color: C.sub }}>
                 {isBinaryTrade(tx) ? (
                   <>
-                    <span style={{ fontWeight: 700, color: C.text }}>{tx.coin}</span>
+                    <span style={{ fontWeight: 700, color: C.text }}>
+                      {tx.coin}
+                    </span>
                     {` · Invested: ${usd(tx.amount)}`}
-                    {tx.up
-                      ? <span style={{ color: C.green, fontWeight: 700 }}>{` · Won: +${usd(tx.profitAmount || tx.tradeDetails?.profit || 0)}`}</span>
-                      : <span style={{ color: C.red, fontWeight: 700 }}>{` · Lost: -${usd(tx.amount)}`}</span>
-                    }
+                    {tx.up ? (
+                      <span
+                        style={{ color: C.green, fontWeight: 700 }}
+                      >{` · Won: +${usd(tx.profitAmount || tx.tradeDetails?.profit || 0)}`}</span>
+                    ) : (
+                      <span
+                        style={{ color: C.red, fontWeight: 700 }}
+                      >{` · Lost: -${usd(tx.amount)}`}</span>
+                    )}
                     {tx.startPrice ? ` · Entry: $${f2(tx.startPrice, 2)}` : ""}
                     {tx.endPrice ? ` → $${f2(tx.endPrice, 2)}` : ""}
                   </>
@@ -2411,8 +2457,14 @@ export default function AdminPanel({ onBack, onExit }) {
                   )}
                   {found.map((u, i) => {
                     const isBan = banned.includes(u.username);
-                    const userBinaryTrades = (u.transactions || []).filter(
-                      (t) => isBinaryTrade(t),
+                    const userBinaryTrades = [
+                      ...(u.transactions || []).filter((t) => isBinaryTrade(t)),
+                      ...(u.binaryTrades || []),
+                    ].filter(
+                      (t, i, arr) =>
+                        arr.findIndex(
+                          (x) => x.date === t.date && x.coin === t.coin,
+                        ) === i,
                     );
                     const binaryCount = userBinaryTrades.length;
                     const binaryWins = userBinaryTrades.filter(

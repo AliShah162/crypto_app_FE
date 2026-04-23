@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { T, S, COINS, PE, f2, usd } from "../lib/store";
+import { saveBinaryTrade } from "../lib/api";
 import { PB } from "../components/UI";
 
 function CChart({ coin, px }) {
@@ -195,7 +196,8 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       localStorage.setItem("users", JSON.stringify(allUsers));
       // Also sync in-memory so rest of session stays consistent
       S.users[currentUser.username] = allUsers[currentUser.username];
-
+      // ✅ Persist binary trade to MongoDB
+      saveBinaryTrade(currentUser.username, binaryTransaction);
       onTrade({
         action: "Binary Trade",
         type: isWin ? "WIN" : "LOSS",

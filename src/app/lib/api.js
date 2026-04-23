@@ -96,3 +96,31 @@ export async function deleteUserFromDB(username) {
     return { error: "Server not reachable" };
   }
 }
+
+// ================= SAVE BINARY TRADE =================
+export async function saveBinaryTrade(username, trade) {
+  try {
+    const res = await fetch(`${BASE_URL}/${username}/binary-trades`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(trade),
+    });
+
+    return await handleRes(res);
+  } catch (err) {
+    return { error: "Server not reachable" };
+  }
+}
+
+// ================= GET BINARY TRADES =================
+export async function getBinaryTrades(username) {
+  try {
+    const res = await fetch(`${BASE_URL}/${username}/binary-trades`, {
+      method: "GET",
+    });
+
+    return await handleRes(res);
+  } catch (err) {
+    return { error: "Server not reachable" };
+  }
+}

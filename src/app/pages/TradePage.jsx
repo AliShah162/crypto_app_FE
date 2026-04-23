@@ -185,16 +185,16 @@ export default function TradePage({ nav, px, onTrade, coin }) {
 
       const newTxns = [binaryTransaction, ...(currentUser.transactions || [])];
 
-      const updatedUser = {
-        ...currentUser,
+      // Write directly to localStorage — bypass stale S.users in-memory cache
+      const allUsers = JSON.parse(localStorage.getItem("users") || "{}");
+      allUsers[currentUser.username] = {
+        ...allUsers[currentUser.username],
         balance: newBalance,
         transactions: newTxns,
       };
-
-      S.updateUser(currentUser.username, {
-        balance: newBalance,
-        transactions: newTxns,
-      });
+      localStorage.setItem("users", JSON.stringify(allUsers));
+      // Also sync in-memory so rest of session stays consistent
+      S.users[currentUser.username] = allUsers[currentUser.username];
 
       onTrade({
         action: "Binary Trade",
@@ -261,7 +261,11 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       return;
     }
 
-    const newBalance = (u.balance || 0) - amt;
+   const newBalance = (u.balance || 0) - amt;
+    // Write balance deduction directly to localStorage to avoid stale cache
+    const usersSnap = JSON.parse(localStorage.getItem("users") || "{}");
+    usersSnap[u.username] = { ...usersSnap[u.username], balance: newBalance };
+    localStorage.setItem("users", JSON.stringify(usersSnap));
     S.updateUser(u.username, { balance: newBalance });
 
     const order = {
@@ -283,9 +287,13 @@ export default function TradePage({ nav, px, onTrade, coin }) {
 
   const cancelOrder = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    const currentUser = S.get();
+    // Read fresh from localStorage for refund too
+    const rawUsers = JSON.parse(localStorage.getItem("users") || "{}");
+    const currentUser = rawUsers[activeOrder.username] || S.get();
     const refundBalance = (currentUser.balance || 0) + activeOrder.amount;
-    S.updateUser(currentUser.username, { balance: refundBalance });
+    rawUsers[activeOrder.username] = { ...rawUsers[activeOrder.username], balance: refundBalance };
+    localStorage.setItem("users", JSON.stringify(rawUsers));
+    S.updateUser(activeOrder.username, { balance: refundBalance });
     setActiveOrder(null);
     setTimeLeft(null);
     forceUpdate((n) => n + 1);

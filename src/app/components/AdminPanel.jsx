@@ -1814,7 +1814,7 @@ export default function AdminPanel({ onBack, onExit }) {
     );
   };
 
-  const TxTable = ({ rows, title }) => (
+ const TxTable = ({ rows, title }) => (
     <div>
       {title && (
         <div
@@ -1906,9 +1906,24 @@ export default function AdminPanel({ onBack, onExit }) {
                   )}
               </div>
               <div style={{ fontSize: 11, color: C.sub }}>
-                {tx.coin || "USD"}
-                {tx.amount ? ` · ${f2(tx.amount, 4)} ${tx.coin}` : ""}
-                {tx.price ? ` @ ${usd(tx.price)}` : ""}
+                {isBinaryTrade(tx) ? (
+                  <>
+                    <span style={{ fontWeight: 700, color: C.text }}>{tx.coin}</span>
+                    {` · Invested: ${usd(tx.amount)}`}
+                    {tx.up
+                      ? <span style={{ color: C.green, fontWeight: 700 }}>{` · Won: +${usd(tx.profitAmount || tx.tradeDetails?.profit || 0)}`}</span>
+                      : <span style={{ color: C.red, fontWeight: 700 }}>{` · Lost: -${usd(tx.amount)}`}</span>
+                    }
+                    {tx.startPrice ? ` · Entry: $${f2(tx.startPrice, 2)}` : ""}
+                    {tx.endPrice ? ` → $${f2(tx.endPrice, 2)}` : ""}
+                  </>
+                ) : (
+                  <>
+                    {tx.coin || "USD"}
+                    {tx.amount ? ` · ${f2(tx.amount, 4)} ${tx.coin}` : ""}
+                    {tx.price ? ` @ ${usd(tx.price)}` : ""}
+                  </>
+                )}
               </div>
             </div>
             <div style={{ textAlign: "right", flexShrink: 0 }}>

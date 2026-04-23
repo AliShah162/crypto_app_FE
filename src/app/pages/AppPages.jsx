@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { T, S, COINS, NEWS, PE, f2, usd } from "../lib/store";
 import { PB, BHdr, CoinIcon } from "../components/UI";
+import { getAllUsers } from "../lib/api";
 
 // ── Banner ─────────────────────────────────────────────
 export function Banner() {
@@ -335,16 +336,27 @@ export function HistoryPage({ user }) {
 
 // ── Profile ────────────────────────────────────────────
 export function ProfilePage({ user, onLogout, onSub, re }) {
-  // tick forces re-render so balance updates from trades/admin appear instantly
   const [tick, setTick] = useState(0);
+  // Frozen holdings value — recalculate only when tick fires (not on every price update)
+  // This prevents the total from flickering as coin prices change every 1.5s
+  const [frozenHVal, setFrozenHVal] = useState(0);
 
-  // Poll every 1.5s — triggers re-render so balance updates from trades/admin
-  // appear instantly. S.users is already kept current by S.updateUser + saveUsers.
-  // NO DB sync here — DB sync overwrites local changes made by admin or trades.
+  // Recalculate displayed values every 3s — slow enough to avoid flicker,
+  // fast enough to catch admin balance changes and trade updates
   useEffect(() => {
-    const t = setInterval(() => setTick(n => n + 1), 1500);
+    const calc = () => {
+      const u = S.users?.[user?.username];
+      if (!u) return;
+      const hv = Object.entries(u.holdings || {}).reduce(
+        (s, [id, q]) => s + Number(q || 0) * Number(PE.p[id] || 0), 0
+      );
+      setFrozenHVal(hv);
+      setTick(n => n + 1);
+    };
+    calc(); // run immediately on mount
+    const t = setInterval(calc, 3000);
     return () => clearInterval(t);
-  }, []);
+  }, [user?.username]); // eslint-disable-line
 
   // ALWAYS read from S.users so admin balance changes reflect instantly
 const liveUser = S.users?.[user?.username] || user || {};

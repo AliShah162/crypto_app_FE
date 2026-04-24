@@ -10,6 +10,7 @@ import { T, S, PE, usd, f2 } from "./lib/store";
 import AdminPanel from "./components/AdminPanel";
 import { WelcomeScreen, SignupScreen, LoginScreen } from "./components/Auth";
 import { NotifPanel } from "./components/UI";
+import { getUserNotifications, addUserNotification } from "./lib/notifications";
 import {
   HomePage,
   NewsPage,
@@ -127,6 +128,7 @@ export default function App() {
             ss("login");
             sp("home");
             ssb(null);
+            sn([]);
           });
         }
         return;
@@ -225,6 +227,21 @@ export default function App() {
 
     setUser(S.users[username]);
 
+    // Load this user's saved notifications from localStorage
+    if (typeof window !== "undefined") {
+      try {
+        const allNotifs = JSON.parse(
+          localStorage.getItem("user_notifications") || "{}",
+        );
+        const userNotifs = allNotifs[username] || [];
+        sn(userNotifs);
+      } catch {
+        sn([]);
+      }
+    } else {
+      sn([]);
+    }
+
     if (u.role === "admin") {
       sessionStorage.setItem("tabRole", "admin");
       ss("admin");
@@ -248,6 +265,7 @@ export default function App() {
     ss("welcome");
     sp("home");
     ssb(null);
+    sn([]);
   };
 
   const nav = (p, coin) => {
@@ -258,8 +276,32 @@ export default function App() {
     }
   };
 
-  const addN = (title, body) =>
-    sn((n) => [...n, { title, body, time: new Date().toLocaleTimeString() }]);
+  const addN = (title, body) => {
+    const newNotif = {
+      title,
+      body,
+      time: new Date().toLocaleTimeString(),
+      id: Date.now() + Math.random(),
+    };
+
+    // Save to localStorage for this user
+    if (user?.username) {
+      try {
+        const allNotifs = JSON.parse(
+          localStorage.getItem("user_notifications") || "{}",
+        );
+        const userNotifs = allNotifs[user.username] || [];
+        const updated = [newNotif, ...userNotifs].slice(0, 50); // Keep last 50
+        allNotifs[user.username] = updated;
+        localStorage.setItem("user_notifications", JSON.stringify(allNotifs));
+      } catch (e) {
+        console.error("Failed to save notification:", e);
+      }
+    }
+
+    // Update current session state
+    sn((prev) => [...prev, newNotif]);
+  };
 
   const onDep = (amt) => {
     const u = S.get();
@@ -729,7 +771,33 @@ export default function App() {
             )}
 
             {nPanel && (
-              <NotifPanel notifs={notifs} onClose={() => snp(false)} />
+              <NotifPanel
+                notifs={notifs}
+                onClose={() => snp(false)}
+                onDelete={(notifId) => {
+                  // Remove from localStorage for this user
+                  if (user?.username) {
+                    try {
+                      const allNotifs = JSON.parse(
+                        localStorage.getItem("user_notifications") || "{}",
+                      );
+                      const userNotifs = allNotifs[user.username] || [];
+                      const updated = userNotifs.filter(
+                        (n) => n.id !== notifId,
+                      );
+                      allNotifs[user.username] = updated;
+                      localStorage.setItem(
+                        "user_notifications",
+                        JSON.stringify(allNotifs),
+                      );
+                    } catch (e) {
+                      console.error("Failed to delete notification:", e);
+                    }
+                  }
+                  // Remove from current state
+                  sn((prev) => prev.filter((n) => n.id !== notifId));
+                }}
+              />
             )}
           </>
         )}

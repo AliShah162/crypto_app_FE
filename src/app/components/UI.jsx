@@ -96,25 +96,73 @@ export function CoinIcon({ c, size = 40 }) {
   );
 }
 
-export function NotifPanel({ notifs, onClose }) {
+export function NotifPanel({ notifs, onClose, onDelete, onMarkRead }) {
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.7)", display: "flex", flexDirection: "column" }}>
       <div style={{ flex: 1 }} onClick={onClose} />
       <div style={{ background: T.card, borderRadius: "20px 20px 0 0", maxHeight: "64%", overflowY: "auto", padding: "16px 16px 26px", border: `1px solid ${T.line}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 13 }}>
           <span style={{ fontSize: 15, fontWeight: 800, color: T.text }}>Notifications</span>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: T.dim, fontSize: 20, cursor: "pointer", padding: 0 }}>✕</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            {notifs.length > 0 && onDelete && (
+              <button 
+                onClick={() => {
+                  if (confirm("Clear all notifications?")) {
+                    notifs.forEach(n => onDelete(n.id));
+                  }
+                }}
+                style={{ background: "rgba(239,68,68,0.15)", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, color: T.red, cursor: "pointer" }}
+              >
+                Clear All
+              </button>
+            )}
+            <button onClick={onClose} style={{ background: "none", border: "none", color: T.dim, fontSize: 20, cursor: "pointer", padding: "0 4px" }}>✕</button>
+          </div>
         </div>
-        {notifs.length === 0
-          ? <div style={{ textAlign: "center", color: T.dim, fontSize: 12, padding: "24px" }}>No notifications yet</div>
-          : notifs.slice().reverse().map((n, i) => (
-            <div key={i} style={{ background: T.card2, borderRadius: 11, padding: "10px 12px", marginBottom: 7, border: `1px solid ${T.line}` }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 2 }}>{n.title}</div>
+        {notifs.length === 0 ? (
+          <div style={{ textAlign: "center", color: T.dim, fontSize: 12, padding: "24px" }}>
+            🔔 No notifications yet
+          </div>
+        ) : (
+          notifs.slice().reverse().map((n, idx) => (
+            <div 
+              key={n.id || idx} 
+              style={{ 
+                background: n.read ? T.card2 : "rgba(0,229,176,0.07)", 
+                borderRadius: 11, 
+                padding: "10px 12px", 
+                marginBottom: 7, 
+                border: `1px solid ${n.read ? T.line : T.acc}`,
+                position: "relative"
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 2, paddingRight: 30 }}>
+                {n.title}
+              </div>
               <div style={{ fontSize: 11, color: T.dim }}>{n.body}</div>
               <div style={{ fontSize: 9, color: T.dim, marginTop: 4 }}>{n.time}</div>
+              {onDelete && (
+                <button
+                  onClick={() => onDelete(n.id)}
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                    background: "rgba(239,68,68,0.15)",
+                    border: "none",
+                    borderRadius: 4,
+                    padding: "2px 8px",
+                    fontSize: 10,
+                    color: T.red,
+                    cursor: "pointer",
+                  }}
+                >
+                  ✕
+                </button>
+              )}
             </div>
           ))
-        }
+        )}
       </div>
     </div>
   );

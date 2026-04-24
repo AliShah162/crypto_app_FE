@@ -67,9 +67,9 @@ export const S = {
     }
 
     if (!this.users || typeof this.users !== "object") {
-      this.users = {};
-      saveLS("users", this.users);
-    }
+  this.users = {};
+  localStorage.setItem("users", JSON.stringify(this.users));
+}
 
     for (const u of Object.values(this.users)) {
       u.creditScore = Math.max(0, Math.min(100, Number(u.creditScore ?? 50)));

@@ -777,24 +777,33 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
   useEffect(() => {
     const calc = () => {
       try {
-        const u = S.users?.[user?.username];
-        if (!u) return;
-        const hv = Object.entries(u.holdings || {}).reduce(
+        // Force refresh from localStorage to get latest data
+        const allUsers = JSON.parse(localStorage.getItem("users") || "{}");
+        const currentUser = allUsers[user?.username];
+        
+        if (!currentUser) return;
+        
+        const hv = Object.entries(currentUser.holdings || {}).reduce(
           (s, [id, q]) => s + Number(q || 0) * Number(PE.p[id] || 0),
           0,
         );
         setFrozenHVal(hv);
-        setFrozenBalance(Number(u.balance || 0));
+        setFrozenBalance(Number(currentUser.balance || 0));
         setTick((n) => n + 1);
+        
+        // Also sync to S.users for other components
+        if (user?.username) {
+          S.users[user.username] = { ...S.users[user.username], ...currentUser };
+        }
       } catch (err) {
         console.error("Profile balance calc error:", err);
       }
     };
     
     calc();
-    const interval = setInterval(calc, 4000);
+    const interval = setInterval(calc, 2000); // Update every 2 seconds for faster sync
     
-    // ✅ SAFE LISTENER FOR TRADE COMPLETION EVENT
+    // Listen for trade completion event for immediate update
     const handleTradeComplete = (event) => {
       try {
         if (event?.detail?.username === user?.username) {
@@ -802,12 +811,10 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
           calc();
         }
       } catch (err) {
-        // Silently fail - interval will still update
         console.log("Trade completion event error:", err);
       }
     };
     
-    // ✅ SAFE LISTENER FOR FOCUS EVENT
     const handleFocus = () => {
       try {
         calc();
@@ -816,7 +823,6 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
       }
     };
     
-    // ✅ SAFE LISTENER FOR STORAGE EVENT
     const handleStorage = () => {
       try {
         calc();
@@ -840,6 +846,11 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
   const liveUser = S.users?.[user?.username] || user || {};
   const isBan = (S.banned || []).includes(user?.username);
   const tot = frozenBalance + frozenHVal;
+
+  // Count binary trades from transactions
+  const binaryTradesCount = (liveUser?.transactions || []).filter(
+    (t) => t.isBinaryTrade === true || t.type === "Binary Trade"
+  ).length;
 
   const creditScore =
     S.users?.[user?.username]?.creditScore ?? liveUser?.creditScore ?? 50;
@@ -1008,11 +1019,7 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
           {[
             {
               l: "Trades",
-              v: String(
-                (liveUser?.transactions || []).filter(
-                  (t) => t.type === "Buy" || t.type === "Sell",
-                ).length,
-              ),
+              v: String(binaryTradesCount),
             },
             {
               l: "Deposits",

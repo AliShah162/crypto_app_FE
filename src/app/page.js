@@ -100,8 +100,7 @@ export default function App() {
       );
 
       if (!isBanned) {
-        const tabRole =
-          sessionStorage.getItem("tabRole") || current.role || "user";
+        const tabRole = localStorage.getItem("tabRole") || current.role || "user";
 
         startTransition(() => {
           setUser({ ...current });
@@ -267,10 +266,10 @@ export default function App() {
     }
 
     if (u.role === "admin") {
-      sessionStorage.setItem("tabRole", "admin");
+      localStorage.setItem("tabRole", "admin");
       ss("admin");
     } else {
-      sessionStorage.setItem("tabRole", "user");
+      localStorage.setItem("tabRole", "user");
       ss("app");
       sp("home");
       ssb(null);
@@ -278,14 +277,15 @@ export default function App() {
   };
 
   const adm = () => {
-    sessionStorage.setItem("tabRole", "admin");
+    localStorage.setItem("tabRole", "admin");
     ss("admin");
   };
 
   const logout = () => {
     S.setSession(null);
-    sessionStorage.removeItem("tabRole");
-    sessionStorage.removeItem("lastNotifUser");
+    localStorage.removeItem("tabRole");
+    localStorage.removeItem("lastNotifUser");
+    localStorage.removeItem("lastNotifUser");
     setUser(null);
     ss("welcome");
     sp("home");
@@ -507,7 +507,7 @@ export default function App() {
       >
         <AdminPanel
           onBack={() => {
-            sessionStorage.removeItem("tabRole");
+            localStorage.removeItem("tabRole");
             ss("welcome");
             setUser(null);
             S.setSession(null);

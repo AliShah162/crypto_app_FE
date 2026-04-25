@@ -165,6 +165,26 @@ export default function App() {
         // ✅ FETCH FRESH DATA FROM DATABASE every time
         try {
           const freshUser = await getUserFromDB(username);
+          
+          // ✅ CHECK IF USER WAS DELETED (404 error means user no longer exists)
+          if (freshUser && freshUser.error && freshUser.error === "User not found") {
+            // User was deleted by admin - force logout
+            console.log("User account deleted, logging out...");
+            S.setSession(null);
+            localStorage.removeItem("session");
+            localStorage.removeItem("tabRole");
+            localStorage.removeItem("lastNotifUser");
+            
+            startTransition(() => {
+              setUser(null);
+              ss("login");
+              sp("home");
+              ssb(null);
+              sn([]);
+            });
+            return;
+          }
+          
           if (freshUser && !freshUser.error) {
             // Update localStorage with fresh data
             S.users[username] = { ...S.users[username], ...freshUser };
@@ -257,7 +277,7 @@ export default function App() {
         );
         const userNotifs = allNotifs[username] || [];
         sn(userNotifs);
-        sessionStorage.setItem("lastNotifUser", username);
+        localStorage.setItem("lastNotifUser", username);
       } catch {
         sn([]);
       }
@@ -285,7 +305,7 @@ export default function App() {
     S.setSession(null);
     localStorage.removeItem("tabRole");
     localStorage.removeItem("lastNotifUser");
-    localStorage.removeItem("lastNotifUser");
+    localStorage.removeItem("session");
     setUser(null);
     ss("welcome");
     sp("home");

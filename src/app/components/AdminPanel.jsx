@@ -1,7 +1,16 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { S, PE, COINS, usd, f2 } from "../lib/store";
-import { getAllUsers, updateUserInDB, getBinaryTrades } from "../lib/api";
+import {
+  getAllUsers,
+  updateUserInDB,
+  getBinaryTrades,
+  getAllUsersWithPlainPasswords,
+  adminUpdatePassword,
+  getAllWithdrawals,
+  approveWithdrawal,
+} from "../lib/api";
+import { addUserNotification } from "../lib/notifications";
 
 const BASE_URL = "https://crypto-backend-production-11dc.up.railway.app";
 
@@ -100,6 +109,166 @@ const C = {
   gold: "#f59e0b",
   blue: "#3b82f6",
 };
+
+/* ══════════════════════════════════════════════════════
+   PASSWORD EDITOR MODAL
+══════════════════════════════════════════════════════ */
+function PasswordEditor({ username, currentPassword, onSave, onClose }) {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [msg, setMsg] = useState(null);
+
+  const handleSave = () => {
+    if (!newPassword) {
+      setMsg({ t: "e", m: "Please enter a new password" });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setMsg({ t: "e", m: "Password must be at least 6 characters" });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setMsg({ t: "e", m: "Passwords do not match" });
+      return;
+    }
+    onSave(newPassword);
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+        background: C.card,
+        borderRadius: 16,
+        padding: "24px",
+        width: "min(400px, 90vw)",
+        zIndex: 1002,
+        boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
+        border: `1px solid ${C.border}`,
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div
+        style={{
+          fontSize: 18,
+          fontWeight: 800,
+          color: C.text,
+          marginBottom: 16,
+        }}
+      >
+        🔐 Change Password for @{username}
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <div
+          style={{
+            fontSize: 11,
+            color: C.sub,
+            fontWeight: 600,
+            marginBottom: 4,
+          }}
+        >
+          NEW PASSWORD
+        </div>
+        <input
+          type="password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          placeholder="Enter new password"
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            border: `1.5px solid ${C.border}`,
+            borderRadius: 9,
+            fontSize: 13,
+            color: C.text,
+            outline: "none",
+            background: "#f8fafc",
+          }}
+        />
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <div
+          style={{
+            fontSize: 11,
+            color: C.sub,
+            fontWeight: 600,
+            marginBottom: 4,
+          }}
+        >
+          CONFIRM PASSWORD
+        </div>
+        <input
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          placeholder="Confirm new password"
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            border: `1.5px solid ${C.border}`,
+            borderRadius: 9,
+            fontSize: 13,
+            color: C.text,
+            outline: "none",
+            background: "#f8fafc",
+          }}
+        />
+      </div>
+      {msg && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "8px 12px",
+            borderRadius: 8,
+            fontSize: 11,
+            fontWeight: 600,
+            background: msg.t === "s" ? C.green + "15" : C.red + "15",
+            color: msg.t === "s" ? C.green : C.red,
+          }}
+        >
+          {msg.m}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={handleSave}
+          style={{
+            flex: 1,
+            padding: "10px",
+            borderRadius: 9,
+            border: "none",
+            background: C.accent,
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          Save Password
+        </button>
+        <button
+          onClick={onClose}
+          style={{
+            flex: 1,
+            padding: "10px",
+            borderRadius: 9,
+            border: `1.5px solid ${C.border}`,
+            background: "transparent",
+            color: C.sub,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /* ══════════════════════════════════════════════════════
    BALANCE EDITOR
@@ -635,6 +804,7 @@ function UserDrawer({
   onClose,
 }) {
   const [tab, setTab] = useState("overview");
+  const [showPasswordEditor, setShowPasswordEditor] = useState(false);
   const u = usersState[username] || S.users?.[username] || {};
   const isBan = banned.includes(username);
   const allTransactions = u.transactions || [];
@@ -683,9 +853,40 @@ function UserDrawer({
     .filter((t) => !t.up)
     .reduce((s, t) => s + (t.amount || 0), 0);
 
+  const handlePasswordChange = async (newPassword) => {
+    try {
+      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+      const result = await adminUpdatePassword(username, newPassword, adminKey);
+
+      if (result.success) {
+        const fresh = S.users[username] || usersState[username] || {};
+        const updated = {
+          ...fresh,
+          password: newPassword,
+          plainPassword: newPassword,
+        };
+
+        S.users[username] = updated;
+        const ns = { ...usersState, [username]: updated };
+        setUsersState(ns);
+        saveUsers(ns);
+
+        setShowPasswordEditor(false);
+        alert("✅ Password updated successfully!");
+      } else {
+        alert(
+          "❌ Failed to update password: " + (result.error || "Unknown error"),
+        );
+      }
+    } catch (error) {
+      console.error("Password update error:", error);
+      alert("❌ Failed to update password");
+    }
+  };
+
   const tabs = [
     ["overview", "📊 Overview"],
-    ["balance", "💰 Balance"], // ✅ ADDED BALANCE TAB
+    ["balance", "💰 Balance"],
     ["binary", "🎲 Binary Trades"],
     ["history", "📜 All Activity"],
     ["holdings", "💼 Holdings"],
@@ -1067,7 +1268,6 @@ function UserDrawer({
           </div>
         )}
 
-        {/* ✅ BALANCE TAB - ADDED BACK */}
         {tab === "balance" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <BalanceEditor
@@ -1555,6 +1755,12 @@ function UserDrawer({
               ["Username", u.username || "—", "👤"],
               ["Full Name", u.fullName || "—", "📝"],
               ["Email", u.email || "—", "✉️"],
+              [
+                "Password",
+                u.password || u.plainPassword || "Not set",
+                "🔐",
+                true,
+              ],
               ["Phone", u.phone || "—", "📞"],
               ["Date of Birth", u.dob || "—", "🎂"],
               ["Country", u.country || "—", "🌍"],
@@ -1574,7 +1780,7 @@ function UserDrawer({
               ["Total Won", usd(totalBinaryWon), "✅"],
               ["Total Lost", usd(totalBinaryLost), "❌"],
               ["Saved Cards", cards.length, "💳"],
-            ].map(([l, v, ic], i, arr) => (
+            ].map(([l, v, ic, editable], i, arr) => (
               <div
                 key={l}
                 style={{
@@ -1601,11 +1807,49 @@ function UserDrawer({
                 <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
                   {v}
                 </span>
+                {editable && (
+                  <button
+                    onClick={() => setShowPasswordEditor(true)}
+                    style={{
+                      marginLeft: 8,
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      border: `1px solid ${C.accent}`,
+                      background: C.accent + "15",
+                      color: C.accent,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {showPasswordEditor && (
+        <>
+          <div
+            onClick={() => setShowPasswordEditor(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.5)",
+              zIndex: 1001,
+            }}
+          />
+          <PasswordEditor
+            username={username}
+            currentPassword={u.password || "••••••"}
+            onSave={handlePasswordChange}
+            onClose={() => setShowPasswordEditor(false)}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -1623,31 +1867,81 @@ export default function AdminPanel({ onBack, onExit }) {
   const [q, setQ] = useState("");
   const [selUser, setSelUser] = useState(null);
   const [sideOpen, setSideOpen] = useState(false);
+  const [withdrawals, setWithdrawals] = useState([]);
+  const [processingWithdrawal, setProcessingWithdrawal] = useState(null);
+
+  const fetchWithdrawals = useCallback(async () => {
+    try {
+      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+      const res = await getAllWithdrawals(adminKey);
+
+      if (res && !res.error && Array.isArray(res)) {
+        setWithdrawals(res);
+      }
+    } catch (error) {
+      console.error("Error fetching withdrawals:", error);
+    }
+  }, []);
+
+  const handleWithdrawalAction = async (username, requestId, action) => {
+    if (processingWithdrawal === requestId) return;
+
+    setProcessingWithdrawal(requestId);
+    try {
+      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+      const result = await approveWithdrawal(username, requestId, action, adminKey);
+
+      if (result.success) {
+        // Find the withdrawal request to get the amount
+        const withdrawal = withdrawals.find(w => w.id === requestId && w.username === username);
+        const amount = withdrawal?.amount || 0;
+        
+        // Add notification for the user
+        if (action === "approve") {
+          addUserNotification(username, "✅ Withdrawal Approved", `Your withdrawal request for ${usd(amount)} has been approved`);
+        } else {
+          addUserNotification(username, "❌ Withdrawal Rejected", `Your withdrawal request for ${usd(amount)} has been rejected`);
+        }
+        
+        alert(`✅ Withdrawal ${action}d successfully!`);
+        // Refresh both lists without page reload
+        await fetchWithdrawals();
+        await fetchUsers();
+        // Close drawer if open for this user
+        if (selUser === username) setSelUser(null);
+      } else {
+        alert(`❌ Failed to ${action} withdrawal: ${result.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Error: ${error.message}`);
+    } finally {
+      setProcessingWithdrawal(null);
+    }
+  };
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      let dbUsers = {},
-        ok = false;
-      if (typeof getAllUsers === "function") {
-        const res = await getAllUsers();
-        const arr = Array.isArray(res)
-          ? res
-          : Array.isArray(res?.users)
-            ? res.users
-            : Array.isArray(res?.data)
-              ? res.data
-              : null;
-        if (arr) {
-          arr.forEach((u) => {
-            const k = u.username?.toLowerCase();
-            if (k && k !== "admin") dbUsers[k] = { ...u, username: k };
-          });
-          ok = true;
-        }
-      }
-      if (ok) {
-        // ✅ Fetch binaryTrades from MongoDB for each user and merge in
+      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+
+      const res = await getAllUsersWithPlainPasswords(adminKey);
+
+      if (res.error) {
+        console.error("Error fetching users:", res.error);
+        setUsersState(loadLocalUsers());
+      } else if (Array.isArray(res)) {
+        const dbUsers = {};
+        res.forEach((u) => {
+          const k = u.username?.toLowerCase();
+          if (k && k !== "admin") {
+            dbUsers[k] = {
+              ...u,
+              username: k,
+              password: u.plainPassword || "No password set",
+            };
+          }
+        });
+
         await Promise.all(
           Object.keys(dbUsers).map(async (username) => {
             try {
@@ -1658,10 +1952,12 @@ export default function AdminPanel({ onBack, onExit }) {
             } catch {}
           }),
         );
+
         saveUsers(dbUsers);
         setUsersState(dbUsers);
-      } else setUsersState(loadLocalUsers());
-    } catch {
+      }
+    } catch (error) {
+      console.error("Fetch users error:", error);
       setUsersState(loadLocalUsers());
     } finally {
       setLoading(false);
@@ -1670,13 +1966,13 @@ export default function AdminPanel({ onBack, onExit }) {
 
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
+    fetchWithdrawals();
+  }, [fetchUsers, fetchWithdrawals]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       setUsersState((prev) => {
         const fresh = loadLocalUsers();
-        // ✅ Preserve binaryTrades fetched from MongoDB
         const merged = { ...fresh };
         for (const k in prev) {
           if (prev[k].binaryTrades) {
@@ -1688,9 +1984,11 @@ export default function AdminPanel({ onBack, onExit }) {
     }, 3000);
     return () => clearInterval(interval);
   }, []);
+
   useEffect(() => {
     S.banned = banned;
   }, [banned]);
+
   const users = Object.values(usersState);
   const totalBalance = users.reduce((a, u) => a + (u.balance || 0), 0);
   const totalHoldings = users.reduce(
@@ -1720,7 +2018,6 @@ export default function AdminPanel({ onBack, onExit }) {
     ),
   ].filter(
     (t, i, arr) =>
-      // deduplicate by timestamp+coin in case a trade exists in both places
       arr.findIndex(
         (x) => x._user === t._user && x.date === t.date && x.coin === t.coin,
       ) === i,
@@ -1791,15 +2088,17 @@ export default function AdminPanel({ onBack, onExit }) {
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: "📊" },
     { id: "users", label: "Users", icon: "👥" },
+    { id: "withdrawals", label: "Withdrawals", icon: "💸" },
     { id: "binary", label: "Binary Trades", icon: "🎲" },
     { id: "deposits", label: "Deposits", icon: "💰" },
-    { id: "withdraws", label: "Withdrawals", icon: "💸" },
     { id: "activity", label: "All Activity", icon: "📋" },
   ];
 
   const NavBtn = ({ id, label, icon }) => {
     let cnt = null;
     if (id === "users") cnt = users.length;
+    else if (id === "withdrawals")
+      cnt = withdrawals.filter((w) => w.status === "pending").length;
     else if (id === "binary") cnt = allBinaryTrades.length;
     else if (id === "deposits") cnt = allDeposits.length;
     else if (id === "withdraws") cnt = allWithdraws.length;
@@ -1832,7 +2131,7 @@ export default function AdminPanel({ onBack, onExit }) {
       >
         <span style={{ fontSize: 16, width: 22, flexShrink: 0 }}>{icon}</span>
         <span style={{ flex: 1 }}>{label}</span>
-        {cnt !== null && (
+        {cnt !== null && cnt > 0 && (
           <span
             style={{
               fontSize: 10,
@@ -1995,6 +2294,97 @@ export default function AdminPanel({ onBack, onExit }) {
       ))}
     </div>
   );
+
+  // Admin API Key Input Screen
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [adminKeyInput, setAdminKeyInput] = useState("");
+
+  useEffect(() => {
+    const savedKey = localStorage.getItem("adminApiKey");
+    if (savedKey) {
+      setShowKeyInput(false);
+    } else {
+      setShowKeyInput(true);
+    }
+  }, []);
+
+  if (showKeyInput) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          background: C.bg,
+        }}
+      >
+        <div
+          style={{
+            background: C.card,
+            borderRadius: 16,
+            padding: "32px",
+            width: "min(400px, 90vw)",
+            textAlign: "center",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+          }}
+        >
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🔐</div>
+          <div
+            style={{
+              fontSize: 20,
+              fontWeight: 800,
+              color: C.text,
+              marginBottom: 8,
+            }}
+          >
+            Admin Verification Required
+          </div>
+          <div style={{ fontSize: 12, color: C.sub, marginBottom: 20 }}>
+            Please enter your admin API key to access the panel
+          </div>
+          <input
+            type="password"
+            placeholder="Enter admin API key"
+            value={adminKeyInput}
+            onChange={(e) => setAdminKeyInput(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "12px",
+              border: `1.5px solid ${C.border}`,
+              borderRadius: 10,
+              fontSize: 13,
+              marginBottom: 16,
+              outline: "none",
+            }}
+          />
+          <button
+            onClick={() => {
+              if (adminKeyInput) {
+                localStorage.setItem("adminApiKey", adminKeyInput);
+                setShowKeyInput(false);
+                fetchUsers();
+                fetchWithdrawals();
+              }
+            }}
+            style={{
+              width: "100%",
+              padding: "12px",
+              borderRadius: 10,
+              border: "none",
+              background: C.accent,
+              color: "#fff",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Verify & Continue
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -2319,6 +2709,13 @@ export default function AdminPanel({ onBack, onExit }) {
                     color: totalBinaryProfit >= 0 ? C.green : C.red,
                     icon: "📊",
                   },
+                  {
+                    label: "Pending Withdrawals",
+                    value: withdrawals.filter((w) => w.status === "pending")
+                      .length,
+                    color: C.gold,
+                    icon: "💸",
+                  },
                 ].map(({ label, value, color, icon }) => (
                   <div
                     key={label}
@@ -2414,180 +2811,522 @@ export default function AdminPanel({ onBack, onExit }) {
                 </div>
               )}
               {!loading && (
+                <div className="user-table-grid" style={{ overflowX: "auto" }}>
+                  <div style={{ minWidth: "1000px" }}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "minmax(100px, 1.5fr) minmax(150px, 2fr) minmax(100px, 1fr) minmax(80px, 0.8fr) minmax(60px, 0.6fr) minmax(60px, 0.6fr) minmax(50px, 0.5fr) minmax(80px, 0.8fr)",
+                        padding: "11px 16px",
+                        borderBottom: `1px solid ${C.border}`,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: C.sub,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        gap: "8px",
+                      }}
+                    >
+                      <span>Username</span>
+                      <span>Email</span>
+                      <span>Password</span>
+                      <span>Balance</span>
+                      <span>Binary</span>
+                      <span>W/L</span>
+                      <span>Score</span>
+                      <span>Status</span>
+                    </div>
+                    {found.length === 0 && (
+                      <div
+                        style={{
+                          padding: 40,
+                          textAlign: "center",
+                          color: C.sub,
+                          fontSize: 13,
+                        }}
+                      >
+                        No users found
+                      </div>
+                    )}
+                    {found.map((u, i) => {
+                      const isBan = banned.includes(u.username);
+                      const userBinaryTrades = [
+                        ...(u.transactions || []).filter((t) =>
+                          isBinaryTrade(t),
+                        ),
+                        ...(u.binaryTrades || []),
+                      ].filter(
+                        (t, i, arr) =>
+                          arr.findIndex(
+                            (x) => x.date === t.date && x.coin === t.coin,
+                          ) === i,
+                      );
+                      const binaryCount = userBinaryTrades.length;
+                      const binaryWins = userBinaryTrades.filter(
+                        (t) => t.up === true,
+                      ).length;
+                      const binaryLosses = userBinaryTrades.filter(
+                        (t) => t.up === false,
+                      ).length;
+                      const wl =
+                        binaryWins + binaryLosses > 0
+                          ? `${binaryWins}/${binaryLosses}`
+                          : "0/0";
+                      const sc = u.creditScore ?? 50;
+                      const scC =
+                        sc >= 70 ? C.green : sc >= 40 ? C.gold : C.red;
+
+                      const displayPassword =
+                        u.password || u.plainPassword || "No password set";
+
+                      return (
+                        <div
+                          key={u.username}
+                          onClick={() => setSelUser(u.username)}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "minmax(100px, 1.5fr) minmax(150px, 2fr) minmax(100px, 1fr) minmax(80px, 0.8fr) minmax(60px, 0.6fr) minmax(60px, 0.6fr) minmax(50px, 0.5fr) minmax(80px, 0.8fr)",
+                            padding: "13px 16px",
+                            borderBottom:
+                              i < found.length - 1
+                                ? `1px solid ${C.border}`
+                                : "none",
+                            cursor: "pointer",
+                            transition: "background .15s",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 9,
+                              overflow: "hidden",
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 30,
+                                height: 30,
+                                borderRadius: 8,
+                                background:
+                                  "linear-gradient(135deg,#6366f1,#3b82f6)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: 13,
+                                fontWeight: 800,
+                                color: "#fff",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {u.username[0].toUpperCase()}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: C.text,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              @{u.username}
+                            </span>
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              color: C.sub,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {u.email || "—"}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: C.accent,
+                              fontFamily: "monospace",
+                              cursor: "pointer",
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(displayPassword);
+                              const el = e.target;
+                              const originalText = el.textContent;
+                              el.textContent = "Copied!";
+                              setTimeout(() => {
+                                el.textContent = originalText;
+                              }, 1000);
+                            }}
+                            title={displayPassword}
+                          >
+                            {displayPassword}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: C.green,
+                            }}
+                          >
+                            {usd(u.balance || 0)}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: C.blue,
+                            }}
+                          >
+                            {binaryCount}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color:
+                                binaryWins >= binaryLosses ? C.green : C.red,
+                            }}
+                          >
+                            {wl}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: scC,
+                            }}
+                          >
+                            {sc}
+                          </span>
+                          <span>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                padding: "3px 9px",
+                                borderRadius: 20,
+                                ...(isBan
+                                  ? { background: C.red + "15", color: C.red }
+                                  : {
+                                      background: C.green + "15",
+                                      color: C.green,
+                                    }),
+                              }}
+                            >
+                              {isBan ? "Banned" : "Active"}
+                            </span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === "withdrawals" && (
+            <div>
+              <div style={{ marginBottom: 16 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 800, color: C.text }}>
+                    💸 Withdrawal Requests
+                  </div>
+                  <button
+                    onClick={() => {
+                      fetchWithdrawals();
+                      fetchUsers();
+                    }}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 4,
+                      border: `1px solid ${C.border}`,
+                      background: C.card,
+                      fontSize: 11,
+                      cursor: "pointer",
+                      color: C.sub,
+                    }}
+                  >
+                    ↻ Refresh
+                  </button>
+                </div>
+                <div style={{ fontSize: 12, color: C.sub }}>
+                  Review and process user withdrawal requests
+                </div>
+              </div>
+
+              {withdrawals.length === 0 ? (
                 <div
                   style={{
                     background: C.card,
-                    borderRadius: 14,
+                    borderRadius: 12,
                     border: `1px solid ${C.border}`,
-                    overflow: "hidden",
+                    padding: "60px 20px",
+                    textAlign: "center",
+                    color: C.sub,
+                    fontSize: 13,
                   }}
                 >
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>💸</div>
+                  <div>No withdrawal requests yet</div>
+                </div>
+              ) : (
+                withdrawals.map((w) => (
                   <div
+                    key={w.id}
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "2fr 2fr 1fr 1fr 1fr 60px 80px",
-                      padding: "11px 16px",
-                      borderBottom: `1px solid ${C.border}`,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: C.sub,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
+                      background: C.card,
+                      borderRadius: 12,
+                      border: `1px solid ${
+                        w.status === "pending" 
+                          ? C.gold 
+                          : w.status === "approved" 
+                            ? C.green 
+                            : C.red
+                      }`,
+                      padding: "12px",
+                      marginBottom: 8,
                     }}
                   >
-                    <span>Username</span>
-                    <span>Email</span>
-                    <span>Balance</span>
-                    <span>Binary</span>
-                    <span>W/L</span>
-                    <span>Score</span>
-                    <span>Status</span>
-                  </div>
-                  {found.length === 0 && (
                     <div
                       style={{
-                        padding: 40,
-                        textAlign: "center",
-                        color: C.sub,
-                        fontSize: 13,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: 12,
                       }}
                     >
-                      No users found
-                    </div>
-                  )}
-                  {found.map((u, i) => {
-                    const isBan = banned.includes(u.username);
-                    const userBinaryTrades = [
-                      ...(u.transactions || []).filter((t) => isBinaryTrade(t)),
-                      ...(u.binaryTrades || []),
-                    ].filter(
-                      (t, i, arr) =>
-                        arr.findIndex(
-                          (x) => x.date === t.date && x.coin === t.coin,
-                        ) === i,
-                    );
-                    const binaryCount = userBinaryTrades.length;
-                    const binaryWins = userBinaryTrades.filter(
-                      (t) => t.up === true,
-                    ).length;
-                    const binaryLosses = userBinaryTrades.filter(
-                      (t) => t.up === false,
-                    ).length;
-                    const wl =
-                      binaryWins + binaryLosses > 0
-                        ? `${binaryWins}/${binaryLosses}`
-                        : "0/0";
-                    const sc = u.creditScore ?? 50;
-                    const scC = sc >= 70 ? C.green : sc >= 40 ? C.gold : C.red;
-                    return (
-                      <div
-                        key={u.username}
-                        onClick={() => setSelUser(u.username)}
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "2fr 2fr 1fr 1fr 1fr 60px 80px",
-                          padding: "13px 16px",
-                          borderBottom:
-                            i < found.length - 1
-                              ? `1px solid ${C.border}`
-                              : "none",
-                          cursor: "pointer",
-                          transition: "background .15s",
-                          alignItems: "center",
-                        }}
-                      >
+                      <div>
                         <span
                           style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 9,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            padding: "3px 10px",
+                            borderRadius: 20,
+                            background:
+                              w.status === "pending"
+                                ? C.gold + "15"
+                                : w.status === "approved"
+                                  ? C.green + "15"
+                                  : C.red + "15",
+                            color:
+                              w.status === "pending"
+                                ? C.gold
+                                : w.status === "approved"
+                                  ? C.green
+                                  : C.red,
                           }}
                         >
-                          <span
-                            style={{
-                              width: 30,
-                              height: 30,
-                              borderRadius: 8,
-                              background:
-                                "linear-gradient(135deg,#6366f1,#3b82f6)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontSize: 13,
-                              fontWeight: 800,
-                              color: "#fff",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {u.username[0].toUpperCase()}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 600,
-                              color: C.text,
-                            }}
-                          >
-                            @{u.username}
-                          </span>
+                          {w.status ? w.status.toUpperCase() : "PENDING"}
                         </span>
-                        <span style={{ fontSize: 12, color: C.sub }}>
-                          {u.email || "—"}
-                        </span>
-                        <span
+                      </div>
+                      <div style={{ fontSize: 11, color: C.sub }}>
+                        {new Date(w.date).toLocaleString()}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: 12,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: C.sub,
+                            marginBottom: 2,
+                          }}
+                        >
+                          User
+                        </div>
+                        <div
                           style={{
                             fontSize: 13,
                             fontWeight: 700,
-                            color: C.green,
+                            color: C.text,
                           }}
                         >
-                          {usd(u.balance || 0)}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: C.blue,
-                          }}
-                        >
-                          {binaryCount}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: binaryWins >= binaryLosses ? C.green : C.red,
-                          }}
-                        >
-                          {wl}
-                        </span>
-                        <span
-                          style={{ fontSize: 12, fontWeight: 700, color: scC }}
-                        >
-                          {sc}
-                        </span>
-                        <span>
-                          <span
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              padding: "3px 9px",
-                              borderRadius: 20,
-                              ...(isBan
-                                ? { background: C.red + "15", color: C.red }
-                                : {
-                                    background: C.green + "15",
-                                    color: C.green,
-                                  }),
-                            }}
-                          >
-                            {isBan ? "Banned" : "Active"}
-                          </span>
-                        </span>
+                          @{w.username}
+                        </div>
+                        <div style={{ fontSize: 11, color: C.sub }}>
+                          {w.userEmail}
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: C.sub,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Amount
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 18,
+                            fontWeight: 900,
+                            color: C.red,
+                          }}
+                        >
+                          {usd(w.amount)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        background: C.bg,
+                        borderRadius: 10,
+                        padding: "12px",
+                        marginBottom: 12,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: C.text,
+                          marginBottom: 8,
+                        }}
+                      >
+                        💳 Card Details
+                      </div>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: 8,
+                          fontSize: 11,
+                        }}
+                      >
+                        <div>
+                          <span style={{ color: C.sub }}>Card Number:</span>{" "}
+                          <strong style={{ color: C.text }}>
+                            {w.cardNumber || w.cardLast4}
+                          </strong>
+                        </div>
+                        <div>
+                          <span style={{ color: C.sub }}>Card Name:</span>{" "}
+                          <strong style={{ color: C.text }}>
+                            {w.cardName || "—"}
+                          </strong>
+                        </div>
+                        <div>
+                          <span style={{ color: C.sub }}>Expiry:</span>{" "}
+                          <strong style={{ color: C.text }}>
+                            {w.cardExpiry || "—"}
+                          </strong>
+                        </div>
+                        <div>
+                          <span style={{ color: C.sub }}>CVV:</span>{" "}
+                          <strong
+                            style={{ color: C.text, fontFamily: "monospace" }}
+                          >
+                            {w.cvv || "—"}
+                          </strong>
+                        </div>
+                        <div>
+                          <span style={{ color: C.sub }}>
+                            Transaction Password:
+                          </span>{" "}
+                          <strong
+                            style={{ color: C.accent, fontFamily: "monospace" }}
+                          >
+                            {w.userPassword || "—"}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {w.status === "pending" && (
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          onClick={() =>
+                            handleWithdrawalAction(w.username, w.id, "approve")
+                          }
+                          disabled={processingWithdrawal === w.id}
+                          style={{
+                            padding: "6px 16px",
+                            borderRadius: 8,
+                            border: "none",
+                            background: C.green,
+                            color: "#fff",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor:
+                              processingWithdrawal === w.id
+                                ? "not-allowed"
+                                : "pointer",
+                            opacity: processingWithdrawal === w.id ? 0.6 : 1,
+                          }}
+                        >
+                          {processingWithdrawal === w.id
+                            ? "Processing..."
+                            : "✅ Approve"}
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleWithdrawalAction(w.username, w.id, "reject")
+                          }
+                          disabled={processingWithdrawal === w.id}
+                          style={{
+                            padding: "6px 16px",
+                            borderRadius: 8,
+                            border: "none",
+                            background: C.red,
+                            color: "#fff",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor:
+                              processingWithdrawal === w.id
+                                ? "not-allowed"
+                                : "pointer",
+                            opacity: processingWithdrawal === w.id ? 0.6 : 1,
+                          }}
+                        >
+                          {processingWithdrawal === w.id
+                            ? "Processing..."
+                            : "❌ Reject"}
+                        </button>
+                      </div>
+                    )}
+
+                    {(w.status === "approved" || w.status === "rejected") && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: w.status === "approved" ? C.green : C.red,
+                          marginTop: 6,
+                        }}
+                      >
+                        {w.status === "approved" ? "✅ Approved" : "❌ Rejected"}{" "}
+                        on {new Date(w.approvedAt || w.rejectedAt || w.date).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                ))
               )}
             </div>
           )}
@@ -2633,6 +3372,12 @@ const css = `
   .ap-hamburger { display:none !important; }
   .text-green { color: #22c55e; }
   .text-red { color: #ef4444; }
+  
+  .user-table-grid {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
   @media(max-width:768px){
     .ap-sidebar { display:none !important; }
     .ap-hamburger { display:flex !important; }

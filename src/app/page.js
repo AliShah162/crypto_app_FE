@@ -28,6 +28,7 @@ import {
   LangSub,
   TermsSub,
   EditSub,
+   BinaryHistorySub,
 } from "./pages/ProfileSubs";
 
 function initLocalStorage() {
@@ -103,6 +104,18 @@ export default function App() {
 
         startTransition(() => {
           setUser({ ...current });
+          // Load notifications for this user
+          if (typeof window !== "undefined") {
+            try {
+              const allNotifs = JSON.parse(
+                localStorage.getItem("user_notifications") || "{}",
+              );
+              const userNotifs = allNotifs[username] || [];
+              sn(userNotifs);
+            } catch {
+              sn([]);
+            }
+          }
           ss(tabRole === "admin" ? "admin" : "app");
         });
         return;
@@ -128,7 +141,7 @@ export default function App() {
             ss("login");
             sp("home");
             ssb(null);
-            sn([]);
+            sn([]); // Clear notifications when session ends
           });
         }
         return;
@@ -144,6 +157,7 @@ export default function App() {
           ss("login");
           sp("home");
           ssb(null);
+          sn([]); // Clear notifications on ban
         });
         return;
       }
@@ -153,6 +167,20 @@ export default function App() {
           const fresh = S.get();
           if (!fresh) return prev;
           if (JSON.stringify(prev) !== JSON.stringify(fresh)) {
+            // If user changed, reload their notifications
+            if (prev?.username !== fresh?.username) {
+              if (typeof window !== "undefined") {
+                try {
+                  const allNotifs = JSON.parse(
+                    localStorage.getItem("user_notifications") || "{}",
+                  );
+                  const userNotifs = allNotifs[fresh.username] || [];
+                  sn(userNotifs);
+                } catch {
+                  sn([]);
+                }
+              }
+            }
             return { ...fresh };
           }
           return prev;
@@ -235,6 +263,7 @@ export default function App() {
         );
         const userNotifs = allNotifs[username] || [];
         sn(userNotifs);
+        sessionStorage.setItem("lastNotifUser", username);
       } catch {
         sn([]);
       }
@@ -261,11 +290,12 @@ export default function App() {
   const logout = () => {
     S.setSession(null);
     sessionStorage.removeItem("tabRole");
+    sessionStorage.removeItem("lastNotifUser");
     setUser(null);
     ss("welcome");
     sp("home");
     ssb(null);
-    sn([]);
+    sn([]); // Clear notifications on logout
   };
 
   const nav = (p, coin) => {
@@ -300,7 +330,7 @@ export default function App() {
     }
 
     // Update current session state
-    sn((prev) => [...prev, newNotif]);
+    sn((prev) => [newNotif, ...prev]);
   };
 
   const onDep = (amt) => {
@@ -400,33 +430,35 @@ export default function App() {
   const u = user;
 
   const renderContent = () => {
-    if (page === "profile" && sub) {
-      const bk = () => ssb(null);
-      const uu = S.get() || user;
-      switch (sub) {
-        case "sec":
-          return <SecSub back={bk} />;
-        case "card":
-          return (
-            <CardSub
-              back={bk}
-              user={uu}
-              re={re}
-              onCardDeposit={onCardDeposit}
-            />
-          );
-        case "notif":
-          return <NotifSub back={bk} />;
-        case "lang":
-          return <LangSub back={bk} />;
-        case "terms":
-          return <TermsSub back={bk} />;
-        case "edit":
-          return <EditSub back={bk} user={uu} re={re} />;
-        default:
-          break;
-      }
+  if (page === "profile" && sub) {
+    const bk = () => ssb(null);
+    const uu = S.get() || user;
+    switch (sub) {
+      case "binaryhistory":
+        return <BinaryHistorySub back={bk} user={uu} re={re} />;
+      case "sec":
+        return <SecSub back={bk} />;
+      case "card":
+        return (
+          <CardSub
+            back={bk}
+            user={uu}
+            re={re}
+            onCardDeposit={onCardDeposit}
+          />
+        );
+      case "notif":
+        return <NotifSub back={bk} />;
+      case "lang":
+        return <LangSub back={bk} />;
+      case "terms":
+        return <TermsSub back={bk} />;
+      case "edit":
+        return <EditSub back={bk} user={uu} re={re} />;
+      default:
+        break;
     }
+  }
     switch (page) {
       case "home":
         return <HomePage nav={nav} px={px} user={u} />;
@@ -579,7 +611,7 @@ export default function App() {
                     >
                       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
                     </svg>
-                    {notifs.length > 0 && (
+                    {notifs.filter(n => !n.read).length > 0 && (
                       <div
                         style={{
                           position: "absolute",

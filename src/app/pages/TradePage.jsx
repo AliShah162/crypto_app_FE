@@ -141,8 +141,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       const profitAmount = activeOrder.amount * profitPercent;
       const finalAmount = activeOrder.amount + profitAmount;
 
-      // ✅ FIXED: Read fresh from localStorage using username stored in activeOrder
-      // This prevents stale in-memory S.users from losing transactions written earlier
+      // Read fresh from localStorage using username stored in activeOrder
       let currentUser;
       try {
         const raw = JSON.parse(localStorage.getItem("users") || "{}");
@@ -186,7 +185,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
 
       const newTxns = [binaryTransaction, ...(currentUser.transactions || [])];
 
-      // Write directly to localStorage — bypass stale S.users in-memory cache
+      // Write directly to localStorage
       const allUsers = JSON.parse(localStorage.getItem("users") || "{}");
       allUsers[currentUser.username] = {
         ...allUsers[currentUser.username],
@@ -194,9 +193,23 @@ export default function TradePage({ nav, px, onTrade, coin }) {
         transactions: newTxns,
       };
       localStorage.setItem("users", JSON.stringify(allUsers));
-      // Also sync in-memory so rest of session stays consistent
+      // Also sync in-memory
       S.users[currentUser.username] = allUsers[currentUser.username];
-      // ✅ Persist binary trade to MongoDB
+      
+      // Force refresh the main app's user state
+      if (typeof window !== "undefined") {
+        // Trigger storage event (for cross-tab sync)
+        window.dispatchEvent(
+          new StorageEvent("storage", {
+            key: "users",
+            newValue: JSON.stringify(allUsers),
+          })
+        );
+        // Also trigger focus event (for same-tab refresh)
+        window.dispatchEvent(new Event("focus"));
+      }
+      
+      // Persist binary trade to MongoDB
       saveBinaryTrade(currentUser.username, binaryTransaction);
       onTrade({
         action: "Binary Trade",
@@ -263,8 +276,8 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       return;
     }
 
-   const newBalance = (u.balance || 0) - amt;
-    // Write balance deduction directly to localStorage to avoid stale cache
+    const newBalance = (u.balance || 0) - amt;
+    // Write balance deduction directly to localStorage
     const usersSnap = JSON.parse(localStorage.getItem("users") || "{}");
     usersSnap[u.username] = { ...usersSnap[u.username], balance: newBalance };
     localStorage.setItem("users", JSON.stringify(usersSnap));
@@ -289,11 +302,14 @@ export default function TradePage({ nav, px, onTrade, coin }) {
 
   const cancelOrder = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    // Read fresh from localStorage for refund too
+    // Read fresh from localStorage for refund
     const rawUsers = JSON.parse(localStorage.getItem("users") || "{}");
     const currentUser = rawUsers[activeOrder.username] || S.get();
     const refundBalance = (currentUser.balance || 0) + activeOrder.amount;
-    rawUsers[activeOrder.username] = { ...rawUsers[activeOrder.username], balance: refundBalance };
+    rawUsers[activeOrder.username] = {
+      ...rawUsers[activeOrder.username],
+      balance: refundBalance,
+    };
     localStorage.setItem("users", JSON.stringify(rawUsers));
     S.updateUser(activeOrder.username, { balance: refundBalance });
     setActiveOrder(null);
@@ -710,34 +726,43 @@ export default function TradePage({ nav, px, onTrade, coin }) {
             border: `1px solid ${T.line}`,
           }}
         >
-          <div style={{ marginBottom: 10 }}>
-            <div
-              style={{
-                fontSize: 10,
-                color: T.dim,
-                fontWeight: 600,
-                marginBottom: 4,
-              }}
-            >
-              Currency
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 10,
+              marginBottom: 12,
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: T.dim,
+                  fontWeight: 600,
+                  marginBottom: 4,
+                }}
+              >
+                Currency
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>
+                {sel}
+              </div>
             </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>
-              {sel}
-            </div>
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <div
-              style={{
-                fontSize: 10,
-                color: T.dim,
-                fontWeight: 600,
-                marginBottom: 4,
-              }}
-            >
-              Price
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: T.acc }}>
-              {usd(price)}
+            <div>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: T.dim,
+                  fontWeight: 600,
+                  marginBottom: 4,
+                }}
+              >
+                Price
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: T.acc }}>
+                {usd(price)}
+              </div>
             </div>
           </div>
           <div>
@@ -749,13 +774,13 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                 marginBottom: 4,
               }}
             >
-              Amount
+              Amount (USD)
             </div>
             <input
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="Enter amount"
+              placeholder="Enter amount in USD"
               style={{
                 width: "100%",
                 background: T.card2,
@@ -769,9 +794,43 @@ export default function TradePage({ nav, px, onTrade, coin }) {
               }}
             />
             {amount && !isNaN(parseFloat(amount)) && (
-              <div style={{ fontSize: 11, color: T.gold, marginTop: 5 }}>
-                Potential win:{" "}
-                {usd(parseFloat(amount) * (selectedTime.profitPercent / 100))}
+              <div
+                style={{
+                  fontSize: 11,
+                  background: "rgba(0,229,176,0.08)",
+                  borderRadius: 8,
+                  padding: "8px 10px",
+                  marginTop: 8,
+                  border: `1px solid ${T.acc}30`,
+                }}
+              >
+                <div style={{ color: T.dim, marginBottom: 4 }}>
+                  📊 Trade Breakdown:
+                </div>
+                <div style={{ color: T.text }}>
+                  💰 Wager:{" "}
+                  <span style={{ color: T.gold, fontWeight: 700 }}>
+                    {usd(parseFloat(amount))}
+                  </span>
+                </div>
+                <div style={{ color: T.text }}>
+                  🎯 Win Profit:{" "}
+                  <span style={{ color: T.green, fontWeight: 700 }}>
+                    +{usd(parseFloat(amount) * (selectedTime.profitPercent / 100))}
+                  </span>
+                  <span style={{ color: T.dim, fontSize: 10 }}>
+                    {" "}({selectedTime.profitPercent}%)
+                  </span>
+                </div>
+                <div style={{ color: T.text, marginTop: 4 }}>
+                  ✅ Total Return if Win:{" "}
+                  <span style={{ color: T.acc, fontWeight: 700 }}>
+                    {usd(parseFloat(amount) * (1 + selectedTime.profitPercent / 100))}
+                  </span>
+                </div>
+                <div style={{ color: T.red, fontSize: 10, marginTop: 4 }}>
+                  ❌ Total Loss if Loss: {usd(parseFloat(amount))}
+                </div>
               </div>
             )}
           </div>

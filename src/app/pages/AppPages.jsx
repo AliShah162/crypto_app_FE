@@ -774,8 +774,6 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
   const [frozenBalance, setFrozenBalance] = useState(0);
   const [, setTick] = useState(0);
 
-  // Recalculate every 4s — avoids flicker from 1.5s price ticks
-  // but still catches admin balance changes and trades quickly
   useEffect(() => {
     const calc = () => {
       const u = S.users?.[user?.username];
@@ -791,9 +789,8 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
     calc();
     const t = setInterval(calc, 4000);
     return () => clearInterval(t);
-  }, [user?.username]); // eslint-disable-line
+  }, [user?.username]);
 
-  // ALWAYS read from S.users so admin balance changes reflect
   const liveUser = S.users?.[user?.username] || user || {};
   const isBan = (S.banned || []).includes(user?.username);
   const tot = frozenBalance + frozenHVal;
@@ -807,7 +804,9 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
     user?.country ||
     "—";
 
+  // Updated menu with Binary History at the top
   const menu = [
+    { ic: "📊", l: "Binary History", s: "View all binary trades", sp: "binaryhistory" },
     { ic: "🔐", l: "Security Settings", s: "Password & 2FA", sp: "sec" },
     { ic: "💳", l: "Bank Cards", s: "Payment cards", sp: "card" },
     { ic: "🔔", l: "Notifications", s: "Alerts & prefs", sp: "notif" },
@@ -843,7 +842,6 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
           </div>
         )}
 
-        {/* Avatar + name */}
         <div
           style={{
             display: "flex",
@@ -879,7 +877,6 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
           </div>
         </div>
 
-        {/* Portfolio card */}
         <div
           style={{
             background: "linear-gradient(135deg,#0c2340,#1a3a5c)",
@@ -955,7 +952,6 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
           </div>
         </div>
 
-        {/* Stats grid — ✅ credit score live, country visible */}
         <div
           style={{
             display: "grid",
@@ -1015,7 +1011,6 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
           ))}
         </div>
 
-        {/* Menu */}
         <div
           style={{
             background: T.card,

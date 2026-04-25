@@ -1,6 +1,5 @@
 const BASE_URL = "https://crypto-backend-production-11dc.up.railway.app/api/users";
 
-// 🔥 helper (better error handling)
 async function handleRes(res) {
   const data = await res.json();
 
@@ -48,6 +47,101 @@ export async function getAllUsers() {
       method: "GET",
     });
 
+    return await handleRes(res);
+  } catch (err) {
+    return { error: "Server not reachable" };
+  }
+}
+
+// ================= GET ALL USERS WITH PLAIN PASSWORDS (ADMIN ONLY) =================
+export async function getAllUsersWithPlainPasswords(adminKey) {
+  try {
+    const res = await fetch(`${BASE_URL}/admin/all-with-plain-passwords`, {
+      method: "GET",
+      headers: { 
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey
+      },
+    });
+    return await handleRes(res);
+  } catch (err) {
+    return { error: "Server not reachable" };
+  }
+}
+
+// ================= UPDATE USER PASSWORD (ADMIN ONLY) =================
+export async function adminUpdatePassword(username, newPassword, adminKey) {
+  try {
+    const res = await fetch(`${BASE_URL}/admin/update-password`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey
+      },
+      body: JSON.stringify({ username, newPassword }),
+    });
+    return await handleRes(res);
+  } catch (err) {
+    return { error: "Server not reachable" };
+  }
+}
+
+// ================= WITHDRAW FUNDS =================
+// Note: This only creates a withdrawal request, does NOT deduct balance
+export async function withdrawFunds(username, amount, cardId, password) {
+  try {
+    const res = await fetch(`${BASE_URL}/withdraw`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, amount, cardId, password }),
+    });
+    return await handleRes(res);
+  } catch (err) {
+    return { error: "Server not reachable" };
+  }
+}
+
+// ================= GET ALL WITHDRAWAL REQUESTS (ADMIN ONLY) =================
+export async function getAllWithdrawals(adminKey) {
+  try {
+    const res = await fetch(`${BASE_URL}/admin/all-withdrawals`, {
+      method: "GET",
+      headers: { 
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey
+      },
+    });
+    return await handleRes(res);
+  } catch (err) {
+    return { error: "Server not reachable" };
+  }
+}
+
+// ================= ADMIN APPROVE WITHDRAWAL =================
+export async function approveWithdrawal(username, requestId, action, adminKey) {
+  try {
+    const res = await fetch(`${BASE_URL}/admin/approve-withdrawal`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey
+      },
+      body: JSON.stringify({ username, requestId, action }),
+    });
+    return await handleRes(res);
+  } catch (err) {
+    return { error: "Server not reachable" };
+  }
+}
+
+// ================= SAVE CARD TO BACKEND =================
+export async function saveCardToBackend(username, card) {
+  try {
+    const res = await fetch(`${BASE_URL}/save-card`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, card }),
+    });
     return await handleRes(res);
   } catch (err) {
     return { error: "Server not reachable" };

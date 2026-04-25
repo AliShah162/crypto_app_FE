@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { T, S, usd } from "../lib/store";
 import { Input, PB, BHdr } from "../components/UI";
+import { withdrawFunds, saveCardToBackend } from "../lib/api";
+import { addUserNotification } from "../lib/notifications";
 
 export function DepositPage({ nav, onDeposit }) {
   const [step, ss] = useState(1);
@@ -323,49 +325,123 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
   const [amt, sa] = useState("");
   const [pw, spw] = useState("");
   const [errs, se] = useState({});
-  const [nc, snc] = useState({ num: "", name: "", exp: "" });
+  const [nc, snc] = useState({ num: "", name: "", exp: "", cvv: "" });
   const [adding, sad] = useState(false);
+  const [loading, setLoading] = useState(false);
   const bal = S.get()?.balance || 0;
 
-  const saveCard = () => {
+  // Format card number with spaces every 4 digits
+  const formatCardNumber = (value) => {
+    const cleaned = value.replace(/\s/g, "").slice(0, 16);
+    const groups = cleaned.match(/.{1,4}/g);
+    if (groups) {
+      return groups.join(" ").slice(0, 19);
+    }
+    return cleaned;
+  };
+
+  // Format expiry date with auto slash
+  const formatExpiry = (value) => {
+    const cleaned = value.replace(/\D/g, "").slice(0, 4);
+    if (cleaned.length >= 3) {
+      return `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
+    }
+    return cleaned;
+  };
+
+  // Validate CVV (only numbers, max 3-4 digits)
+  const validateCVV = (value) => {
+    return value.replace(/\D/g, "").slice(0, 3);
+  };
+
+  const saveCard = async () => {
     const e = {};
-    if (nc.num.replace(/\s/g, "").length < 12) e.num = "Valid card number";
+    const cleanNum = nc.num.replace(/\s/g, "");
+    if (cleanNum.length !== 16) e.num = "Card number must be 16 digits";
     if (!nc.name.trim()) e.name = "Required";
-    if (!/^\d{2}\/\d{2}$/.test(nc.exp)) e.exp = "MM/YY";
+    if (!/^\d{2}\/\d{2}$/.test(nc.exp)) e.exp = "MM/YY format required";
+    if (!nc.cvv || nc.cvv.length < 3) e.cvv = "CVV must be 3 digits";
     se(e);
     if (Object.keys(e).length) return;
-    const c = {
-      ...nc,
-      display: "**** **** **** " + nc.num.replace(/\s/g, "").slice(-4),
+
+    const newCard = {
       id: Date.now(),
+      num: cleanNum,
+      name: nc.name.toUpperCase(),
+      exp: nc.exp,
+      cvv: nc.cvv,
+      display: "**** **** **** " + cleanNum.slice(-4),
     };
-    const up = [...cards, c];
-    sc(up);
-    const u = S.get();
-    if (u) S.updateUser(u.username, { savedCards: up });
-    ssel(c);
-    snc({ num: "", name: "", exp: "" });
+
+    const updatedCards = [...cards, newCard];
+    sc(updatedCards);
+
+    const currentUser = S.get();
+    if (currentUser) {
+      setLoading(true);
+      try {
+        const result = await saveCardToBackend(currentUser.username, newCard);
+        if (result.success) {
+          const updatedUser = { ...currentUser, savedCards: updatedCards };
+          S.updateUser(currentUser.username, updatedUser);
+        }
+      } catch (err) {
+        console.error("Error saving card:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    ssel(newCard);
+    snc({ num: "", name: "", exp: "", cvv: "" });
     sad(false);
     se({});
   };
 
-  const confirm = () => {
+  // Rest of your component remains the same...
+  // In TransactionPages.jsx, update the confirm function:
+
+  const confirm = async () => {
     const e = {};
-    if (!selC) e.card = "Link a bank card first";
+    if (!selC) e.card = "Select a card first";
     const a = parseFloat(amt);
     if (!amt || isNaN(a) || a <= 0) e.amt = "Enter valid amount";
     else if (a > bal) e.amt = `Exceeds balance (${usd(bal)})`;
     if (!pw) e.pw = "Required";
-    else {
-      const u = S.get();
-      // Check adminPassword (admin-set override) first, fall back to regular password
-      const validPw = u?.adminPassword ?? u?.password;
-      if (u && pw !== validPw) e.pw = "Incorrect password";
-    }
+
     se(e);
     if (Object.keys(e).length) return;
-    onWithdraw(parseFloat(amt));
-    ss(2);
+
+    setLoading(true);
+    try {
+      const currentUser = S.get();
+      const result = await withdrawFunds(currentUser.username, a, selC.id, pw);
+
+      if (result.error) {
+        if (result.error.toLowerCase().includes("password")) {
+          se({ pw: "Incorrect password" });
+        } else {
+          se({ amt: result.error });
+        }
+      } else {
+        // Add withdrawal request notification
+        const { addUserNotification } = await import("../lib/notifications");
+        addUserNotification(
+          currentUser.username,
+          "💸 Withdrawal Requested",
+          `${usd(a)} withdrawal request submitted for admin approval`,
+        );
+
+        // DO NOT call onWithdraw(a) - that deducts balance client-side!
+        // The backend will deduct only on approval
+        // Just show the success screen
+        ss(2); // Go to success screen
+      }
+    } catch (error) {
+      se({ amt: "Withdrawal failed. Try again." });
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (step === 2)
@@ -399,7 +475,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
           </span>
         </div>
         <div style={{ fontSize: 12, color: T.dim, marginBottom: 20 }}>
-          Funds arrive in 1-3 business days
+          Request submitted for admin approval
         </div>
         <PB
           lbl="Back to Home"
@@ -417,7 +493,6 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
     <div style={{ flex: 1, overflowY: "auto", paddingBottom: 20 }}>
       <BHdr title="Withdraw" back={() => nav("home")} />
       <div style={{ padding: "13px 13px 0" }}>
-        {/* Card section */}
         <div
           style={{
             background: T.card,
@@ -476,7 +551,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
                   {c.display}
                 </div>
                 <div style={{ fontSize: 9, color: T.dim, marginTop: 2 }}>
-                  {c.name}
+                  {c.name} | Exp: {c.exp}
                 </div>
               </div>
               {selC?.id === c.id && (
@@ -522,29 +597,49 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
               <Input
                 label="CARD NUMBER"
                 val={nc.num}
-                set={(v) => snc((p) => ({ ...p, num: v }))}
+                set={(v) => snc((p) => ({ ...p, num: formatCardNumber(v) }))}
                 ph="1234 5678 9012 3456"
                 err={errs.num}
+                maxLength={19}
               />
               <Input
-                label="NAME"
+                label="CARDHOLDER NAME"
                 val={nc.name}
-                set={(v) => snc((p) => ({ ...p, name: v }))}
-                ph="Name on card"
+                set={(v) => snc((p) => ({ ...p, name: v.toUpperCase() }))}
+                ph="NAME ON CARD"
                 err={errs.name}
-              />
-              <Input
-                label="EXPIRY (MM/YY)"
-                val={nc.exp}
-                set={(v) => snc((p) => ({ ...p, exp: v }))}
-                ph="12/28"
-                err={errs.exp}
               />
               <div
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr",
+                  gap: 10,
+                }}
+              >
+                <Input
+                  label="EXPIRY (MM/YY)"
+                  val={nc.exp}
+                  set={(v) => snc((p) => ({ ...p, exp: formatExpiry(v) }))}
+                  ph="12/28"
+                  err={errs.exp}
+                  maxLength={5}
+                />
+                <Input
+                  label="CVV"
+                  type="password"
+                  val={nc.cvv}
+                  set={(v) => snc((p) => ({ ...p, cvv: validateCVV(v) }))}
+                  ph="•••"
+                  err={errs.cvv}
+                  maxLength={3}
+                />
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
                   gap: 8,
+                  marginTop: 10,
                 }}
               >
                 <PB lbl="Save" onClick={saveCard} sm />
@@ -553,6 +648,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
                   onClick={() => {
                     sad(false);
                     se({});
+                    snc({ num: "", name: "", exp: "", cvv: "" });
                   }}
                   ghost
                   sm
@@ -566,7 +662,6 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
             </div>
           )}
         </div>
-        {/* Amount */}
         <div
           style={{
             background: T.card,
@@ -639,7 +734,6 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
             <strong style={{ color: T.text }}>{usd(bal)}</strong>
           </div>
         </div>
-        {/* Password */}
         <div
           style={{
             background: T.card,
@@ -683,7 +777,11 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
             </div>
           )}
         </div>
-        <PB lbl="Confirm Withdrawal" onClick={confirm} />
+        <PB
+          lbl={loading ? "Processing..." : "Confirm Withdrawal"}
+          onClick={confirm}
+          dis={loading}
+        />
       </div>
     </div>
   );

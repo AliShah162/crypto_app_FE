@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { T, S, COINS, ADMIN_USER, ADMIN_PASS } from "../lib/store";
+import { T, S, COINS, ADMIN_USER, ADMIN_PASS,saveLS,loadLS } from "../lib/store";
 import { Input, PB } from "./UI";
 import { registerUser, loginUser } from "../lib/api";
 

@@ -64,6 +64,12 @@ export function clearUserNotifications(username) {
     const all = JSON.parse(localStorage.getItem(NOTIF_KEY) || "{}");
     all[username.toLowerCase()] = [];
     localStorage.setItem(NOTIF_KEY, JSON.stringify(all));
+    
+    // Trigger storage event for cross-tab sync
+    window.dispatchEvent(new StorageEvent("storage", {
+      key: NOTIF_KEY,
+      newValue: JSON.stringify(all)
+    }));
   } catch (error) {
     console.error("Failed to clear notifications:", error);
   }
@@ -84,6 +90,12 @@ export function markNotificationRead(username, notifId) {
     
     all[username.toLowerCase()] = updated;
     localStorage.setItem(NOTIF_KEY, JSON.stringify(all));
+    
+    // Trigger storage event for cross-tab sync
+    window.dispatchEvent(new StorageEvent("storage", {
+      key: NOTIF_KEY,
+      newValue: JSON.stringify(all)
+    }));
   } catch (error) {
     console.error("Failed to mark notification read:", error);
   }
@@ -101,6 +113,12 @@ export function deleteNotification(username, notifId) {
     const updated = userNotifs.filter(n => n.id !== notifId);
     all[username.toLowerCase()] = updated;
     localStorage.setItem(NOTIF_KEY, JSON.stringify(all));
+    
+    // Trigger storage event for cross-tab sync
+    window.dispatchEvent(new StorageEvent("storage", {
+      key: NOTIF_KEY,
+      newValue: JSON.stringify(all)
+    }));
   } catch (error) {
     console.error("Failed to delete notification:", error);
   }

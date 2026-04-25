@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { T, S } from "../lib/store";
 import { Input, PB, BHdr } from "../components/UI";
 
@@ -8,7 +8,6 @@ export function SecSub({ back }) {
   const [msg, sm] = useState(null);
   const go = () => {
     const u = S.get();
-    // Check adminPassword (admin-set override) first, fall back to regular password
     const validPw = u?.adminPassword ?? u?.password;
     if (f.c !== validPw) {
       sm({ t: "e", m: "Wrong current password" });
@@ -22,7 +21,6 @@ export function SecSub({ back }) {
       sm({ t: "e", m: "Don't match" });
       return;
     }
-    // Use S.updateUser so the change persists to localStorage properly
     S.updateUser(u.username, { password: f.n, adminPassword: f.n });
     sm({ t: "s", m: "Updated!" });
     sf({ c: "", n: "", cn: "" });
@@ -434,7 +432,6 @@ export function EditSub({ back, user, re }) {
     if (u) {
       S.updateUser(u.username, { fullName: f.fn, phone: f.ph, country: f.co });
     }
-    // Sync to DB
     try {
       const { updateUserInDB } = await import("../lib/api");
       if (u && typeof updateUserInDB === "function") {
@@ -486,4 +483,25 @@ export function EditSub({ back, user, re }) {
       </div>
     </div>
   );
+}
+
+// NEW: Binary History Sub Component
+export function BinaryHistorySub({ back, user, re }) {
+  const [BinaryHistoryComponent, setBinaryHistoryComponent] = useState(null);
+  
+  useEffect(() => {
+    import("../components/BinaryHistory").then((mod) => {
+      setBinaryHistoryComponent(() => mod.default);
+    });
+  }, []);
+  
+  if (!BinaryHistoryComponent) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ color: T.dim }}>Loading binary history...</div>
+      </div>
+    );
+  }
+  
+  return <BinaryHistoryComponent user={user} back={back} />;
 }

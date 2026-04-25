@@ -8,7 +8,7 @@ export const ADMIN_USER = "admin";
 export const ADMIN_PASS = "CoinAdmin@2026";
 
 // ───── Safe LocalStorage Helpers ─────
-function loadLS(key, fallback) {
+export function loadLS(key, fallback) {
   if (typeof window === "undefined") return fallback;
   try {
     const v = localStorage.getItem(key);
@@ -18,7 +18,7 @@ function loadLS(key, fallback) {
   }
 }
 
-function saveLS(key, value) {
+export function saveLS(key, value) {
   if (typeof window === "undefined") return;
   localStorage.setItem(key, JSON.stringify(value));
 }
@@ -67,9 +67,9 @@ export const S = {
     }
 
     if (!this.users || typeof this.users !== "object") {
-  this.users = {};
-  localStorage.setItem("users", JSON.stringify(this.users));
-}
+      this.users = {};
+      localStorage.setItem("users", JSON.stringify(this.users));
+    }
 
     for (const u of Object.values(this.users)) {
       u.creditScore = Math.max(0, Math.min(100, Number(u.creditScore ?? 50)));
@@ -139,6 +139,7 @@ export const S = {
       transactions: [],
       holdings: {},
       savedCards: [],
+      binaryTrades: [], // Added for binary trades storage
     };
 
     saveLS("users", this.users);

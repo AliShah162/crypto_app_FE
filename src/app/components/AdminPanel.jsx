@@ -2039,6 +2039,14 @@ export default function AdminPanel({ onBack, onExit }) {
       (u.email || "").toLowerCase().includes(q.toLowerCase()),
   );
 
+  // ✅ SAFE FALLBACKS - Prevent "Cannot read properties of undefined" errors
+  const safeWithdrawals = withdrawals || [];
+  const safeFound = found || [];
+  const safeAllTxns = allTxns || [];
+  const safeAllBinaryTrades = allBinaryTrades || [];
+  const safeAllDeposits = allDeposits || [];
+  const safeAllWithdraws = allWithdraws || [];
+
   const changeScore = async (username, delta) => {
     const updated = { ...usersState };
     const newScore = Math.max(
@@ -2098,11 +2106,11 @@ export default function AdminPanel({ onBack, onExit }) {
     let cnt = null;
     if (id === "users") cnt = users.length;
     else if (id === "withdrawals")
-      cnt = withdrawals.filter((w) => w.status === "pending").length;
-    else if (id === "binary") cnt = allBinaryTrades.length;
-    else if (id === "deposits") cnt = allDeposits.length;
-    else if (id === "withdraws") cnt = allWithdraws.length;
-    else if (id === "activity") cnt = allTxns.length;
+      cnt = safeWithdrawals.filter((w) => w.status === "pending").length;
+    else if (id === "binary") cnt = safeAllBinaryTrades.length;
+    else if (id === "deposits") cnt = safeAllDeposits.length;
+    else if (id === "withdraws") cnt = safeAllWithdraws.length;
+    else if (id === "activity") cnt = safeAllTxns.length;
 
     return (
       <button
@@ -2166,7 +2174,7 @@ export default function AdminPanel({ onBack, onExit }) {
           {title}
         </div>
       )}
-      {rows.length === 0 && (
+      {!rows || rows.length === 0 ? (
         <div
           style={{
             background: C.card,
@@ -2180,118 +2188,119 @@ export default function AdminPanel({ onBack, onExit }) {
         >
           No records yet
         </div>
-      )}
-      {rows.map((tx, i) => (
-        <div
-          key={i}
-          style={{
-            background: C.card,
-            borderRadius: 10,
-            border: `1px solid ${C.border}`,
-            padding: "13px 16px",
-            marginBottom: 8,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ fontSize: 24, flexShrink: 0 }}>{typeIcon(tx)}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  flexWrap: "wrap",
-                  marginBottom: 3,
-                }}
-              >
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>
-                  @{tx._user}
-                </span>
-                <span
+      ) : (
+        rows.map((tx, i) => (
+          <div
+            key={i}
+            style={{
+              background: C.card,
+              borderRadius: 10,
+              border: `1px solid ${C.border}`,
+              padding: "13px 16px",
+              marginBottom: 8,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ fontSize: 24, flexShrink: 0 }}>{typeIcon(tx)}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
                   style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    padding: "2px 8px",
-                    borderRadius: 20,
-                    background: typeColor(tx) + "18",
-                    color: typeColor(tx),
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    marginBottom: 3,
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>
+                    @{tx._user}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: "2px 8px",
+                      borderRadius: 20,
+                      background: typeColor(tx) + "18",
+                      color: typeColor(tx),
+                    }}
+                  >
+                    {isBinaryTrade(tx)
+                      ? `BINARY ${tx.up ? "WIN" : "LOSS"}`
+                      : tx.type}
+                  </span>
+                  {tx.adminAction && (
+                    <span style={{ fontSize: 10, color: C.accent }}>
+                      🔧 admin
+                    </span>
+                  )}
+                  {tx.adminAdded && (
+                    <span style={{ fontSize: 10, color: C.green }}>💰 admin</span>
+                  )}
+                  {isBinaryTrade(tx) &&
+                    (tx.duration || tx.tradeDetails?.duration) && (
+                      <>
+                        <span style={{ fontSize: 10, color: C.gold }}>
+                          ⏱ {tx.duration || tx.tradeDetails?.duration}s
+                        </span>
+                        <span style={{ fontSize: 10, color: C.accent }}>
+                          {(tx.orderType || tx.tradeDetails?.orderType) === "up"
+                            ? "📈 UP"
+                            : "📉 DOWN"}
+                        </span>
+                      </>
+                    )}
+                </div>
+                <div style={{ fontSize: 11, color: C.sub }}>
+                  {isBinaryTrade(tx) ? (
+                    <>
+                      <span style={{ fontWeight: 700, color: C.text }}>
+                        {tx.coin}
+                      </span>
+                      {` · Invested: ${usd(tx.amount)}`}
+                      {tx.up ? (
+                        <span
+                          style={{ color: C.green, fontWeight: 700 }}
+                        >{` · Won: +${usd(tx.profitAmount || tx.tradeDetails?.profit || 0)}`}</span>
+                      ) : (
+                        <span
+                          style={{ color: C.red, fontWeight: 700 }}
+                        >{` · Lost: -${usd(tx.amount)}`}</span>
+                      )}
+                      {tx.startPrice ? ` · Entry: $${f2(tx.startPrice, 2)}` : ""}
+                      {tx.endPrice ? ` → $${f2(tx.endPrice, 2)}` : ""}
+                    </>
+                  ) : (
+                    <>
+                      {tx.coin || "USD"}
+                      {tx.amount ? ` · ${f2(tx.amount, 4)} ${tx.coin}` : ""}
+                      {tx.price ? ` @ ${usd(tx.price)}` : ""}
+                    </>
+                  )}
+                </div>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 800,
+                    color: tx.up ? C.green : C.red,
                   }}
                 >
                   {isBinaryTrade(tx)
-                    ? `BINARY ${tx.up ? "WIN" : "LOSS"}`
-                    : tx.type}
-                </span>
-                {tx.adminAction && (
-                  <span style={{ fontSize: 10, color: C.accent }}>
-                    🔧 admin
-                  </span>
-                )}
-                {tx.adminAdded && (
-                  <span style={{ fontSize: 10, color: C.green }}>💰 admin</span>
-                )}
-                {isBinaryTrade(tx) &&
-                  (tx.duration || tx.tradeDetails?.duration) && (
-                    <>
-                      <span style={{ fontSize: 10, color: C.gold }}>
-                        ⏱ {tx.duration || tx.tradeDetails?.duration}s
-                      </span>
-                      <span style={{ fontSize: 10, color: C.accent }}>
-                        {(tx.orderType || tx.tradeDetails?.orderType) === "up"
-                          ? "📈 UP"
-                          : "📉 DOWN"}
-                      </span>
-                    </>
-                  )}
-              </div>
-              <div style={{ fontSize: 11, color: C.sub }}>
-                {isBinaryTrade(tx) ? (
-                  <>
-                    <span style={{ fontWeight: 700, color: C.text }}>
-                      {tx.coin}
-                    </span>
-                    {` · Invested: ${usd(tx.amount)}`}
-                    {tx.up ? (
-                      <span
-                        style={{ color: C.green, fontWeight: 700 }}
-                      >{` · Won: +${usd(tx.profitAmount || tx.tradeDetails?.profit || 0)}`}</span>
-                    ) : (
-                      <span
-                        style={{ color: C.red, fontWeight: 700 }}
-                      >{` · Lost: -${usd(tx.amount)}`}</span>
-                    )}
-                    {tx.startPrice ? ` · Entry: $${f2(tx.startPrice, 2)}` : ""}
-                    {tx.endPrice ? ` → $${f2(tx.endPrice, 2)}` : ""}
-                  </>
-                ) : (
-                  <>
-                    {tx.coin || "USD"}
-                    {tx.amount ? ` · ${f2(tx.amount, 4)} ${tx.coin}` : ""}
-                    {tx.price ? ` @ ${usd(tx.price)}` : ""}
-                  </>
-                )}
-              </div>
-            </div>
-            <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 800,
-                  color: tx.up ? C.green : C.red,
-                }}
-              >
-                {isBinaryTrade(tx)
-                  ? tx.up
-                    ? `+${usd(tx.profitAmount || tx.tradeDetails?.profit || 0)}`
-                    : `-${usd(tx.amount)}`
-                  : tx.up
-                    ? "+"
-                    : "-"}
-                {usd(tx.usd || 0)}
+                    ? tx.up
+                      ? `+${usd(tx.profitAmount || tx.tradeDetails?.profit || 0)}`
+                      : `-${usd(tx.amount)}`
+                    : tx.up
+                      ? "+"
+                      : "-"}
+                  {usd(tx.usd || 0)}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      ))}
+        ))
+      )}
     </div>
   );
 
@@ -2693,7 +2702,7 @@ export default function AdminPanel({ onBack, onExit }) {
                   },
                   {
                     label: "Binary Trades",
-                    value: allBinaryTrades.length,
+                    value: safeAllBinaryTrades.length,
                     color: C.blue,
                     icon: "🎲",
                   },
@@ -2711,7 +2720,7 @@ export default function AdminPanel({ onBack, onExit }) {
                   },
                   {
                     label: "Pending Withdrawals",
-                    value: withdrawals.filter((w) => w.status === "pending")
+                    value: safeWithdrawals.filter((w) => w.status === "pending")
                       .length,
                     color: C.gold,
                     icon: "💸",
@@ -2769,7 +2778,7 @@ export default function AdminPanel({ onBack, onExit }) {
               >
                 📋 Recent Activity
               </div>
-              <TxTable rows={allTxns.slice(0, 15)} />
+              <TxTable rows={safeAllTxns.slice(0, 15)} />
             </div>
           )}
 
@@ -2837,7 +2846,7 @@ export default function AdminPanel({ onBack, onExit }) {
                       <span>Score</span>
                       <span>Status</span>
                     </div>
-                    {found.length === 0 && (
+                    {safeFound.length === 0 && (
                       <div
                         style={{
                           padding: 40,
@@ -2849,7 +2858,7 @@ export default function AdminPanel({ onBack, onExit }) {
                         No users found
                       </div>
                     )}
-                    {found.map((u, i) => {
+                    {safeFound.map((u, i) => {
                       const isBan = banned.includes(u.username);
                       const userBinaryTrades = [
                         ...(u.transactions || []).filter((t) =>
@@ -2890,7 +2899,7 @@ export default function AdminPanel({ onBack, onExit }) {
                               "minmax(100px, 1.5fr) minmax(150px, 2fr) minmax(100px, 1fr) minmax(80px, 0.8fr) minmax(60px, 0.6fr) minmax(60px, 0.6fr) minmax(50px, 0.5fr) minmax(80px, 0.8fr)",
                             padding: "13px 16px",
                             borderBottom:
-                              i < found.length - 1
+                              i < safeFound.length - 1
                                 ? `1px solid ${C.border}`
                                 : "none",
                             cursor: "pointer",
@@ -3072,7 +3081,7 @@ export default function AdminPanel({ onBack, onExit }) {
                 </div>
               </div>
 
-              {withdrawals.length === 0 ? (
+              {safeWithdrawals.length === 0 ? (
                 <div
                   style={{
                     background: C.card,
@@ -3088,7 +3097,7 @@ export default function AdminPanel({ onBack, onExit }) {
                   <div>No withdrawal requests yet</div>
                 </div>
               ) : (
-                withdrawals.map((w) => (
+                safeWithdrawals.map((w) => (
                   <div
                     key={w.id}
                     style={{
@@ -3332,16 +3341,16 @@ export default function AdminPanel({ onBack, onExit }) {
           )}
 
           {tab === "binary" && (
-            <TxTable rows={allBinaryTrades} title="🎲 All Binary Trades" />
+            <TxTable rows={safeAllBinaryTrades} title="🎲 All Binary Trades" />
           )}
           {tab === "deposits" && (
-            <TxTable rows={allDeposits} title="💰 Deposits" />
+            <TxTable rows={safeAllDeposits} title="💰 Deposits" />
           )}
           {tab === "withdraws" && (
-            <TxTable rows={allWithdraws} title="💸 Withdrawals" />
+            <TxTable rows={safeAllWithdraws} title="💸 Withdrawals" />
           )}
           {tab === "activity" && (
-            <TxTable rows={allTxns} title="📋 Complete Activity Log" />
+            <TxTable rows={safeAllTxns} title="📋 Complete Activity Log" />
           )}
         </div>
       </main>

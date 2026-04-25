@@ -776,19 +776,65 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
 
   useEffect(() => {
     const calc = () => {
-      const u = S.users?.[user?.username];
-      if (!u) return;
-      const hv = Object.entries(u.holdings || {}).reduce(
-        (s, [id, q]) => s + Number(q || 0) * Number(PE.p[id] || 0),
-        0,
-      );
-      setFrozenHVal(hv);
-      setFrozenBalance(Number(u.balance || 0));
-      setTick((n) => n + 1);
+      try {
+        const u = S.users?.[user?.username];
+        if (!u) return;
+        const hv = Object.entries(u.holdings || {}).reduce(
+          (s, [id, q]) => s + Number(q || 0) * Number(PE.p[id] || 0),
+          0,
+        );
+        setFrozenHVal(hv);
+        setFrozenBalance(Number(u.balance || 0));
+        setTick((n) => n + 1);
+      } catch (err) {
+        console.error("Profile balance calc error:", err);
+      }
     };
+    
     calc();
-    const t = setInterval(calc, 4000);
-    return () => clearInterval(t);
+    const interval = setInterval(calc, 4000);
+    
+    // ✅ SAFE LISTENER FOR TRADE COMPLETION EVENT
+    const handleTradeComplete = (event) => {
+      try {
+        if (event?.detail?.username === user?.username) {
+          console.log("Trade completed, refreshing profile balance...");
+          calc();
+        }
+      } catch (err) {
+        // Silently fail - interval will still update
+        console.log("Trade completion event error:", err);
+      }
+    };
+    
+    // ✅ SAFE LISTENER FOR FOCUS EVENT
+    const handleFocus = () => {
+      try {
+        calc();
+      } catch (err) {
+        console.log("Focus event error:", err);
+      }
+    };
+    
+    // ✅ SAFE LISTENER FOR STORAGE EVENT
+    const handleStorage = () => {
+      try {
+        calc();
+      } catch (err) {
+        console.log("Storage event error:", err);
+      }
+    };
+    
+    window.addEventListener("tradeCompleted", handleTradeComplete);
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("storage", handleStorage);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("tradeCompleted", handleTradeComplete);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("storage", handleStorage);
+    };
   }, [user?.username]);
 
   const liveUser = S.users?.[user?.username] || user || {};
@@ -804,7 +850,6 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
     user?.country ||
     "—";
 
-  // Updated menu with Binary History at the top
   const menu = [
     { ic: "📊", l: "Binary History", s: "View all binary trades", sp: "binaryhistory" },
     { ic: "🔐", l: "Security Settings", s: "Password & 2FA", sp: "sec" },

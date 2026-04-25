@@ -128,121 +128,135 @@ export default function TradePage({ nav, px, onTrade, coin }) {
 
   useEffect(() => {
     completeTrade.current = async () => {
-  if (!activeOrder) return;
+      if (!activeOrder) return;
 
-  const currentPrice = px[activeOrder.coin] || 0;
-  const isWin =
-    (activeOrder.orderType === "up" &&
-      currentPrice >= activeOrder.startPrice) ||
-    (activeOrder.orderType === "down" &&
-      currentPrice <= activeOrder.startPrice);
+      const currentPrice = px[activeOrder.coin] || 0;
+      const isWin =
+        (activeOrder.orderType === "up" &&
+          currentPrice >= activeOrder.startPrice) ||
+        (activeOrder.orderType === "down" &&
+          currentPrice <= activeOrder.startPrice);
 
-  const profitPercent = activeOrder.profitPercent / 100;
-  const profitAmount = activeOrder.amount * profitPercent;
-  const finalAmount = activeOrder.amount + profitAmount;
+      const profitPercent = activeOrder.profitPercent / 100;
+      const profitAmount = activeOrder.amount * profitPercent;
+      const finalAmount = activeOrder.amount + profitAmount;
 
-  // Read fresh from localStorage
-  let currentUser;
-  try {
-    const raw = JSON.parse(localStorage.getItem("users") || "{}");
-    currentUser = raw[activeOrder.username] || S.get();
-  } catch {
-    currentUser = S.get();
-  }
+      let currentUser;
+      try {
+        const raw = JSON.parse(localStorage.getItem("users") || "{}");
+        currentUser = raw[activeOrder.username] || S.get();
+      } catch {
+        currentUser = S.get();
+      }
 
-  const newBalance = (currentUser.balance || 0) + (isWin ? finalAmount : 0);
+      const newBalance = (currentUser.balance || 0) + (isWin ? finalAmount : 0);
 
-  const binaryTransaction = {
-    type: "Binary Trade",
-    coin: activeOrder.coin,
-    amount: activeOrder.amount,
-    usd: isWin ? profitAmount : activeOrder.amount,
-    price: currentPrice,
-    date: new Date().toISOString(),
-    up: isWin,
-    isBinaryTrade: true,
-    duration: activeOrder.timeSeconds,
-    profitPercent: activeOrder.profitPercent,
-    orderType: activeOrder.orderType,
-    startPrice: activeOrder.startPrice,
-    endPrice: currentPrice,
-    profitAmount: isWin ? profitAmount : -activeOrder.amount,
-    tradeDetails: {
-      type: isWin ? "WIN" : "LOSS",
-      coin: activeOrder.coin,
-      amount: activeOrder.amount,
-      profit: isWin ? profitAmount : -activeOrder.amount,
-      finalAmount: isWin ? finalAmount : 0,
-      lostAmount: isWin ? 0 : activeOrder.amount,
-      startPrice: activeOrder.startPrice,
-      endPrice: currentPrice,
-      duration: activeOrder.timeSeconds,
-      profitPercent: activeOrder.profitPercent,
-      orderType: activeOrder.orderType,
-      timestamp: new Date().toISOString(),
-    },
-  };
+      const binaryTransaction = {
+        type: "Binary Trade",
+        coin: activeOrder.coin,
+        amount: activeOrder.amount,
+        usd: isWin ? profitAmount : activeOrder.amount,
+        price: currentPrice,
+        date: new Date().toISOString(),
+        up: isWin,
+        isBinaryTrade: true,
+        duration: activeOrder.timeSeconds,
+        profitPercent: activeOrder.profitPercent,
+        orderType: activeOrder.orderType,
+        startPrice: activeOrder.startPrice,
+        endPrice: currentPrice,
+        profitAmount: isWin ? profitAmount : -activeOrder.amount,
+        tradeDetails: {
+          type: isWin ? "WIN" : "LOSS",
+          coin: activeOrder.coin,
+          amount: activeOrder.amount,
+          profit: isWin ? profitAmount : -activeOrder.amount,
+          finalAmount: isWin ? finalAmount : 0,
+          lostAmount: isWin ? 0 : activeOrder.amount,
+          startPrice: activeOrder.startPrice,
+          endPrice: currentPrice,
+          duration: activeOrder.timeSeconds,
+          profitPercent: activeOrder.profitPercent,
+          orderType: activeOrder.orderType,
+          timestamp: new Date().toISOString(),
+        },
+      };
 
-  const newTxns = [binaryTransaction, ...(currentUser.transactions || [])];
+      const newTxns = [binaryTransaction, ...(currentUser.transactions || [])];
 
-  // Write directly to localStorage
-  const allUsers = JSON.parse(localStorage.getItem("users") || "{}");
-  allUsers[currentUser.username] = {
-    ...allUsers[currentUser.username],
-    balance: newBalance,
-    transactions: newTxns,
-  };
-  localStorage.setItem("users", JSON.stringify(allUsers));
-  S.users[currentUser.username] = allUsers[currentUser.username];
+      const allUsers = JSON.parse(localStorage.getItem("users") || "{}");
+      allUsers[currentUser.username] = {
+        ...allUsers[currentUser.username],
+        balance: newBalance,
+        transactions: newTxns,
+      };
+      localStorage.setItem("users", JSON.stringify(allUsers));
+      S.users[currentUser.username] = allUsers[currentUser.username];
 
-  // ✅ FIX: Update balance in database for cross-device sync
-  // ✅ FIX: Update balance in database for cross-device sync
-try {
-  await updateUserInDB(currentUser.username, { 
-    balance: newBalance,
-    transactions: newTxns 
-  });
-} catch (err) {
-  console.error("Failed to update balance in DB:", err);
-}
+      try {
+        await updateUserInDB(currentUser.username, { 
+          balance: newBalance,
+          transactions: newTxns 
+        });
+      } catch (err) {
+        console.error("Failed to update balance in DB:", err);
+      }
 
-  // Dispatch events for real-time update
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(
-      new StorageEvent("storage", {
-        key: "users",
-        newValue: JSON.stringify(allUsers),
-      })
-    );
-    window.dispatchEvent(new Event("focus"));
-  }
+      if (typeof window !== "undefined") {
+        try {
+          window.dispatchEvent(
+            new StorageEvent("storage", {
+              key: "users",
+              newValue: JSON.stringify(allUsers),
+            })
+          );
+          window.dispatchEvent(new Event("focus"));
+        } catch (e) {
+          console.log("Event dispatch failed:", e);
+        }
+      }
 
-  // Persist binary trade to MongoDB
-  saveBinaryTrade(currentUser.username, binaryTransaction);
-  
-  onTrade({
-    action: "Binary Trade",
-    type: isWin ? "WIN" : "LOSS",
-    coin: activeOrder.coin,
-    amount: activeOrder.amount,
-    result: isWin ? "WIN" : "LOSS",
-    profit: isWin ? profitAmount : -activeOrder.amount,
-    tradeDetails: binaryTransaction.tradeDetails,
-  });
+      saveBinaryTrade(currentUser.username, binaryTransaction);
+      
+      onTrade({
+        action: "Binary Trade",
+        type: isWin ? "WIN" : "LOSS",
+        coin: activeOrder.coin,
+        amount: activeOrder.amount,
+        result: isWin ? "WIN" : "LOSS",
+        profit: isWin ? profitAmount : -activeOrder.amount,
+        tradeDetails: binaryTransaction.tradeDetails,
+      });
 
-  setDone({
-    action: isWin ? "WINNER!" : "LOSS!",
-    coin: activeOrder.coin,
-    amount: activeOrder.amount,
-    profit: isWin ? profitAmount : -activeOrder.amount,
-    isWin,
-    finalAmount: isWin ? finalAmount : 0,
-  });
+      setDone({
+        action: isWin ? "WINNER!" : "LOSS!",
+        coin: activeOrder.coin,
+        amount: activeOrder.amount,
+        profit: isWin ? profitAmount : -activeOrder.amount,
+        isWin,
+        finalAmount: isWin ? finalAmount : 0,
+      });
 
-  setActiveOrder(null);
-  setTimeLeft(null);
-  forceUpdate((n) => n + 1);
-};
+      setActiveOrder(null);
+      setTimeLeft(null);
+      forceUpdate((n) => n + 1);
+
+      // ✅ SAFE TRADE COMPLETED EVENT - Forces profile to update immediately
+      try {
+        if (typeof window !== "undefined" && currentUser?.username) {
+          const tradeEvent = new CustomEvent("tradeCompleted", { 
+            detail: { 
+              username: currentUser.username,
+              balance: newBalance,
+              timestamp: Date.now()
+            } 
+          });
+          window.dispatchEvent(tradeEvent);
+        }
+      } catch (e) {
+        console.log("Trade completion event error (non-critical):", e);
+      }
+    };
   }, [activeOrder, px, onTrade]);
 
   useEffect(() => {
@@ -286,7 +300,6 @@ try {
     }
 
     const newBalance = (u.balance || 0) - amt;
-    // Write balance deduction directly to localStorage
     const usersSnap = JSON.parse(localStorage.getItem("users") || "{}");
     usersSnap[u.username] = { ...usersSnap[u.username], balance: newBalance };
     localStorage.setItem("users", JSON.stringify(usersSnap));
@@ -311,7 +324,6 @@ try {
 
   const cancelOrder = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    // Read fresh from localStorage for refund
     const rawUsers = JSON.parse(localStorage.getItem("users") || "{}");
     const currentUser = rawUsers[activeOrder.username] || S.get();
     const refundBalance = (currentUser.balance || 0) + activeOrder.amount;

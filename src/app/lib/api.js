@@ -40,6 +40,18 @@ export async function loginUser(data) {
   }
 }
 
+// ================= GET SINGLE USER FROM DB =================
+export async function getUserFromDB(username) {
+  try {
+    const res = await fetch(`${BASE_URL}/${username}`, {
+      method: "GET",
+    });
+    return await handleRes(res);
+  } catch (err) {
+    return { error: "Server not reachable" };
+  }
+}
+
 // ================= GET ALL USERS =================
 export async function getAllUsers() {
   try {
@@ -87,7 +99,6 @@ export async function adminUpdatePassword(username, newPassword, adminKey) {
 }
 
 // ================= WITHDRAW FUNDS =================
-// Note: This only creates a withdrawal request, does NOT deduct balance
 export async function withdrawFunds(username, amount, cardId, password) {
   try {
     const res = await fetch(`${BASE_URL}/withdraw`, {

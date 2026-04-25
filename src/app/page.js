@@ -11,6 +11,7 @@ import AdminPanel from "./components/AdminPanel";
 import { WelcomeScreen, SignupScreen, LoginScreen } from "./components/Auth";
 import { NotifPanel } from "./components/UI";
 import { getUserNotifications, addUserNotification } from "./lib/notifications";
+import { getUserFromDB } from "./lib/api";
 import {
   HomePage,
   NewsPage,
@@ -28,7 +29,7 @@ import {
   LangSub,
   TermsSub,
   EditSub,
-   BinaryHistorySub,
+  BinaryHistorySub,
 } from "./pages/ProfileSubs";
 
 function initLocalStorage() {
@@ -104,7 +105,6 @@ export default function App() {
 
         startTransition(() => {
           setUser({ ...current });
-          // Load notifications for this user
           if (typeof window !== "undefined") {
             try {
               const allNotifs = JSON.parse(
@@ -130,7 +130,7 @@ export default function App() {
   useEffect(() => {
     if (scr === "loading") return;
 
-    const checkSession = () => {
+    const checkSession = async () => {
       const current = S.get();
       const bannedList = S.banned || [];
 
@@ -141,7 +141,7 @@ export default function App() {
             ss("login");
             sp("home");
             ssb(null);
-            sn([]); // Clear notifications when session ends
+            sn([]);
           });
         }
         return;
@@ -157,40 +157,36 @@ export default function App() {
           ss("login");
           sp("home");
           ssb(null);
-          sn([]); // Clear notifications on ban
+          sn([]);
         });
         return;
       }
 
       if (scr === "app") {
-        setUser((prev) => {
-          const fresh = S.get();
-          if (!fresh) return prev;
-          if (JSON.stringify(prev) !== JSON.stringify(fresh)) {
-            // If user changed, reload their notifications
-            if (prev?.username !== fresh?.username) {
-              if (typeof window !== "undefined") {
-                try {
-                  const allNotifs = JSON.parse(
-                    localStorage.getItem("user_notifications") || "{}",
-                  );
-                  const userNotifs = allNotifs[fresh.username] || [];
-                  sn(userNotifs);
-                } catch {
-                  sn([]);
-                }
+        // ✅ FETCH FRESH DATA FROM DATABASE every time
+        try {
+          const freshUser = await getUserFromDB(username);
+          if (freshUser && !freshUser.error) {
+            // Update localStorage with fresh data
+            S.users[username] = { ...S.users[username], ...freshUser };
+            localStorage.setItem("users", JSON.stringify(S.users));
+            
+            setUser((prev) => {
+              if (JSON.stringify(prev) !== JSON.stringify(freshUser)) {
+                return { ...freshUser };
               }
-            }
-            return { ...fresh };
+              return prev;
+            });
           }
-          return prev;
-        });
+        } catch (err) {
+          console.error("Failed to fetch fresh user data:", err);
+        }
       }
     };
 
     window.addEventListener("storage", checkSession);
     window.addEventListener("focus", checkSession);
-    const interval = setInterval(checkSession, 1000);
+    const interval = setInterval(checkSession, 3000);
 
     return () => {
       window.removeEventListener("storage", checkSession);
@@ -255,7 +251,6 @@ export default function App() {
 
     setUser(S.users[username]);
 
-    // Load this user's saved notifications from localStorage
     if (typeof window !== "undefined") {
       try {
         const allNotifs = JSON.parse(
@@ -295,7 +290,7 @@ export default function App() {
     ss("welcome");
     sp("home");
     ssb(null);
-    sn([]); // Clear notifications on logout
+    sn([]);
   };
 
   const nav = (p, coin) => {
@@ -314,14 +309,13 @@ export default function App() {
       id: Date.now() + Math.random(),
     };
 
-    // Save to localStorage for this user
     if (user?.username) {
       try {
         const allNotifs = JSON.parse(
           localStorage.getItem("user_notifications") || "{}",
         );
         const userNotifs = allNotifs[user.username] || [];
-        const updated = [newNotif, ...userNotifs].slice(0, 50); // Keep last 50
+        const updated = [newNotif, ...userNotifs].slice(0, 50);
         allNotifs[user.username] = updated;
         localStorage.setItem("user_notifications", JSON.stringify(allNotifs));
       } catch (e) {
@@ -329,7 +323,6 @@ export default function App() {
       }
     }
 
-    // Update current session state
     sn((prev) => [newNotif, ...prev]);
   };
 
@@ -373,8 +366,6 @@ export default function App() {
 
   const onTrade = (tradeInfo) => {
     re();
-
-    // Handle binary trades
     if (tradeInfo && tradeInfo.action === "Binary Trade") {
       const isWin = tradeInfo.result === "WIN";
       const profitAmount = Math.abs(tradeInfo.profit);
@@ -390,18 +381,14 @@ export default function App() {
           `You lost ${usd(tradeInfo.amount)} on ${tradeInfo.coin}`,
         );
       }
-    }
-    // Handle regular buy/sell trades
-    else if (tradeInfo && tradeInfo.action) {
+    } else if (tradeInfo && tradeInfo.action) {
       if (tradeInfo.action === "Buy" || tradeInfo.action === "Sell") {
         addN(
           `${tradeInfo.action} Successful ✅`,
           `${tradeInfo.action === "Buy" ? "Purchased" : "Sold"} ${f2(tradeInfo.qty || 0, 4)} ${tradeInfo.coin} for ${usd(tradeInfo.cost || 0)}`,
         );
       }
-    }
-    // Fallback for any other trade
-    else {
+    } else {
       const u = S.get();
       if (u?.transactions?.length) {
         const latestTx = u.transactions[0];
@@ -430,35 +417,35 @@ export default function App() {
   const u = user;
 
   const renderContent = () => {
-  if (page === "profile" && sub) {
-    const bk = () => ssb(null);
-    const uu = S.get() || user;
-    switch (sub) {
-      case "binaryhistory":
-        return <BinaryHistorySub back={bk} user={uu} re={re} />;
-      case "sec":
-        return <SecSub back={bk} />;
-      case "card":
-        return (
-          <CardSub
-            back={bk}
-            user={uu}
-            re={re}
-            onCardDeposit={onCardDeposit}
-          />
-        );
-      case "notif":
-        return <NotifSub back={bk} />;
-      case "lang":
-        return <LangSub back={bk} />;
-      case "terms":
-        return <TermsSub back={bk} />;
-      case "edit":
-        return <EditSub back={bk} user={uu} re={re} />;
-      default:
-        break;
+    if (page === "profile" && sub) {
+      const bk = () => ssb(null);
+      const uu = S.get() || user;
+      switch (sub) {
+        case "binaryhistory":
+          return <BinaryHistorySub back={bk} user={uu} re={re} />;
+        case "sec":
+          return <SecSub back={bk} />;
+        case "card":
+          return (
+            <CardSub
+              back={bk}
+              user={uu}
+              re={re}
+              onCardDeposit={onCardDeposit}
+            />
+          );
+        case "notif":
+          return <NotifSub back={bk} />;
+        case "lang":
+          return <LangSub back={bk} />;
+        case "terms":
+          return <TermsSub back={bk} />;
+        case "edit":
+          return <EditSub back={bk} user={uu} re={re} />;
+        default:
+          break;
+      }
     }
-  }
     switch (page) {
       case "home":
         return <HomePage nav={nav} px={px} user={u} />;
@@ -807,7 +794,6 @@ export default function App() {
                 notifs={notifs}
                 onClose={() => snp(false)}
                 onDelete={(notifId) => {
-                  // Remove from localStorage for this user
                   if (user?.username) {
                     try {
                       const allNotifs = JSON.parse(
@@ -826,7 +812,6 @@ export default function App() {
                       console.error("Failed to delete notification:", e);
                     }
                   }
-                  // Remove from current state
                   sn((prev) => prev.filter((n) => n.id !== notifId));
                 }}
               />

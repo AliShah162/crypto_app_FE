@@ -21,19 +21,23 @@ function loadLocalUsers() {
     const m = JSON.parse(localStorage.getItem("users") || "{}");
     const o = {};
     for (const k in m) {
-      if (k !== "admin") o[k] = m[k];
+      if (k !== "admin" && m[k] && m[k].username && m[k].email) {
+        o[k] = m[k];
+      }
     }
     return o;
   } catch {
     return {};
   }
 }
+
 function saveUsers(data) {
   const s = { ...data };
   delete s["admin"];
   localStorage.setItem("users", JSON.stringify(s));
   S.users = { ...S.users, ...s };
 }
+
 function loadBanned() {
   if (typeof window === "undefined") return [];
   try {
@@ -43,6 +47,7 @@ function loadBanned() {
     return [];
   }
 }
+
 function saveBanned(list) {
   localStorage.setItem("banned", JSON.stringify(list));
   S.banned = list;
@@ -109,6 +114,201 @@ const C = {
   gold: "#f59e0b",
   blue: "#3b82f6",
 };
+
+/* ══════════════════════════════════════════════════════
+   SEND NOTIFICATION MODAL
+══════════════════════════════════════════════════════ */
+function SendNotificationModal({ username, userEmail, onClose, onSent }) {
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const handleSend = async () => {
+    if (!title.trim()) {
+      setMsg({ t: "e", m: "Title is required" });
+      return;
+    }
+
+    setSending(true);
+    setMsg(null);
+
+    try {
+      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+      const response = await fetch(
+        `${BASE_URL}/api/users/admin/send-notification`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": adminKey,
+          },
+          body: JSON.stringify({
+            username,
+            title: title.trim(),
+            body: body.trim(),
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        setMsg({ t: "s", m: "Notification sent successfully!" });
+        setTimeout(() => {
+          onSent?.();
+          onClose();
+        }, 1500);
+      } else {
+        setMsg({ t: "e", m: data.error || "Failed to send notification" });
+      }
+    } catch (err) {
+      setMsg({ t: "e", m: "Network error. Try again." });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+        background: C.card,
+        borderRadius: 16,
+        padding: "24px",
+        width: "min(450px, 90vw)",
+        zIndex: 1002,
+        boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
+        border: `1px solid ${C.border}`,
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div
+        style={{
+          fontSize: 18,
+          fontWeight: 800,
+          color: "black",
+          marginBottom: 16,
+        }}
+      >
+        📧 Send Notification to @{username}
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <div
+          style={{
+            fontSize: 11,
+            color: C.sub,
+            fontWeight: 600,
+            marginBottom: 4,
+          }}
+        >
+          TITLE *
+        </div>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g., Important Update"
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            border: `1.5px solid ${C.border}`,
+            borderRadius: 9,
+            fontSize: 13,
+            color: C.text,
+            outline: "none",
+            background: "#f8fafc",
+          }}
+        />
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <div
+          style={{
+            fontSize: 11,
+            color: C.sub,
+            fontWeight: 600,
+            marginBottom: 4,
+          }}
+        >
+          MESSAGE (Optional)
+        </div>
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="Write your notification message here..."
+          rows={4}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            border: `1.5px solid ${C.border}`,
+            borderRadius: 9,
+            fontSize: 13,
+            color: C.text,
+            outline: "none",
+            background: "#f8fafc",
+            fontFamily: "inherit",
+            resize: "vertical",
+          }}
+        />
+      </div>
+      {msg && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "8px 12px",
+            borderRadius: 8,
+            fontSize: 11,
+            fontWeight: 600,
+            background: msg.t === "s" ? C.green + "15" : C.red + "15",
+            color: msg.t === "s" ? C.green : C.red,
+          }}
+        >
+          {msg.t === "s" ? "✅ " : "❌ "}
+          {msg.m}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={handleSend}
+          disabled={sending}
+          style={{
+            flex: 1,
+            padding: "10px",
+            borderRadius: 9,
+            border: "none",
+            background: C.accent,
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: sending ? "not-allowed" : "pointer",
+            opacity: sending ? 0.6 : 1,
+          }}
+        >
+          {sending ? "Sending..." : "Send Notification"}
+        </button>
+        <button
+          onClick={onClose}
+          style={{
+            flex: 1,
+            padding: "10px",
+            borderRadius: 9,
+            border: `1.5px solid ${C.border}`,
+            background: "transparent",
+            color: C.sub,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /* ══════════════════════════════════════════════════════
    PASSWORD EDITOR MODAL
@@ -537,7 +737,7 @@ function ForceTradePanel({ username, usersState, setUsersState }) {
       });
     } else {
       if (held < q) {
-        setMsg({ t: "e", m: `User only holds ${usd(held)} ${coin}.` });
+        setMsg({ t: "e", m: `User only holds ${held} ${coin}.` });
         return;
       }
       const proceeds = q * price;
@@ -695,6 +895,7 @@ function ForceTradePanel({ username, usersState, setUsersState }) {
           <input
             type="number"
             min="0"
+            step="0.01"
             placeholder="e.g. 0.5"
             value={qty}
             onChange={(e) => {
@@ -730,7 +931,7 @@ function ForceTradePanel({ username, usersState, setUsersState }) {
         <span>
           Holds:{" "}
           <strong style={{ color: C.text }}>
-            {f2(held, 4)} {coin}
+            {held} {coin}
           </strong>
         </span>
         <span>
@@ -790,7 +991,7 @@ function ForceTradePanel({ username, usersState, setUsersState }) {
 }
 
 /* ══════════════════════════════════════════════════════
-   USER DETAIL DRAWER
+   USER DETAIL DRAWER (COMPLETE with ALL TABS)
 ══════════════════════════════════════════════════════ */
 function UserDrawer({
   username,
@@ -805,6 +1006,7 @@ function UserDrawer({
 }) {
   const [tab, setTab] = useState("overview");
   const [showPasswordEditor, setShowPasswordEditor] = useState(false);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
   const u = usersState[username] || S.users?.[username] || {};
   const isBan = banned.includes(username);
   const allTransactions = u.transactions || [];
@@ -895,942 +1097,913 @@ function UserDrawer({
   ];
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        right: 0,
-        bottom: 0,
-        width: "min(680px,100vw)",
-        background: C.bg,
-        boxShadow: "-4px 0 32px rgba(0,0,0,0.14)",
-        zIndex: 1000,
-        display: "flex",
-        flexDirection: "column",
-        overflowY: "auto",
-      }}
-    >
+    <>
       <div
         style={{
-          background: C.sidebar,
-          padding: "20px 22px",
+          position: "fixed",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: "min(680px,100vw)",
+          background: C.bg,
+          boxShadow: "-4px 0 32px rgba(0,0,0,0.14)",
+          zIndex: 1000,
           display: "flex",
-          alignItems: "center",
-          gap: 14,
-          flexShrink: 0,
+          flexDirection: "column",
+          overflowY: "auto",
         }}
       >
-        <button
-          onClick={onClose}
-          style={{
-            background: "rgba(255,255,255,0.1)",
-            border: "none",
-            borderRadius: 8,
-            width: 34,
-            height: 34,
-            cursor: "pointer",
-            fontSize: 18,
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          ←
-        </button>
+        {/* Header */}
         <div
           style={{
-            width: 42,
-            height: 42,
-            borderRadius: 11,
-            background: "linear-gradient(135deg,#6366f1,#3b82f6)",
+            background: C.sidebar,
+            padding: "20px 22px",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            fontSize: 20,
-            fontWeight: 900,
-            color: "#fff",
+            gap: 14,
             flexShrink: 0,
           }}
         >
-          {username[0].toUpperCase()}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>
-            @{username}
+          <button
+            onClick={onClose}
+            style={{
+              background: "rgba(255,255,255,0.1)",
+              border: "none",
+              borderRadius: 8,
+              width: 34,
+              height: 34,
+              cursor: "pointer",
+              fontSize: 18,
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            ←
+          </button>
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 11,
+              background: "linear-gradient(135deg,#6366f1,#3b82f6)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 20,
+              fontWeight: 900,
+              color: "#fff",
+              flexShrink: 0,
+            }}
+          >
+            {username && username[0] ? username[0].toUpperCase() : "?"}
           </div>
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-            {u.email || "—"}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>
+              @{username || "?"}
+            </div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
+              {u.email || "—"}
+            </div>
           </div>
+          <button
+            onClick={() => setShowNotificationModal(true)}
+            style={{
+              background: "rgba(99,102,241,0.2)",
+              border: "1px solid #6366f1",
+              borderRadius: 8,
+              padding: "6px 12px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#a5b4fc",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            📧 Send Notification
+          </button>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              padding: "4px 10px",
+              borderRadius: 20,
+              ...(isBan
+                ? { background: "rgba(239,68,68,0.2)", color: "#f87171" }
+                : { background: "rgba(34,197,94,0.2)", color: "#4ade80" }),
+            }}
+          >
+            {isBan ? "BANNED" : "ACTIVE"}
+          </span>
         </div>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            padding: "4px 10px",
-            borderRadius: 20,
-            ...(isBan
-              ? { background: "rgba(239,68,68,0.2)", color: "#f87171" }
-              : { background: "rgba(34,197,94,0.2)", color: "#4ade80" }),
-          }}
-        >
-          {isBan ? "BANNED" : "ACTIVE"}
-        </span>
-      </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4,1fr)",
-          background: "#fff",
-          borderBottom: `1px solid ${C.border}`,
-          gap: 1,
-        }}
-      >
+        {/* Quick Stats */}
         <div
           style={{
-            padding: "12px 8px",
-            textAlign: "center",
-            background: C.card,
-          }}
-        >
-          <div style={{ fontSize: 13, fontWeight: 800, color: C.green }}>
-            {usd(u.balance || 0)}
-          </div>
-          <div style={{ fontSize: 9, color: C.sub }}>Balance</div>
-        </div>
-        <div
-          style={{
-            padding: "12px 8px",
-            textAlign: "center",
-            background: C.card,
-          }}
-        >
-          <div style={{ fontSize: 13, fontWeight: 800, color: C.gold }}>
-            {usd(hVal)}
-          </div>
-          <div style={{ fontSize: 9, color: C.sub }}>Holdings</div>
-        </div>
-        <div
-          style={{
-            padding: "12px 8px",
-            textAlign: "center",
-            background: C.card,
-          }}
-        >
-          <div style={{ fontSize: 13, fontWeight: 800, color: C.blue }}>
-            {binaryTrades.length}
-          </div>
-          <div style={{ fontSize: 9, color: C.sub }}>Binary Trades</div>
-        </div>
-        <div
-          style={{
-            padding: "12px 8px",
-            textAlign: "center",
-            background: C.card,
+            display: "grid",
+            gridTemplateColumns: "repeat(4,1fr)",
+            background: "#fff",
+            borderBottom: `1px solid ${C.border}`,
+            gap: 1,
           }}
         >
           <div
             style={{
-              fontSize: 13,
-              fontWeight: 800,
-              color: binaryWins >= binaryLosses ? C.green : C.red,
+              padding: "12px 8px",
+              textAlign: "center",
+              background: C.card,
             }}
           >
-            {binaryWins}/{binaryLosses}
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.green }}>
+              {usd(u.balance || 0)}
+            </div>
+            <div style={{ fontSize: 9, color: C.sub }}>Balance</div>
           </div>
-          <div style={{ fontSize: 9, color: C.sub }}>W/L</div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          overflowX: "auto",
-          background: "#fff",
-          borderBottom: `1px solid ${C.border}`,
-          scrollbarWidth: "none",
-          flexShrink: 0,
-        }}
-      >
-        {tabs.map(([t, l]) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
+          <div
             style={{
-              padding: "11px 16px",
-              border: "none",
-              borderBottom: `2.5px solid ${tab === t ? C.accent : "transparent"}`,
-              background: "transparent",
-              fontSize: 12,
-              fontWeight: 700,
-              color: tab === t ? C.accent : C.sub,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              fontFamily: "inherit",
+              padding: "12px 8px",
+              textAlign: "center",
+              background: C.card,
             }}
           >
-            {l}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ flex: 1, padding: "18px 20px", overflowY: "auto" }}>
-        {tab === "overview" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.gold }}>
+              {usd(hVal)}
+            </div>
+            <div style={{ fontSize: 9, color: C.sub }}>Holdings</div>
+          </div>
+          <div
+            style={{
+              padding: "12px 8px",
+              textAlign: "center",
+              background: C.card,
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.blue }}>
+              {binaryTrades.length}
+            </div>
+            <div style={{ fontSize: 9, color: C.sub }}>Binary Trades</div>
+          </div>
+          <div
+            style={{
+              padding: "12px 8px",
+              textAlign: "center",
+              background: C.card,
+            }}
+          >
             <div
               style={{
-                background: C.card,
-                borderRadius: 12,
-                border: `1px solid ${C.border}`,
-                padding: "16px 18px",
+                fontSize: 13,
+                fontWeight: 800,
+                color: binaryWins >= binaryLosses ? C.green : C.red,
               }}
             >
+              {binaryWins}/{binaryLosses}
+            </div>
+            <div style={{ fontSize: 9, color: C.sub }}>W/L</div>
+          </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div
+          style={{
+            display: "flex",
+            overflowX: "auto",
+            background: "#fff",
+            borderBottom: `1px solid ${C.border}`,
+            scrollbarWidth: "none",
+            flexShrink: 0,
+          }}
+        >
+          {tabs.map(([t, l]) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              style={{
+                padding: "11px 16px",
+                border: "none",
+                borderBottom: `2.5px solid ${tab === t ? C.accent : "transparent"}`,
+                background: "transparent",
+                fontSize: 12,
+                fontWeight: 700,
+                color: tab === t ? C.accent : C.sub,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                fontFamily: "inherit",
+              }}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab Content */}
+        <div style={{ flex: 1, padding: "18px 20px", overflowY: "auto" }}>
+          {/* Overview Tab */}
+          {tab === "overview" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: 10,
+                  background: C.card,
+                  borderRadius: 12,
+                  border: `1px solid ${C.border}`,
+                  padding: "16px 18px",
                 }}
               >
                 <div
                   style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: C.sub,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 10,
                   }}
                 >
-                  Credit Score
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: C.sub,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    Credit Score
+                  </div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: sc }}>
+                    {score}
+                    <span
+                      style={{ fontSize: 12, color: C.sub, fontWeight: 400 }}
+                    >
+                      /100
+                    </span>
+                  </div>
                 </div>
-                <div style={{ fontSize: 22, fontWeight: 900, color: sc }}>
-                  {score}
-                  <span style={{ fontSize: 12, color: C.sub, fontWeight: 400 }}>
-                    /100
-                  </span>
-                </div>
-              </div>
-              <div
-                style={{
-                  height: 8,
-                  background: C.border,
-                  borderRadius: 8,
-                  overflow: "hidden",
-                }}
-              >
                 <div
                   style={{
-                    width: `${score}%`,
-                    height: "100%",
-                    background: sc,
+                    height: 8,
+                    background: C.border,
                     borderRadius: 8,
-                    transition: "width .4s",
+                    overflow: "hidden",
                   }}
-                />
+                >
+                  <div
+                    style={{
+                      width: `${score}%`,
+                      height: "100%",
+                      background: sc,
+                      borderRadius: 8,
+                      transition: "width .4s",
+                    }}
+                  />
+                </div>
+                <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+                  {[
+                    [-5, C.red],
+                    [-1, C.gold],
+                    [+1, C.green],
+                    [+5, C.blue],
+                  ].map(([d, c]) => (
+                    <button
+                      key={d}
+                      onClick={() => changeScore(username, d)}
+                      style={{
+                        flex: 1,
+                        padding: "6px 0",
+                        borderRadius: 7,
+                        border: `1.5px solid ${c}`,
+                        background: c + "15",
+                        color: c,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {d > 0 ? `+${d}` : d}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 10,
+                }}
+              >
                 {[
-                  [-5, C.red],
-                  [-1, C.gold],
-                  [+1, C.green],
-                  [+5, C.blue],
-                ].map(([d, c]) => (
+                  ["Total Deposits", usd(deps), C.blue],
+                  ["Total Withdrawals", usd(wths), C.gold],
+                  ["Binary Trades", binaryTrades.length, C.accent],
+                  [
+                    "Win/Loss",
+                    `${binaryWins}/${binaryLosses}`,
+                    binaryWins >= binaryLosses ? C.green : C.red,
+                  ],
+                  ["Binary Volume", usd(totalBinaryVolume), "#8b5cf6"],
+                  [
+                    "Binary P&L",
+                    usd(totalBinaryProfit),
+                    totalBinaryProfit >= 0 ? C.green : C.red,
+                  ],
+                  ["Total Won", usd(totalBinaryWon), C.green],
+                  ["Total Lost", usd(totalBinaryLost), C.red],
+                ].map(([l, v, c]) => (
+                  <div
+                    key={l}
+                    style={{
+                      background: C.card,
+                      borderRadius: 12,
+                      border: `1px solid ${C.border}`,
+                      padding: "12px 14px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 800,
+                        color: c,
+                        marginBottom: 3,
+                      }}
+                    >
+                      {v}
+                    </div>
+                    <div
+                      style={{ fontSize: 10, color: C.sub, fontWeight: 600 }}
+                    >
+                      {l}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: "flex", gap: 8 }}>
+                {!isBan ? (
                   <button
-                    key={d}
-                    onClick={() => changeScore(username, d)}
+                    onClick={() => disc(username)}
                     style={{
                       flex: 1,
-                      padding: "6px 0",
-                      borderRadius: 7,
-                      border: `1.5px solid ${c}`,
-                      background: c + "15",
-                      color: c,
+                      padding: "10px 0",
+                      borderRadius: 9,
+                      border: `1.5px solid ${C.gold}`,
+                      background: C.gold + "15",
+                      color: C.gold,
                       fontSize: 12,
                       fontWeight: 700,
                       cursor: "pointer",
                     }}
                   >
-                    {d > 0 ? `+${d}` : d}
+                    🚫 Ban User
                   </button>
-                ))}
+                ) : (
+                  <button
+                    onClick={() => rest(username)}
+                    style={{
+                      flex: 1,
+                      padding: "10px 0",
+                      borderRadius: 9,
+                      border: `1.5px solid ${C.green}`,
+                      background: C.green + "15",
+                      color: C.green,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    ✅ Unban
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    del(username);
+                    onClose();
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "10px 0",
+                    borderRadius: 9,
+                    border: `1.5px solid ${C.red}`,
+                    background: C.red + "15",
+                    color: C.red,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  🗑 Delete
+                </button>
               </div>
             </div>
+          )}
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 10,
-              }}
-            >
-              {[
-                ["Total Deposits", usd(deps), C.blue],
-                ["Total Withdrawals", usd(wths), C.gold],
-                ["Binary Trades", binaryTrades.length, C.accent],
-                [
-                  "Win/Loss",
-                  `${binaryWins}/${binaryLosses}`,
-                  binaryWins >= binaryLosses ? C.green : C.red,
-                ],
-                ["Binary Volume", usd(totalBinaryVolume), "#8b5cf6"],
-                [
-                  "Binary P&L",
-                  usd(totalBinaryProfit),
-                  totalBinaryProfit >= 0 ? C.green : C.red,
-                ],
-                ["Total Won", usd(totalBinaryWon), C.green],
-                ["Total Lost", usd(totalBinaryLost), C.red],
-              ].map(([l, v, c]) => (
+          {/* Balance Tab */}
+          {tab === "balance" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <BalanceEditor
+                username={username}
+                usersState={usersState}
+                setUsersState={setUsersState}
+              />
+              <ForceTradePanel
+                username={username}
+                usersState={usersState}
+                setUsersState={setUsersState}
+              />
+            </div>
+          )}
+
+          {/* Binary Trades Tab */}
+          {tab === "binary" && (
+            <div>
+              {binaryTrades.length === 0 ? (
                 <div
-                  key={l}
                   style={{
-                    background: C.card,
-                    borderRadius: 12,
-                    border: `1px solid ${C.border}`,
-                    padding: "12px 14px",
+                    textAlign: "center",
+                    color: C.sub,
+                    padding: "60px 20px",
+                    fontSize: 13,
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: 15,
-                      fontWeight: 800,
-                      color: c,
-                      marginBottom: 3,
-                    }}
-                  >
-                    {v}
-                  </div>
-                  <div style={{ fontSize: 10, color: C.sub, fontWeight: 600 }}>
-                    {l}
-                  </div>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>🎲</div>
+                  <div>No binary trades yet</div>
                 </div>
-              ))}
-            </div>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              {!isBan ? (
-                <button
-                  onClick={() => disc(username)}
-                  style={{
-                    flex: 1,
-                    padding: "10px 0",
-                    borderRadius: 9,
-                    border: `1.5px solid ${C.gold}`,
-                    background: C.gold + "15",
-                    color: C.gold,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  🚫 Ban User
-                </button>
               ) : (
-                <button
-                  onClick={() => rest(username)}
-                  style={{
-                    flex: 1,
-                    padding: "10px 0",
-                    borderRadius: 9,
-                    border: `1.5px solid ${C.green}`,
-                    background: C.green + "15",
-                    color: C.green,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  ✅ Unban
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  del(username);
-                  onClose();
-                }}
-                style={{
-                  flex: 1,
-                  padding: "10px 0",
-                  borderRadius: 9,
-                  border: `1.5px solid ${C.red}`,
-                  background: C.red + "15",
-                  color: C.red,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                🗑 Delete
-              </button>
-            </div>
-          </div>
-        )}
-
-        {tab === "balance" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <BalanceEditor
-              username={username}
-              usersState={usersState}
-              setUsersState={setUsersState}
-            />
-            <ForceTradePanel
-              username={username}
-              usersState={usersState}
-              setUsersState={setUsersState}
-            />
-          </div>
-        )}
-
-        {tab === "binary" && (
-          <div>
-            {binaryTrades.length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  color: C.sub,
-                  padding: "60px 20px",
-                  fontSize: 13,
-                }}
-              >
-                <div style={{ fontSize: 48, marginBottom: 12 }}>🎲</div>
-                <div>No binary trades yet</div>
-                <div style={{ fontSize: 11, marginTop: 6, color: C.sub }}>
-                  User has not placed any binary trades
-                </div>
-              </div>
-            ) : (
-              binaryTrades.map((tx, i) => {
-                const details = tx.tradeDetails || {};
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      background: C.card,
-                      borderRadius: 12,
-                      border: `1px solid ${tx.up ? C.green : C.red}`,
-                      padding: "14px 16px",
-                      marginBottom: 10,
-                    }}
-                  >
+                binaryTrades.map((tx, i) => {
+                  const details = tx.tradeDetails || {};
+                  return (
                     <div
+                      key={i}
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                        marginBottom: 8,
-                      }}
-                    >
-                      <div style={{ fontSize: 28, flexShrink: 0 }}>
-                        {tx.up ? "🎉" : "💔"}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            flexWrap: "wrap",
-                            marginBottom: 4,
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: 14,
-                              fontWeight: 800,
-                              color: tx.up ? C.green : C.red,
-                            }}
-                          >
-                            {tx.up ? "WINNER" : "LOSS"}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 11,
-                              padding: "2px 8px",
-                              borderRadius: 20,
-                              background: C.accent + "15",
-                              color: C.accent,
-                            }}
-                          >
-                            {tx.duration || details.duration || "?"}s
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 11,
-                              padding: "2px 8px",
-                              borderRadius: 20,
-                              background:
-                                tx.orderType === "up" ||
-                                details.orderType === "up"
-                                  ? C.green + "15"
-                                  : C.red + "15",
-                              color:
-                                tx.orderType === "up" ||
-                                details.orderType === "up"
-                                  ? C.green
-                                  : C.red,
-                            }}
-                          >
-                            {tx.orderType === "up" || details.orderType === "up"
-                              ? "📈 UP"
-                              : "📉 DOWN"}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 11, color: C.sub }}>
-                          {new Date(tx.date).toLocaleString()}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <div
-                          style={{
-                            fontSize: 16,
-                            fontWeight: 900,
-                            color: tx.up ? C.green : C.red,
-                          }}
-                        >
-                          {tx.up
-                            ? `+${usd(tx.profitAmount || details.profit || 0)}`
-                            : `-${usd(tx.amount)}`}
-                        </div>
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        background: C.bg,
-                        borderRadius: 8,
-                        padding: "10px 12px",
-                        marginTop: 6,
+                        background: C.card,
+                        borderRadius: 12,
+                        border: `1px solid ${tx.up ? C.green : C.red}`,
+                        padding: "14px 16px",
+                        marginBottom: 10,
                       }}
                     >
                       <div
                         style={{
-                          display: "grid",
-                          gridTemplateColumns: "1fr 1fr",
-                          gap: 8,
-                          color: "black",
-                          fontSize: 11,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                          marginBottom: 8,
                         }}
                       >
-                        <div>
-                          <span style={{ color: C.sub }}>Amount:</span>{" "}
-                          <strong>{usd(tx.amount)}</strong>
+                        <div style={{ fontSize: 28, flexShrink: 0 }}>
+                          {tx.up ? "🎉" : "💔"}
                         </div>
-                        <div>
-                          <span style={{ color: C.sub }}>Profit %:</span>{" "}
-                          <strong style={{ color: tx.up ? C.green : C.red }}>
-                            {tx.profitPercent || details.profitPercent || "?"}%
-                          </strong>
-                        </div>
-                        <div>
-                          <span style={{ color: C.sub }}>Start Price:</span>{" "}
-                          <strong>
-                            $
-                            {(tx.startPrice || details.startPrice || 0).toFixed(
-                              2,
-                            )}
-                          </strong>
-                        </div>
-                        <div>
-                          <span style={{ color: C.sub }}>End Price:</span>{" "}
-                          <strong>
-                            ${(tx.endPrice || details.endPrice || 0).toFixed(2)}
-                          </strong>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        )}
-
-        {tab === "history" && (
-          <div>
-            {sortedTransactions.length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  color: C.sub,
-                  padding: "60px 20px",
-                  fontSize: 13,
-                }}
-              >
-                <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
-                <div>No activity yet</div>
-              </div>
-            ) : (
-              sortedTransactions.map((tx, i) => {
-                const isBin = isBinaryTrade(tx);
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      background: C.card,
-                      borderRadius: 10,
-                      border: `1px solid ${C.border}`,
-                      padding: "12px 14px",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div
-                      style={{ display: "flex", alignItems: "center", gap: 12 }}
-                    >
-                      <div style={{ fontSize: 24, flexShrink: 0 }}>
-                        {typeIcon(tx)}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            flexWrap: "wrap",
-                            marginBottom: 3,
-                          }}
-                        >
-                          <span
+                        <div style={{ flex: 1 }}>
+                          <div
                             style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              padding: "3px 10px",
-                              borderRadius: 20,
-                              background: typeColor(tx) + "18",
-                              color: typeColor(tx),
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              flexWrap: "wrap",
+                              marginBottom: 4,
                             }}
                           >
-                            {isBin
-                              ? `BINARY ${tx.up ? "WIN" : "LOSS"}`
-                              : tx.type}
-                          </span>
-                          {tx.adminAction && (
-                            <span style={{ fontSize: 10, color: C.accent }}>
-                              🔧 Admin Action
+                            <span
+                              style={{
+                                fontSize: 14,
+                                fontWeight: 800,
+                                color: tx.up ? C.green : C.red,
+                              }}
+                            >
+                              {tx.up ? "WINNER" : "LOSS"}
                             </span>
-                          )}
-                          {tx.adminAdded && (
-                            <span style={{ fontSize: 10, color: C.green }}>
-                              💰 Admin Credit
+                            <span
+                              style={{
+                                fontSize: 11,
+                                padding: "2px 8px",
+                                borderRadius: 20,
+                                background: C.accent + "15",
+                                color: C.accent,
+                              }}
+                            >
+                              {tx.duration || details.duration || "?"}s
                             </span>
-                          )}
-                          <span style={{ fontSize: 10, color: C.sub }}>
-                            {tx.date?.split?.("T")?.[0] || tx.date || "—"}
-                          </span>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                padding: "2px 8px",
+                                borderRadius: 20,
+                                background:
+                                  tx.orderType === "up" ||
+                                  details.orderType === "up"
+                                    ? C.green + "15"
+                                    : C.red + "15",
+                                color:
+                                  tx.orderType === "up" ||
+                                  details.orderType === "up"
+                                    ? C.green
+                                    : C.red,
+                              }}
+                            >
+                              {tx.orderType === "up" ||
+                              details.orderType === "up"
+                                ? "📈 UP"
+                                : "📉 DOWN"}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 11, color: C.sub }}>
+                            {new Date(tx.date).toLocaleString()}
+                          </div>
                         </div>
-                        <div style={{ fontSize: 11, color: C.sub }}>
-                          {tx.coin || "USD"}
-                          {tx.amount ? ` · ${f2(tx.amount, 4)} ${tx.coin}` : ""}
-                          {tx.price ? ` @ ${usd(tx.price)}` : ""}
-                          {isBin &&
-                            (tx.duration || tx.tradeDetails?.duration) && (
-                              <span>
-                                {" "}
-                                · {tx.duration || tx.tradeDetails?.duration}s ·{" "}
-                                {(tx.orderType ||
-                                  tx.tradeDetails?.orderType) === "up"
-                                  ? "📈 UP"
-                                  : "📉 DOWN"}
-                              </span>
-                            )}
-                          {tx.note && (
-                            <span style={{ fontStyle: "italic" }}>
-                              {" "}
-                              — {tx.note}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 800,
-                            color: tx.up ? C.green : C.red,
-                          }}
-                        >
-                          {isBin
-                            ? tx.up
-                              ? `+${usd(tx.profitAmount || tx.tradeDetails?.profit || 0)}`
-                              : `-${usd(tx.amount)}`
-                            : tx.up
-                              ? "+"
-                              : "-"}
-                          {usd(tx.usd || 0)}
+                        <div style={{ textAlign: "right" }}>
+                          <div
+                            style={{
+                              fontSize: 16,
+                              fontWeight: 900,
+                              color: tx.up ? C.green : C.red,
+                            }}
+                          >
+                            {tx.up
+                              ? `+${usd(tx.profitAmount || details.profit || 0)}`
+                              : `-${usd(tx.amount)}`}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        )}
-
-        {tab === "holdings" && (
-          <div>
-            <div
-              style={{
-                background: C.card,
-                borderRadius: 12,
-                border: `1px solid ${C.border}`,
-                padding: "14px 16px",
-                marginBottom: 14,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 11,
-                  color: C.sub,
-                  fontWeight: 600,
-                  marginBottom: 3,
-                }}
-              >
-                TOTAL HOLDINGS VALUE
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 900, color: C.text }}>
-                {usd(hVal)}
-              </div>
-              <div style={{ fontSize: 10, color: C.sub, marginTop: 4 }}>
-                Holdings are created via Force Trade only
-              </div>
+                  );
+                })
+              )}
             </div>
-            {Object.entries(u.holdings || {}).filter(([, q]) => q > 0)
-              .length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  color: C.sub,
-                  padding: "40px 0",
-                  fontSize: 13,
-                }}
-              >
-                No crypto holdings. Use Force Trade to add.
-              </div>
-            ) : (
-              Object.entries(u.holdings || {})
-                .filter(([, q]) => q > 0)
-                .map(([id, q]) => {
-                  const cm = coinMeta(id);
-                  const val = q * (PE.p[id] || 0);
+          )}
+
+          {/* History Tab */}
+          {tab === "history" && (
+            <div>
+              {sortedTransactions.length === 0 ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    color: C.sub,
+                    padding: "60px 20px",
+                    fontSize: 13,
+                  }}
+                >
+                  No activity yet
+                </div>
+              ) : (
+                sortedTransactions.map((tx, i) => {
+                  const isBin = isBinaryTrade(tx);
                   return (
                     <div
-                      key={id}
+                      key={i}
                       style={{
                         background: C.card,
                         borderRadius: 10,
                         border: `1px solid ${C.border}`,
                         padding: "12px 14px",
                         marginBottom: 8,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
                       }}
                     >
                       <div
                         style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: "50%",
-                          background: cm.bg,
                           display: "flex",
                           alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 15,
-                          color: cm.cl,
-                          flexShrink: 0,
+                          gap: 12,
                         }}
                       >
-                        {cm.sym}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 700,
-                            color: C.text,
-                          }}
-                        >
-                          {id}
+                        <div style={{ fontSize: 24, flexShrink: 0 }}>
+                          {typeIcon(tx)}
                         </div>
-                        <div style={{ fontSize: 11, color: C.sub }}>
-                          {f2(q, 6)} · @ {usd(PE.p[id] || 0)}
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              flexWrap: "wrap",
+                              marginBottom: 3,
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                padding: "3px 10px",
+                                borderRadius: 20,
+                                background: typeColor(tx) + "18",
+                                color: typeColor(tx),
+                              }}
+                            >
+                              {isBin
+                                ? `BINARY ${tx.up ? "WIN" : "LOSS"}`
+                                : tx.type}
+                            </span>
+                            {tx.adminAction && (
+                              <span style={{ fontSize: 10, color: C.accent }}>
+                                🔧 Admin
+                              </span>
+                            )}
+                            {tx.adminAdded && (
+                              <span style={{ fontSize: 10, color: C.green }}>
+                                💰 Admin
+                              </span>
+                            )}
+                            <span style={{ fontSize: 10, color: C.sub }}>
+                              {tx.date?.split?.("T")?.[0] || tx.date || "—"}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 11, color: C.sub }}>
+                            {tx.coin || "USD"}
+                            {tx.amount
+                              ? ` · ${f2(tx.amount, 4)} ${tx.coin}`
+                              : ""}
+                            {tx.price ? ` @ ${usd(tx.price)}` : ""}
+                          </div>
                         </div>
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 14,
-                          fontWeight: 800,
-                          color: C.green,
-                        }}
-                      >
-                        {usd(val)}
+                        <div style={{ textAlign: "right", flexShrink: 0 }}>
+                          <div
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 800,
+                              color: tx.up ? C.green : C.red,
+                            }}
+                          >
+                            {tx.up ? "+" : "-"}
+                            {usd(tx.usd || 0)}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );
                 })
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
 
-        {tab === "cards" && (
-          <div>
-            {cards.length === 0 && (
+          {/* Holdings Tab */}
+          {tab === "holdings" && (
+            <div>
               <div
                 style={{
-                  textAlign: "center",
-                  color: C.sub,
-                  padding: "40px 0",
-                  fontSize: 13,
+                  background: C.card,
+                  borderRadius: 12,
+                  border: `1px solid ${C.border}`,
+                  padding: "14px 16px",
+                  marginBottom: 14,
                 }}
               >
-                No saved cards
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: C.sub,
+                    fontWeight: 600,
+                    marginBottom: 3,
+                  }}
+                >
+                  TOTAL HOLDINGS VALUE
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: C.text }}>
+                  {usd(hVal)}
+                </div>
               </div>
-            )}
-            {cards.map((c, i) => (
-              <div
-                key={c.id || i}
-                style={{
-                  background: "linear-gradient(135deg,#0c2340,#1a3a5c)",
-                  borderRadius: 14,
-                  padding: "18px 18px 14px",
-                  marginBottom: 12,
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-              >
+              {Object.entries(u.holdings || {}).filter(([, q]) => q > 0)
+                .length === 0 ? (
                 <div
                   style={{
-                    fontSize: 9,
-                    color: "rgba(255,255,255,0.35)",
-                    letterSpacing: 3,
+                    textAlign: "center",
+                    color: C.sub,
+                    padding: "40px 0",
+                    fontSize: 13,
+                  }}
+                >
+                  No crypto holdings. Use Force Trade to add.
+                </div>
+              ) : (
+                Object.entries(u.holdings || {})
+                  .filter(([, q]) => q > 0)
+                  .map(([id, q]) => {
+                    const cm = coinMeta(id);
+                    const val = q * (PE.p[id] || 0);
+                    return (
+                      <div
+                        key={id}
+                        style={{
+                          background: C.card,
+                          borderRadius: 10,
+                          border: `1px solid ${C.border}`,
+                          padding: "12px 14px",
+                          marginBottom: 8,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: "50%",
+                            background: cm.bg,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 15,
+                            color: cm.cl,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {cm.sym}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: C.text,
+                            }}
+                          >
+                            {id}
+                          </div>
+                          <div style={{ fontSize: 11, color: C.sub }}>
+                            {f2(q, 6)} · @ {usd(PE.p[id] || 0)}
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 800,
+                            color: C.green,
+                          }}
+                        >
+                          {usd(val)}
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+          )}
+
+          {/* Cards Tab */}
+          {tab === "cards" && (
+            <div>
+              {cards.length === 0 && (
+                <div
+                  style={{
+                    textAlign: "center",
+                    color: C.sub,
+                    padding: "40px 0",
+                    fontSize: 13,
+                  }}
+                >
+                  No saved cards
+                </div>
+              )}
+              {cards.map((c, i) => (
+                <div
+                  key={c.id || i}
+                  style={{
+                    background: "linear-gradient(135deg,#0c2340,#1a3a5c)",
+                    borderRadius: 14,
+                    padding: "18px 18px 14px",
                     marginBottom: 12,
+                    position: "relative",
+                    overflow: "hidden",
                   }}
-                >
-                  BANK CARD
-                </div>
-                <div
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 900,
-                    color: "#fff",
-                    letterSpacing: 3,
-                    marginBottom: 14,
-                    fontFamily: "monospace",
-                  }}
-                >
-                  {c.display || "**** **** **** ****"}
-                </div>
-                <div
-                  style={{ display: "flex", justifyContent: "space-between" }}
                 >
                   <div
                     style={{
-                      fontSize: 12,
-                      color: "rgba(255,255,255,0.6)",
-                      fontWeight: 600,
+                      fontSize: 9,
+                      color: "rgba(255,255,255,0.35)",
+                      letterSpacing: 3,
+                      marginBottom: 12,
                     }}
                   >
-                    {c.name || "—"}
+                    BANK CARD
                   </div>
-                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>
-                    Exp: {c.exp || "—"}
+                  <div
+                    style={{
+                      fontSize: 16,
+                      fontWeight: 900,
+                      color: "#fff",
+                      letterSpacing: 3,
+                      marginBottom: 14,
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {c.display || "**** **** **** ****"}
+                  </div>
+                  <div
+                    style={{ display: "flex", justifyContent: "space-between" }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "rgba(255,255,255,0.6)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {c.name || "—"}
+                    </div>
+                    <div
+                      style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}
+                    >
+                      Exp: {c.exp || "—"}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
 
-        {tab === "info" && (
-          <div
-            style={{
-              background: C.card,
-              borderRadius: 12,
-              border: `1px solid ${C.border}`,
-              overflow: "hidden",
-            }}
-          >
-            {[
-              ["Username", u.username || "—", "👤"],
-              ["Full Name", u.fullName || "—", "📝"],
-              ["Email", u.email || "—", "✉️"],
-              [
-                "Password",
-                u.password || u.plainPassword || "Not set",
-                "🔐",
-                true,
-              ],
-              ["Phone", u.phone || "—", "📞"],
-              ["Date of Birth", u.dob || "—", "🎂"],
-              ["Country", u.country || "—", "🌍"],
-              ["Status", isBan ? "BANNED" : "ACTIVE", "🔒"],
-              ["Credit Score", `${score}/100`, "⭐"],
-              ["Cash Balance", usd(u.balance || 0), "💰"],
-              ["Holdings Value", usd(hVal), "📈"],
-              ["Binary Trades", binaryTrades.length, "🎲"],
-              ["Binary Wins", binaryWins, "🏆"],
-              ["Binary Losses", binaryLosses, "💔"],
-              ["Binary Volume", usd(totalBinaryVolume), "💹"],
-              [
-                "Binary P&L",
-                usd(totalBinaryProfit),
-                totalBinaryProfit >= 0 ? "📈" : "📉",
-              ],
-              ["Total Won", usd(totalBinaryWon), "✅"],
-              ["Total Lost", usd(totalBinaryLost), "❌"],
-              ["Saved Cards", cards.length, "💳"],
-            ].map(([l, v, ic, editable], i, arr) => (
-              <div
-                key={l}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "13px 18px",
-                  borderBottom:
-                    i < arr.length - 1 ? `1px solid ${C.border}` : "none",
-                }}
-              >
-                <span style={{ fontSize: 16, width: 26, flexShrink: 0 }}>
-                  {ic}
-                </span>
-                <span
+          {/* Info Tab */}
+          {tab === "info" && (
+            <div
+              style={{
+                background: C.card,
+                borderRadius: 12,
+                border: `1px solid ${C.border}`,
+                overflow: "hidden",
+              }}
+            >
+              {[
+                ["Username", u.username || "—", "👤"],
+                ["Full Name", u.fullName || "—", "📝"],
+                ["Email", u.email || "—", "✉️"],
+                [
+                  "Password",
+                  u.password || u.plainPassword || "Not set",
+                  "🔐",
+                  true,
+                ],
+                ["Phone", u.phone || "—", "📞"],
+                ["Date of Birth", u.dob || "—", "🎂"],
+                ["Country", u.country || "—", "🌍"],
+                ["Status", isBan ? "BANNED" : "ACTIVE", "🔒"],
+                ["Credit Score", `${score}/100`, "⭐"],
+                ["Cash Balance", usd(u.balance || 0), "💰"],
+                ["Holdings Value", usd(hVal), "📈"],
+                ["Binary Trades", binaryTrades.length, "🎲"],
+                ["Binary Wins", binaryWins, "🏆"],
+                ["Binary Losses", binaryLosses, "💔"],
+                ["Binary Volume", usd(totalBinaryVolume), "💹"],
+                [
+                  "Binary P&L",
+                  usd(totalBinaryProfit),
+                  totalBinaryProfit >= 0 ? "📈" : "📉",
+                ],
+                ["Total Won", usd(totalBinaryWon), "✅"],
+                ["Total Lost", usd(totalBinaryLost), "❌"],
+                ["Saved Cards", cards.length, "💳"],
+              ].map(([l, v, ic, editable], i, arr) => (
+                <div
+                  key={l}
                   style={{
-                    flex: 1,
-                    fontSize: 12,
-                    color: C.sub,
-                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "13px 18px",
+                    borderBottom:
+                      i < arr.length - 1 ? `1px solid ${C.border}` : "none",
                   }}
                 >
-                  {l}
-                </span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
-                  {v}
-                </span>
-                {editable && (
-                  <button
-                    onClick={() => setShowPasswordEditor(true)}
+                  <span style={{ fontSize: 16, width: 26, flexShrink: 0 }}>
+                    {ic}
+                  </span>
+                  <span
                     style={{
-                      marginLeft: 8,
-                      padding: "4px 10px",
-                      borderRadius: 6,
-                      border: `1px solid ${C.accent}`,
-                      background: C.accent + "15",
-                      color: C.accent,
-                      fontSize: 11,
+                      flex: 1,
+                      fontSize: 12,
+                      color: C.sub,
                       fontWeight: 600,
-                      cursor: "pointer",
                     }}
                   >
-                    Edit
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                    {l}
+                  </span>
+                  <span
+                    style={{ fontSize: 13, fontWeight: 700, color: C.text }}
+                  >
+                    {v}
+                  </span>
+                  {editable && (
+                    <button
+                      onClick={() => setShowPasswordEditor(true)}
+                      style={{
+                        marginLeft: 8,
+                        padding: "4px 10px",
+                        borderRadius: 6,
+                        border: `1px solid ${C.accent}`,
+                        background: C.accent + "15",
+                        color: C.accent,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Password Editor Modal */}
       {showPasswordEditor && (
         <>
           <div
@@ -1850,7 +2023,28 @@ function UserDrawer({
           />
         </>
       )}
-    </div>
+
+      {/* Send Notification Modal */}
+      {showNotificationModal && (
+        <>
+          <div
+            onClick={() => setShowNotificationModal(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.5)",
+              zIndex: 1001,
+            }}
+          />
+          <SendNotificationModal
+            username={username}
+            userEmail={u.email}
+            onClose={() => setShowNotificationModal(false)}
+            onSent={() => {}}
+          />
+        </>
+      )}
+    </>
   );
 }
 
@@ -1869,45 +2063,175 @@ export default function AdminPanel({ onBack, onExit }) {
   const [sideOpen, setSideOpen] = useState(false);
   const [withdrawals, setWithdrawals] = useState([]);
   const [processingWithdrawal, setProcessingWithdrawal] = useState(null);
+  const [allTrades, setAllTrades] = useState([]);
+  const [processingTrade, setProcessingTrade] = useState(null);
+  const [sendingNotif, setSendingNotif] = useState(false);
+  const [notifUser, setNotifUser] = useState(null);
+  const [notifTitle, setNotifTitle] = useState("");
+  const [notifBody, setNotifBody] = useState("");
+  const [notifMsg, setNotifMsg] = useState(null);
+
+  // Time filters
+  const [tradeTimeFilter, setTradeTimeFilter] = useState("all");
+  const [withdrawTimeFilter, setWithdrawTimeFilter] = useState("all");
 
   const fetchWithdrawals = useCallback(async () => {
     try {
       const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
       const res = await getAllWithdrawals(adminKey);
-
       if (res && !res.error && Array.isArray(res)) {
         setWithdrawals(res);
+      } else {
+        setWithdrawals([]);
       }
     } catch (error) {
       console.error("Error fetching withdrawals:", error);
+      setWithdrawals([]);
     }
   }, []);
 
+  const fetchAllTrades = useCallback(async () => {
+    try {
+      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+      const users = await getAllUsersWithPlainPasswords(adminKey);
+      if (Array.isArray(users)) {
+        const allTradesList = [];
+        for (const user of users) {
+          const pendingTrades = user.pendingTrades || [];
+          for (const trade of pendingTrades) {
+            allTradesList.push({
+              ...trade,
+              username: user.username,
+              userEmail: user.email,
+              userFullName: user.fullName,
+            });
+          }
+        }
+        allTradesList.sort(
+          (a, b) => new Date(b.startTime) - new Date(a.startTime),
+        );
+        setAllTrades(allTradesList);
+      }
+    } catch (error) {
+      console.error("Error fetching all trades:", error);
+      setAllTrades([]);
+    }
+  }, []);
+
+  const handleResolveTrade = async (username, tradeId, action) => {
+    if (processingTrade === tradeId) return;
+    setProcessingTrade(tradeId);
+    try {
+      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+      const response = await fetch(
+        `${BASE_URL}/api/users/admin/resolve-trade`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": adminKey,
+          },
+          body: JSON.stringify({ username, tradeId, action }),
+        },
+      );
+      const result = await response.json();
+      if (result.success) {
+        alert(`✅ Trade ${action.toUpperCase()} successfully!`);
+        await fetchAllTrades();
+        await fetchUsers();
+      } else {
+        alert(`❌ Failed: ${result.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Error: ${error.message}`);
+    } finally {
+      setProcessingTrade(null);
+    }
+  };
+
+  const handleSendNotification = async () => {
+    if (!notifUser) return;
+    if (!notifTitle.trim()) {
+      setNotifMsg({ t: "e", m: "Title is required" });
+      return;
+    }
+
+    setSendingNotif(true);
+    setNotifMsg(null);
+
+    try {
+      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+      const response = await fetch(
+        `${BASE_URL}/api/users/admin/send-notification`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": adminKey,
+          },
+          body: JSON.stringify({
+            username: notifUser,
+            title: notifTitle.trim(),
+            body: notifBody.trim(),
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        setNotifMsg({ t: "s", m: "Notification sent successfully!" });
+        setTimeout(() => {
+          setNotifUser(null);
+          setNotifTitle("");
+          setNotifBody("");
+          setNotifMsg(null);
+        }, 1500);
+      } else {
+        setNotifMsg({ t: "e", m: data.error || "Failed to send notification" });
+      }
+    } catch (err) {
+      setNotifMsg({ t: "e", m: "Network error. Try again." });
+    } finally {
+      setSendingNotif(false);
+    }
+  };
+
   const handleWithdrawalAction = async (username, requestId, action) => {
     if (processingWithdrawal === requestId) return;
-
     setProcessingWithdrawal(requestId);
     try {
       const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
-      const result = await approveWithdrawal(username, requestId, action, adminKey);
+      const result = await approveWithdrawal(
+        username,
+        requestId,
+        action,
+        adminKey,
+      );
 
       if (result.success) {
-        // Find the withdrawal request to get the amount
-        const withdrawal = withdrawals.find(w => w.id === requestId && w.username === username);
+        const withdrawal = withdrawals.find(
+          (w) => w.id === requestId && w.username === username,
+        );
         const amount = withdrawal?.amount || 0;
-        
-        // Add notification for the user
-        if (action === "approve") {
-          addUserNotification(username, "✅ Withdrawal Approved", `Your withdrawal request for ${usd(amount)} has been approved`);
-        } else {
-          addUserNotification(username, "❌ Withdrawal Rejected", `Your withdrawal request for ${usd(amount)} has been rejected`);
-        }
-        
+
+        // Send notification to user
+        await fetch(`${BASE_URL}/api/users/${username}/notifications`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title:
+              action === "approve"
+                ? "✅ Withdrawal Approved"
+                : "❌ Withdrawal Rejected",
+            body: `Your withdrawal request for ${usd(amount)} has been ${action}d.`,
+            type: "withdrawal",
+          }),
+        }).catch(() => {});
+
         alert(`✅ Withdrawal ${action}d successfully!`);
-        // Refresh both lists without page reload
         await fetchWithdrawals();
         await fetchUsers();
-        // Close drawer if open for this user
         if (selUser === username) setSelUser(null);
       } else {
         alert(`❌ Failed to ${action} withdrawal: ${result.error}`);
@@ -1923,9 +2247,7 @@ export default function AdminPanel({ onBack, onExit }) {
     setLoading(true);
     try {
       const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
-
       const res = await getAllUsersWithPlainPasswords(adminKey);
-
       if (res.error) {
         console.error("Error fetching users:", res.error);
         setUsersState(loadLocalUsers());
@@ -1941,7 +2263,6 @@ export default function AdminPanel({ onBack, onExit }) {
             };
           }
         });
-
         await Promise.all(
           Object.keys(dbUsers).map(async (username) => {
             try {
@@ -1952,9 +2273,17 @@ export default function AdminPanel({ onBack, onExit }) {
             } catch {}
           }),
         );
-
-        saveUsers(dbUsers);
-        setUsersState(dbUsers);
+        const cleanLocal = {};
+        for (const [username, userData] of Object.entries(dbUsers)) {
+          cleanLocal[username] = userData;
+        }
+        localStorage.setItem("users", JSON.stringify(cleanLocal));
+        S.users = cleanLocal;
+        setUsersState(cleanLocal);
+        saveUsers(cleanLocal);
+        console.log("Fetched users from DB:", Object.keys(cleanLocal));
+      } else {
+        setUsersState(loadLocalUsers());
       }
     } catch (error) {
       console.error("Fetch users error:", error);
@@ -1967,85 +2296,117 @@ export default function AdminPanel({ onBack, onExit }) {
   useEffect(() => {
     fetchUsers();
     fetchWithdrawals();
-  }, [fetchUsers, fetchWithdrawals]);
+    fetchAllTrades();
+  }, [fetchUsers, fetchWithdrawals, fetchAllTrades]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setUsersState((prev) => {
-        const fresh = loadLocalUsers();
-        const merged = { ...fresh };
-        for (const k in prev) {
-          if (prev[k].binaryTrades) {
-            merged[k] = { ...merged[k], binaryTrades: prev[k].binaryTrades };
-          }
-        }
-        return merged;
-      });
-    }, 3000);
+      fetchAllTrades();
+      fetchWithdrawals();
+    }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchAllTrades, fetchWithdrawals]);
 
   useEffect(() => {
     S.banned = banned;
   }, [banned]);
 
   const users = Object.values(usersState);
-  const totalBalance = users.reduce((a, u) => a + (u.balance || 0), 0);
+  const totalBalance = users.reduce((a, u) => a + (u?.balance || 0), 0);
   const totalHoldings = users.reduce(
     (a, u) =>
       a +
-      Object.entries(u.holdings || {}).reduce(
-        (s, [id, q]) => s + q * (PE.p[id] || 0),
+      Object.entries(u?.holdings || {}).reduce(
+        (s, [id, q]) => s + (q || 0) * (PE.p[id] || 0),
         0,
       ),
     0,
   );
 
-  const allTxns = users
-    .flatMap((u) =>
-      (u.transactions || []).map((tx) => ({ ...tx, _user: u.username })),
-    )
-    .sort((a, b) => {
-      const dateA = new Date(a.date);
-      const dateB = new Date(b.date);
-      return dateB - dateA;
+  const allTxns = Array.isArray(users)
+    ? users
+        .flatMap((u) =>
+          (u?.transactions || []).map((tx) => ({ ...tx, _user: u.username })),
+        )
+        .sort((a, b) => {
+          const dateA = new Date(a.date);
+          const dateB = new Date(b.date);
+          return dateB - dateA;
+        })
+    : [];
+
+  const allBinaryTrades =
+    Array.isArray(allTxns) && Array.isArray(users)
+      ? [
+          ...allTxns.filter((t) => isBinaryTrade(t)),
+          ...users.flatMap((u) =>
+            (u?.binaryTrades || []).map((t) => ({ ...t, _user: u.username })),
+          ),
+        ].filter(
+          (t, i, arr) =>
+            arr.findIndex(
+              (x) =>
+                x._user === t._user && x.date === t.date && x.coin === t.coin,
+            ) === i,
+        )
+      : [];
+
+  const allDeposits = Array.isArray(allTxns)
+    ? allTxns.filter((t) => t?.type === "Deposit")
+    : [];
+  const allWithdraws = Array.isArray(allTxns)
+    ? allTxns.filter((t) => t?.type === "Withdraw")
+    : [];
+
+  const totalBinaryVolume = Array.isArray(allBinaryTrades)
+    ? allBinaryTrades.reduce((s, t) => s + (t?.amount || 0), 0)
+    : 0;
+
+  const totalBinaryProfit = Array.isArray(allBinaryTrades)
+    ? allBinaryTrades.reduce(
+        (s, t) => s + (t?.profitAmount || t?.tradeDetails?.profit || 0),
+        0,
+      )
+    : 0;
+
+  const found = Array.isArray(users)
+    ? users.filter(
+        (u) =>
+          u?.username?.toLowerCase().includes(q.toLowerCase()) ||
+          (u?.email || "").toLowerCase().includes(q.toLowerCase()),
+      )
+    : [];
+
+  const safeWithdrawals = Array.isArray(withdrawals) ? withdrawals : [];
+  const safeFound = Array.isArray(found) ? found : [];
+  const safeAllTxns = Array.isArray(allTxns) ? allTxns : [];
+  const safeAllBinaryTrades = Array.isArray(allBinaryTrades)
+    ? allBinaryTrades
+    : [];
+  const safeAllDeposits = Array.isArray(allDeposits) ? allDeposits : [];
+  const safeAllWithdraws = Array.isArray(allWithdraws) ? allWithdraws : [];
+  const safeAllTrades = Array.isArray(allTrades) ? allTrades : [];
+
+  // Time filter function
+  const filterByTime = (items, timeFilter) => {
+    if (timeFilter === "all") return items;
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    return items.filter((item) => {
+      const itemDate = new Date(item.startTime || item.date);
+      if (timeFilter === "today") return itemDate >= today;
+      if (timeFilter === "week") return itemDate >= weekAgo;
+      if (timeFilter === "month") return itemDate >= monthAgo;
+      return true;
     });
+  };
 
-  const allBinaryTrades = [
-    ...allTxns.filter((t) => isBinaryTrade(t)),
-    ...users.flatMap((u) =>
-      (u.binaryTrades || []).map((t) => ({ ...t, _user: u.username })),
-    ),
-  ].filter(
-    (t, i, arr) =>
-      arr.findIndex(
-        (x) => x._user === t._user && x.date === t.date && x.coin === t.coin,
-      ) === i,
-  );
-  const allDeposits = allTxns.filter((t) => t.type === "Deposit");
-  const allWithdraws = allTxns.filter((t) => t.type === "Withdraw");
-  const totalBinaryVolume = allBinaryTrades.reduce(
-    (s, t) => s + (t.amount || 0),
-    0,
-  );
-  const totalBinaryProfit = allBinaryTrades.reduce(
-    (s, t) => s + (t.profitAmount || t.tradeDetails?.profit || 0),
-    0,
-  );
-
-  const found = users.filter(
-    (u) =>
-      u.username?.toLowerCase().includes(q.toLowerCase()) ||
-      (u.email || "").toLowerCase().includes(q.toLowerCase()),
-  );
-
-  // ✅ SAFE FALLBACKS - Prevent "Cannot read properties of undefined" errors
-  const safeWithdrawals = withdrawals || [];
-  const safeFound = found || [];
-  const safeAllTxns = allTxns || [];
-  const safeAllBinaryTrades = allBinaryTrades || [];
-  const safeAllDeposits = allDeposits || [];
-  const safeAllWithdraws = allWithdraws || [];
+  const filteredTrades = filterByTime(safeAllTrades, tradeTimeFilter);
+  const filteredWithdrawals = filterByTime(safeWithdrawals, withdrawTimeFilter);
 
   const changeScore = async (username, delta) => {
     const updated = { ...usersState };
@@ -2074,10 +2435,8 @@ export default function AdminPanel({ onBack, onExit }) {
     saveBanned(n);
   };
   const del = async (username) => {
+    console.log(`Attempting to delete user: ${username}`);
     try {
-      await fetch(`${BASE_URL}/api/users/${username.toLowerCase()}`, {
-        method: "DELETE",
-      });
       const local = JSON.parse(localStorage.getItem("users") || "{}");
       delete local[username.toLowerCase()];
       localStorage.setItem("users", JSON.stringify(local));
@@ -2088,77 +2447,175 @@ export default function AdminPanel({ onBack, onExit }) {
       const nb = banned.filter((x) => x !== username);
       setBanned(nb);
       saveBanned(nb);
+      if (S.users && S.users[username]) {
+        delete S.users[username];
+      }
+      alert(`User ${username} deleted from local storage`);
     } catch (e) {
-      console.error(e);
+      console.error("Local deletion error:", e);
+      alert("Failed to delete user from local storage");
+      return;
     }
+    try {
+      const response = await fetch(
+        `${BASE_URL}/api/users/${username.toLowerCase()}`,
+        {
+          method: "DELETE",
+        },
+      );
+      if (response.ok) {
+        console.log(`User ${username} deleted from database`);
+      } else if (response.status === 404) {
+        console.log(`User ${username} not found in database`);
+      }
+    } catch (e) {
+      console.log("Network error during database delete:", e);
+    }
+    await fetchUsers();
   };
 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: "📊" },
     { id: "users", label: "Users", icon: "👥" },
-    { id: "withdrawals", label: "Withdrawals", icon: "💸" },
-    { id: "binary", label: "Binary Trades", icon: "🎲" },
+    {
+      id: "pending_trades",
+      label: "All Binary Trades",
+      icon: "🎲",
+      badge: safeAllTrades.filter((t) => t.status === "pending").length,
+    },
+    {
+      id: "withdrawals",
+      label: "All Withdrawals",
+      icon: "💸",
+      badge: safeWithdrawals.filter((w) => w.status === "pending").length,
+    },
+    { id: "send_notification", label: "Send Notification", icon: "📧" },
+    { id: "binary", label: "Completed Trades", icon: "🏆" },
     { id: "deposits", label: "Deposits", icon: "💰" },
     { id: "activity", label: "All Activity", icon: "📋" },
   ];
 
-  const NavBtn = ({ id, label, icon }) => {
-    let cnt = null;
-    if (id === "users") cnt = users.length;
-    else if (id === "withdrawals")
-      cnt = safeWithdrawals.filter((w) => w.status === "pending").length;
-    else if (id === "binary") cnt = safeAllBinaryTrades.length;
-    else if (id === "deposits") cnt = safeAllDeposits.length;
-    else if (id === "withdraws") cnt = safeAllWithdraws.length;
-    else if (id === "activity") cnt = safeAllTxns.length;
-
+  const getTradeStatusBadge = (status) => {
+    const styles = {
+      pending: { bg: C.gold + "15", color: C.gold, text: "⏳ PENDING" },
+      won: { bg: C.green + "15", color: C.green, text: "✅ WON" },
+      lost: { bg: C.red + "15", color: C.red, text: "❌ LOST" },
+      frozen: { bg: C.blue + "15", color: C.blue, text: "⏸️ FROZEN" },
+    };
+    const s = styles[status] || styles.pending;
     return (
-      <button
-        onClick={() => {
-          setTab(id);
-          setSideOpen(false);
-        }}
+      <span
         style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          gap: 11,
-          padding: "11px 14px",
-          borderRadius: 10,
-          border: "none",
-          cursor: "pointer",
-          background: tab === id ? "rgba(99,102,241,0.22)" : "transparent",
-          color: tab === id ? "#a5b4fc" : "rgba(255,255,255,0.55)",
-          fontFamily: "inherit",
-          fontSize: 13,
-          fontWeight: 600,
-          transition: "all .15s",
-          textAlign: "left",
-          position: "relative",
+          fontSize: 10,
+          fontWeight: 700,
+          padding: "2px 8px",
+          borderRadius: 20,
+          background: s.bg,
+          color: s.color,
         }}
       >
-        <span style={{ fontSize: 16, width: 22, flexShrink: 0 }}>{icon}</span>
-        <span style={{ flex: 1 }}>{label}</span>
-        {cnt !== null && cnt > 0 && (
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              padding: "2px 7px",
-              borderRadius: 20,
-              background:
-                tab === id
-                  ? "rgba(255,255,255,0.15)"
-                  : "rgba(255,255,255,0.08)",
-              color: tab === id ? "#fff" : "rgba(255,255,255,0.4)",
-            }}
-          >
-            {cnt}
-          </span>
-        )}
-      </button>
+        {s.text}
+      </span>
     );
   };
+
+  const getWithdrawalStatusBadge = (status) => {
+    const styles = {
+      pending: { bg: C.gold + "15", color: C.gold, text: "⏳ PENDING" },
+      approved: { bg: C.green + "15", color: C.green, text: "✅ APPROVED" },
+      rejected: { bg: C.red + "15", color: C.red, text: "❌ REJECTED" },
+    };
+    const s = styles[status] || styles.pending;
+    return (
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          padding: "2px 8px",
+          borderRadius: 20,
+          background: s.bg,
+          color: s.color,
+        }}
+      >
+        {s.text}
+      </span>
+    );
+  };
+
+  const NavBtn = ({ id, label, icon, badge }) => (
+    <button
+      onClick={() => {
+        setTab(id);
+        setSideOpen(false);
+      }}
+      style={{
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        gap: 11,
+        padding: "11px 14px",
+        borderRadius: 10,
+        border: "none",
+        cursor: "pointer",
+        background: tab === id ? "rgba(99,102,241,0.22)" : "transparent",
+        color: tab === id ? "#a5b4fc" : "rgba(255,255,255,0.55)",
+        fontFamily: "inherit",
+        fontSize: 13,
+        fontWeight: 600,
+        transition: "all .15s",
+        textAlign: "left",
+        position: "relative",
+      }}
+    >
+      <span style={{ fontSize: 16, width: 22, flexShrink: 0 }}>{icon}</span>
+      <span style={{ flex: 1 }}>{label}</span>
+      {badge > 0 && (
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            padding: "2px 7px",
+            borderRadius: 20,
+            background:
+              tab === id ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.08)",
+            color: tab === id ? "#fff" : "rgba(255,255,255,0.4)",
+          }}
+        >
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+
+  const TimeFilterButtons = ({ currentFilter, onFilterChange }) => (
+    <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      {[
+        { id: "all", label: "All Time" },
+        { id: "today", label: "Today" },
+        { id: "week", label: "This Week" },
+        { id: "month", label: "This Month" },
+      ].map((filter) => (
+        <button
+          key={filter.id}
+          onClick={() => onFilterChange(filter.id)}
+          style={{
+            padding: "5px 12px",
+            borderRadius: 15,
+            border: `1px solid ${currentFilter === filter.id ? C.accent : C.border}`,
+            background:
+              currentFilter === filter.id ? C.accent + "15" : "transparent",
+            color: currentFilter === filter.id ? C.accent : C.sub,
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          {filter.label}
+        </button>
+      ))}
+    </div>
+  );
 
   const TxTable = ({ rows, title }) => (
     <div>
@@ -2212,7 +2669,9 @@ export default function AdminPanel({ onBack, onExit }) {
                     marginBottom: 3,
                   }}
                 >
-                  <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>
+                  <span
+                    style={{ fontSize: 12, fontWeight: 700, color: C.text }}
+                  >
                     @{tx._user}
                   </span>
                   <span
@@ -2229,27 +2688,6 @@ export default function AdminPanel({ onBack, onExit }) {
                       ? `BINARY ${tx.up ? "WIN" : "LOSS"}`
                       : tx.type}
                   </span>
-                  {tx.adminAction && (
-                    <span style={{ fontSize: 10, color: C.accent }}>
-                      🔧 admin
-                    </span>
-                  )}
-                  {tx.adminAdded && (
-                    <span style={{ fontSize: 10, color: C.green }}>💰 admin</span>
-                  )}
-                  {isBinaryTrade(tx) &&
-                    (tx.duration || tx.tradeDetails?.duration) && (
-                      <>
-                        <span style={{ fontSize: 10, color: C.gold }}>
-                          ⏱ {tx.duration || tx.tradeDetails?.duration}s
-                        </span>
-                        <span style={{ fontSize: 10, color: C.accent }}>
-                          {(tx.orderType || tx.tradeDetails?.orderType) === "up"
-                            ? "📈 UP"
-                            : "📉 DOWN"}
-                        </span>
-                      </>
-                    )}
                 </div>
                 <div style={{ fontSize: 11, color: C.sub }}>
                   {isBinaryTrade(tx) ? (
@@ -2267,8 +2705,6 @@ export default function AdminPanel({ onBack, onExit }) {
                           style={{ color: C.red, fontWeight: 700 }}
                         >{` · Lost: -${usd(tx.amount)}`}</span>
                       )}
-                      {tx.startPrice ? ` · Entry: $${f2(tx.startPrice, 2)}` : ""}
-                      {tx.endPrice ? ` → $${f2(tx.endPrice, 2)}` : ""}
                     </>
                   ) : (
                     <>
@@ -2287,13 +2723,7 @@ export default function AdminPanel({ onBack, onExit }) {
                     color: tx.up ? C.green : C.red,
                   }}
                 >
-                  {isBinaryTrade(tx)
-                    ? tx.up
-                      ? `+${usd(tx.profitAmount || tx.tradeDetails?.profit || 0)}`
-                      : `-${usd(tx.amount)}`
-                    : tx.up
-                      ? "+"
-                      : "-"}
+                  {tx.up ? "+" : "-"}
                   {usd(tx.usd || 0)}
                 </div>
               </div>
@@ -2304,7 +2734,6 @@ export default function AdminPanel({ onBack, onExit }) {
     </div>
   );
 
-  // Admin API Key Input Screen
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [adminKeyInput, setAdminKeyInput] = useState("");
 
@@ -2316,6 +2745,27 @@ export default function AdminPanel({ onBack, onExit }) {
       setShowKeyInput(true);
     }
   }, []);
+
+  if (loading && users.length === 0) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          background: C.bg,
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 32, marginBottom: 10 }}>⏳</div>
+          <div style={{ fontSize: 14, color: C.sub }}>
+            Loading admin panel...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (showKeyInput) {
     return (
@@ -2374,6 +2824,7 @@ export default function AdminPanel({ onBack, onExit }) {
                 setShowKeyInput(false);
                 fetchUsers();
                 fetchWithdrawals();
+                fetchAllTrades();
               }
             }}
             style={{
@@ -2405,8 +2856,18 @@ export default function AdminPanel({ onBack, onExit }) {
         position: "relative",
       }}
     >
-      <style>{css}</style>
-
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        * { box-sizing:border-box; margin:0; padding:0; }
+        .ap-sidebar { display:flex !important; }
+        .ap-sidebar-mob { display:flex !important; }
+        .ap-hamburger { display:none !important; }
+        @media(max-width:768px){
+          .ap-sidebar { display:none !important; }
+          .ap-hamburger { display:flex !important; }
+          .ap-content { padding:14px !important; }
+        }
+      `}</style>
       {selUser && (
         <div
           onClick={() => setSelUser(null)}
@@ -2430,6 +2891,7 @@ export default function AdminPanel({ onBack, onExit }) {
         />
       )}
 
+      {/* Sidebar Desktop */}
       <aside
         style={{
           width: 220,
@@ -2490,7 +2952,13 @@ export default function AdminPanel({ onBack, onExit }) {
           </div>
           <nav style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             {navItems.map((n) => (
-              <NavBtn key={n.id} {...n} />
+              <NavBtn
+                key={n.id}
+                id={n.id}
+                label={n.label}
+                icon={n.icon}
+                badge={n.badge || 0}
+              />
             ))}
           </nav>
         </div>
@@ -2513,6 +2981,7 @@ export default function AdminPanel({ onBack, onExit }) {
         </button>
       </aside>
 
+      {/* Sidebar Mobile */}
       <aside
         style={{
           position: "fixed",
@@ -2568,7 +3037,13 @@ export default function AdminPanel({ onBack, onExit }) {
           </div>
           <nav style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             {navItems.map((n) => (
-              <NavBtn key={n.id} {...n} />
+              <NavBtn
+                key={n.id}
+                id={n.id}
+                label={n.label}
+                icon={n.icon}
+                badge={n.badge || 0}
+              />
             ))}
           </nav>
         </div>
@@ -2590,6 +3065,7 @@ export default function AdminPanel({ onBack, onExit }) {
         </button>
       </aside>
 
+      {/* Main Content */}
       <main
         style={{
           flex: 1,
@@ -2637,13 +3113,17 @@ export default function AdminPanel({ onBack, onExit }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <button
-              onClick={fetchUsers}
+              onClick={() => {
+                fetchUsers();
+                fetchWithdrawals();
+                fetchAllTrades();
+              }}
               style={{
                 padding: "7px 16px",
                 borderRadius: 8,
                 border: `1.5px solid ${C.border}`,
                 background: "#fff",
-                color: C.sub,
+                color: "#1a1a1a",
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: "pointer",
@@ -2665,6 +3145,7 @@ export default function AdminPanel({ onBack, onExit }) {
           style={{ flex: 1, padding: "24px", overflowY: "auto" }}
           className="ap-content"
         >
+          {/* Dashboard Tab */}
           {tab === "dashboard" && (
             <div>
               <div
@@ -2719,9 +3200,17 @@ export default function AdminPanel({ onBack, onExit }) {
                     icon: "📊",
                   },
                   {
-                    label: "Pending Withdrawals",
-                    value: safeWithdrawals.filter((w) => w.status === "pending")
+                    label: "Pending Trades",
+                    value: safeAllTrades.filter((t) => t.status === "pending")
                       .length,
+                    color: C.gold,
+                    icon: "⏳",
+                  },
+                  {
+                    label: "Pending Withdrawals",
+                    value: safeWithdrawals.filter(
+                      (w) => w?.status === "pending",
+                    ).length,
                     color: C.gold,
                     icon: "💸",
                   },
@@ -2782,6 +3271,7 @@ export default function AdminPanel({ onBack, onExit }) {
             </div>
           )}
 
+          {/* Users Tab */}
           {tab === "users" && (
             <div>
               <div style={{ position: "relative", marginBottom: 16 }}>
@@ -2814,19 +3304,22 @@ export default function AdminPanel({ onBack, onExit }) {
                   }}
                 />
               </div>
+
               {loading && (
                 <div style={{ textAlign: "center", color: C.sub, padding: 40 }}>
                   Loading users…
                 </div>
               )}
+
               {!loading && (
-                <div className="user-table-grid" style={{ overflowX: "auto" }}>
+                <div style={{ overflowX: "auto" }}>
                   <div style={{ minWidth: "1000px" }}>
+                    {/* Table Header */}
                     <div
                       style={{
                         display: "grid",
                         gridTemplateColumns:
-                          "minmax(100px, 1.5fr) minmax(150px, 2fr) minmax(100px, 1fr) minmax(80px, 0.8fr) minmax(60px, 0.6fr) minmax(60px, 0.6fr) minmax(50px, 0.5fr) minmax(80px, 0.8fr)",
+                          "minmax(100px, 1.5fr) minmax(150px, 2fr) minmax(120px, 1fr) minmax(80px, 0.8fr) minmax(60px, 0.6fr) minmax(60px, 0.6fr) minmax(50px, 0.5fr) minmax(80px, 0.8fr)",
                         padding: "11px 16px",
                         borderBottom: `1px solid ${C.border}`,
                         fontSize: 11,
@@ -2846,25 +3339,27 @@ export default function AdminPanel({ onBack, onExit }) {
                       <span>Score</span>
                       <span>Status</span>
                     </div>
+
+                    {/* Table Rows */}
                     {safeFound.length === 0 && (
                       <div
                         style={{
                           padding: 40,
                           textAlign: "center",
                           color: C.sub,
-                          fontSize: 13,
                         }}
                       >
                         No users found
                       </div>
                     )}
+
                     {safeFound.map((u, i) => {
                       const isBan = banned.includes(u.username);
                       const userBinaryTrades = [
-                        ...(u.transactions || []).filter((t) =>
+                        ...(u?.transactions || []).filter((t) =>
                           isBinaryTrade(t),
                         ),
-                        ...(u.binaryTrades || []),
+                        ...(u?.binaryTrades || []),
                       ].filter(
                         (t, i, arr) =>
                           arr.findIndex(
@@ -2882,12 +3377,11 @@ export default function AdminPanel({ onBack, onExit }) {
                         binaryWins + binaryLosses > 0
                           ? `${binaryWins}/${binaryLosses}`
                           : "0/0";
-                      const sc = u.creditScore ?? 50;
+                      const sc = u?.creditScore ?? 50;
                       const scC =
                         sc >= 70 ? C.green : sc >= 40 ? C.gold : C.red;
-
                       const displayPassword =
-                        u.password || u.plainPassword || "No password set";
+                        u?.password || u?.plainPassword || "No password set";
 
                       return (
                         <div
@@ -2896,7 +3390,7 @@ export default function AdminPanel({ onBack, onExit }) {
                           style={{
                             display: "grid",
                             gridTemplateColumns:
-                              "minmax(100px, 1.5fr) minmax(150px, 2fr) minmax(100px, 1fr) minmax(80px, 0.8fr) minmax(60px, 0.6fr) minmax(60px, 0.6fr) minmax(50px, 0.5fr) minmax(80px, 0.8fr)",
+                              "minmax(100px, 1.5fr) minmax(150px, 2fr) minmax(120px, 1fr) minmax(80px, 0.8fr) minmax(60px, 0.6fr) minmax(60px, 0.6fr) minmax(50px, 0.5fr) minmax(80px, 0.8fr)",
                             padding: "13px 16px",
                             borderBottom:
                               i < safeFound.length - 1
@@ -2908,6 +3402,7 @@ export default function AdminPanel({ onBack, onExit }) {
                             gap: "8px",
                           }}
                         >
+                          {/* Username with avatar */}
                           <span
                             style={{
                               display: "flex",
@@ -2947,6 +3442,8 @@ export default function AdminPanel({ onBack, onExit }) {
                               @{u.username}
                             </span>
                           </span>
+
+                          {/* Email */}
                           <span
                             style={{
                               fontSize: 12,
@@ -2958,6 +3455,8 @@ export default function AdminPanel({ onBack, onExit }) {
                           >
                             {u.email || "—"}
                           </span>
+
+                          {/* Password (click to copy) */}
                           <span
                             style={{
                               fontSize: 12,
@@ -2980,6 +3479,8 @@ export default function AdminPanel({ onBack, onExit }) {
                           >
                             {displayPassword}
                           </span>
+
+                          {/* Balance */}
                           <span
                             style={{
                               fontSize: 13,
@@ -2989,6 +3490,8 @@ export default function AdminPanel({ onBack, onExit }) {
                           >
                             {usd(u.balance || 0)}
                           </span>
+
+                          {/* Binary Count */}
                           <span
                             style={{
                               fontSize: 12,
@@ -2998,6 +3501,8 @@ export default function AdminPanel({ onBack, onExit }) {
                           >
                             {binaryCount}
                           </span>
+
+                          {/* Win/Loss */}
                           <span
                             style={{
                               fontSize: 12,
@@ -3008,6 +3513,8 @@ export default function AdminPanel({ onBack, onExit }) {
                           >
                             {wl}
                           </span>
+
+                          {/* Credit Score */}
                           <span
                             style={{
                               fontSize: 12,
@@ -3017,6 +3524,8 @@ export default function AdminPanel({ onBack, onExit }) {
                           >
                             {sc}
                           </span>
+
+                          {/* Status Badge */}
                           <span>
                             <span
                               style={{
@@ -3024,12 +3533,10 @@ export default function AdminPanel({ onBack, onExit }) {
                                 fontWeight: 700,
                                 padding: "3px 9px",
                                 borderRadius: 20,
-                                ...(isBan
-                                  ? { background: C.red + "15", color: C.red }
-                                  : {
-                                      background: C.green + "15",
-                                      color: C.green,
-                                    }),
+                                background: isBan
+                                  ? C.red + "15"
+                                  : C.green + "15",
+                                color: isBan ? C.red : C.green,
                               }}
                             >
                               {isBan ? "Banned" : "Active"}
@@ -3044,44 +3551,48 @@ export default function AdminPanel({ onBack, onExit }) {
             </div>
           )}
 
-          {tab === "withdrawals" && (
+          {/* ALL BINARY TRADES TAB - WITH TIME FILTER */}
+          {tab === "pending_trades" && (
             <div>
-              <div style={{ marginBottom: 16 }}>
-                <div
+              <div
+                style={{
+                  marginBottom: 16,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+                    🎲 All Binary Trades
+                  </div>
+                  <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
+                    Complete history of all binary trades with status
+                  </div>
+                </div>
+                <button
+                  onClick={() => fetchAllTrades()}
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 8,
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: `1px solid ${C.border}`,
+                    background: C.card,
+                    fontSize: 12,
+                    cursor: "pointer",
                   }}
                 >
-                  <div style={{ fontSize: 14, fontWeight: 800, color: C.text }}>
-                    💸 Withdrawal Requests
-                  </div>
-                  <button
-                    onClick={() => {
-                      fetchWithdrawals();
-                      fetchUsers();
-                    }}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: 4,
-                      border: `1px solid ${C.border}`,
-                      background: C.card,
-                      fontSize: 11,
-                      cursor: "pointer",
-                      color: C.sub,
-                    }}
-                  >
-                    ↻ Refresh
-                  </button>
-                </div>
-                <div style={{ fontSize: 12, color: C.sub }}>
-                  Review and process user withdrawal requests
-                </div>
+                  ↻ Refresh
+                </button>
               </div>
 
-              {safeWithdrawals.length === 0 ? (
+              <TimeFilterButtons
+                currentFilter={tradeTimeFilter}
+                onFilterChange={setTradeTimeFilter}
+              />
+
+              {filteredTrades.length === 0 ? (
                 <div
                   style={{
                     background: C.card,
@@ -3090,28 +3601,21 @@ export default function AdminPanel({ onBack, onExit }) {
                     padding: "60px 20px",
                     textAlign: "center",
                     color: C.sub,
-                    fontSize: 13,
                   }}
                 >
-                  <div style={{ fontSize: 48, marginBottom: 12 }}>💸</div>
-                  <div>No withdrawal requests yet</div>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>🎲</div>
+                  <div>No binary trades found</div>
                 </div>
               ) : (
-                safeWithdrawals.map((w) => (
+                filteredTrades.map((trade) => (
                   <div
-                    key={w.id}
+                    key={trade.id}
                     style={{
                       background: C.card,
                       borderRadius: 12,
-                      border: `1px solid ${
-                        w.status === "pending" 
-                          ? C.gold 
-                          : w.status === "approved" 
-                            ? C.green 
-                            : C.red
-                      }`,
-                      padding: "12px",
-                      marginBottom: 8,
+                      border: `1px solid ${trade.status === "pending" ? C.gold : trade.status === "won" ? C.green : trade.status === "lost" ? C.red : C.blue}`,
+                      padding: "16px",
+                      marginBottom: 12,
                     }}
                   >
                     <div
@@ -3120,30 +3624,337 @@ export default function AdminPanel({ onBack, onExit }) {
                         justifyContent: "space-between",
                         alignItems: "center",
                         marginBottom: 12,
+                        flexWrap: "wrap",
+                        gap: 8,
                       }}
                     >
-                      <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {getTradeStatusBadge(trade.status)}
                         <span
                           style={{
                             fontSize: 11,
-                            fontWeight: 700,
-                            padding: "3px 10px",
-                            borderRadius: 20,
-                            background:
-                              w.status === "pending"
-                                ? C.gold + "15"
-                                : w.status === "approved"
-                                  ? C.green + "15"
-                                  : C.red + "15",
-                            color:
-                              w.status === "pending"
-                                ? C.gold
-                                : w.status === "approved"
-                                  ? C.green
-                                  : C.red,
+                            color: C.sub,
+                            fontFamily: "monospace",
                           }}
                         >
-                          {w.status ? w.status.toUpperCase() : "PENDING"}
+                          ID: {String(trade.id).slice(-8)}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: C.sub }}>
+                        {new Date(trade.startTime).toLocaleString()}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: 12,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: C.sub,
+                            marginBottom: 2,
+                          }}
+                        >
+                          👤 User
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 15,
+                            fontWeight: 700,
+                            color: C.text,
+                          }}
+                        >
+                          @{trade.username}
+                        </div>
+                        <div style={{ fontSize: 11, color: C.sub }}>
+                          {trade.userEmail}
+                        </div>
+                      </div>
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: C.sub,
+                            marginBottom: 2,
+                          }}
+                        >
+                          📊 Trade Details
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 15,
+                            fontWeight: 700,
+                            color: trade.orderType === "up" ? C.green : C.red,
+                          }}
+                        >
+                          {trade.coin} ·{" "}
+                          {trade.orderType === "up" ? "📈 UP" : "📉 DOWN"}
+                        </div>
+                        <div style={{ fontSize: 11, color: C.sub }}>
+                          Amount: ${trade.amount} · Duration:{" "}
+                          {trade.timeSeconds}s · Profit: {trade.profitPercent}%
+                        </div>
+                      </div>
+                    </div>
+
+                    {trade.status === "pending" && (
+                      <div
+                        style={{
+                          background: C.bg,
+                          borderRadius: 10,
+                          padding: "14px",
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: C.text,
+                            color: "#1a1a1a",
+                            marginBottom: 10,
+                          }}
+                        >
+                          🎯 Resolution Options:
+                        </div>
+                        <div
+                          style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
+                        >
+                          <button
+                            onClick={() =>
+                              handleResolveTrade(
+                                trade.username,
+                                trade.id,
+                                "win",
+                              )
+                            }
+                            disabled={processingTrade === trade.id}
+                            style={{
+                              padding: "8px 20px",
+                              borderRadius: 8,
+                              border: "none",
+                              background: C.green,
+                              color: "#fff",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor:
+                                processingTrade === trade.id
+                                  ? "not-allowed"
+                                  : "pointer",
+                              opacity: processingTrade === trade.id ? 0.6 : 1,
+                            }}
+                          >
+                            🎉 WIN (Add $
+                            {(
+                              trade.amount *
+                              (trade.profitPercent / 100)
+                            ).toFixed(2)}{" "}
+                            profit + ${trade.amount} wager)
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleResolveTrade(
+                                trade.username,
+                                trade.id,
+                                "loss",
+                              )
+                            }
+                            disabled={processingTrade === trade.id}
+                            style={{
+                              padding: "8px 20px",
+                              borderRadius: 8,
+                              border: "none",
+                              background: C.red,
+                              color: "#fff",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor:
+                                processingTrade === trade.id
+                                  ? "not-allowed"
+                                  : "pointer",
+                              opacity: processingTrade === trade.id ? 0.6 : 1,
+                            }}
+                          >
+                            💔 LOSS (Keep ${trade.amount} deduction)
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleResolveTrade(
+                                trade.username,
+                                trade.id,
+                                "freeze",
+                              )
+                            }
+                            disabled={processingTrade === trade.id}
+                            style={{
+                              padding: "8px 20px",
+                              borderRadius: 8,
+                              border: "none",
+                              background: C.gold,
+                              color: "#fff",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor:
+                                processingTrade === trade.id
+                                  ? "not-allowed"
+                                  : "pointer",
+                              opacity: processingTrade === trade.id ? 0.6 : 1,
+                            }}
+                          >
+                            ⏸️ FREEZE (Hold amount temporarily)
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {trade.status !== "pending" && trade.result && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          background:
+                            trade.status === "won"
+                              ? C.green + "10"
+                              : trade.status === "lost"
+                                ? C.red + "10"
+                                : C.blue + "10",
+                          borderRadius: 8,
+                          padding: "8px 12px",
+                          marginTop: 8,
+                          color: "#1a1a1a",
+                        }}
+                      >
+                        <strong style={{ color: "#1a1a1a" }}>Result:</strong>{" "}
+                        <span style={{ color: "#1a1a1a" }}>{trade.result}</span>{" "}
+                        • Resolved at:{" "}
+                        <span style={{ color: "#1a1a1a" }}>
+                          {new Date(trade.resolvedAt).toLocaleString()}
+                        </span>
+                        {trade.profitAmount && (
+                          <span style={{ color: "#1a1a1a" }}>
+                            {" "}
+                            • Profit: +${trade.profitAmount.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* ALL WITHDRAWALS TAB - WITH TIME FILTER */}
+          {tab === "withdrawals" && (
+            <div>
+              <div
+                style={{
+                  marginBottom: 16,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+                    💸 All Withdrawal Requests
+                  </div>
+                  <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
+                    Complete history of all withdrawal requests with status
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    fetchUsers();
+                    fetchWithdrawals();
+                    fetchAllTrades();
+                  }}
+                  style={{
+                    padding: "7px 16px",
+                    borderRadius: 8,
+                    border: `1.5px solid ${C.border}`,
+                    background: "#fff",
+                    color: "#1a1a1a",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+
+              <TimeFilterButtons
+                currentFilter={withdrawTimeFilter}
+                onFilterChange={setWithdrawTimeFilter}
+              />
+
+              {filteredWithdrawals.length === 0 ? (
+                <div
+                  style={{
+                    background: C.card,
+                    borderRadius: 12,
+                    border: `1px solid ${C.border}`,
+                    padding: "60px 20px",
+                    textAlign: "center",
+                    color: C.sub,
+                  }}
+                >
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>💸</div>
+                  <div>No withdrawal requests found</div>
+                </div>
+              ) : (
+                filteredWithdrawals.map((w) => (
+                  <div
+                    key={w.id}
+                    style={{
+                      background: C.card,
+                      borderRadius: 12,
+                      border: `1px solid ${w?.status === "pending" ? C.gold : w?.status === "approved" ? C.green : C.red}`,
+                      padding: "16px",
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: 12,
+                        flexWrap: "wrap",
+                        gap: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        {getWithdrawalStatusBadge(w.status)}
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: C.sub,
+                            fontFamily: "monospace",
+                          }}
+                        >
+                          ID: {String(w.id).slice(-8)}
                         </span>
                       </div>
                       <div style={{ fontSize: 11, color: C.sub }}>
@@ -3167,11 +3978,11 @@ export default function AdminPanel({ onBack, onExit }) {
                             marginBottom: 2,
                           }}
                         >
-                          User
+                          👤 User
                         </div>
                         <div
                           style={{
-                            fontSize: 13,
+                            fontSize: 15,
                             fontWeight: 700,
                             color: C.text,
                           }}
@@ -3190,11 +4001,11 @@ export default function AdminPanel({ onBack, onExit }) {
                             marginBottom: 2,
                           }}
                         >
-                          Amount
+                          💰 Amount
                         </div>
                         <div
                           style={{
-                            fontSize: 18,
+                            fontSize: 20,
                             fontWeight: 900,
                             color: C.red,
                           }}
@@ -3231,45 +4042,30 @@ export default function AdminPanel({ onBack, onExit }) {
                         }}
                       >
                         <div>
-                          <span style={{ color: C.sub }}>Card Number:</span>{" "}
-                          <strong style={{ color: C.text }}>
+                          <span style={{ color: "#1a1a1a" }}>Card:</span>{" "}
+                          <strong style={{ color: "#1a1a1a" }}>
+                            {" "}
                             {w.cardNumber || w.cardLast4}
                           </strong>
                         </div>
                         <div>
-                          <span style={{ color: C.sub }}>Card Name:</span>{" "}
-                          <strong style={{ color: C.text }}>
+                          <span style={{ color: "#1a1a1a" }}>Name:</span>{" "}
+                          <strong style={{ color: "#1a1a1a" }}>
+                            {" "}
                             {w.cardName || "—"}
                           </strong>
                         </div>
                         <div>
-                          <span style={{ color: C.sub }}>Expiry:</span>{" "}
-                          <strong style={{ color: C.text }}>
+                          <span style={{ color: "#1a1a1a" }}>Expiry:</span>{" "}
+                          <strong style={{ color: "#1a1a1a" }}>
+                            {" "}
                             {w.cardExpiry || "—"}
-                          </strong>
-                        </div>
-                        <div>
-                          <span style={{ color: C.sub }}>CVV:</span>{" "}
-                          <strong
-                            style={{ color: C.text, fontFamily: "monospace" }}
-                          >
-                            {w.cvv || "—"}
-                          </strong>
-                        </div>
-                        <div>
-                          <span style={{ color: C.sub }}>
-                            Transaction Password:
-                          </span>{" "}
-                          <strong
-                            style={{ color: C.accent, fontFamily: "monospace" }}
-                          >
-                            {w.userPassword || "—"}
                           </strong>
                         </div>
                       </div>
                     </div>
 
-                    {w.status === "pending" && (
+                    {w?.status === "pending" && (
                       <div style={{ display: "flex", gap: 8 }}>
                         <button
                           onClick={() =>
@@ -3278,22 +4074,19 @@ export default function AdminPanel({ onBack, onExit }) {
                           disabled={processingWithdrawal === w.id}
                           style={{
                             padding: "6px 16px",
-                            borderRadius: 8,
+                            borderRadius: 6,
                             border: "none",
                             background: C.green,
                             color: "#fff",
-                            fontSize: 11,
-                            fontWeight: 700,
+                            fontSize: 12,
+                            fontWeight: 600,
                             cursor:
                               processingWithdrawal === w.id
                                 ? "not-allowed"
                                 : "pointer",
-                            opacity: processingWithdrawal === w.id ? 0.6 : 1,
                           }}
                         >
-                          {processingWithdrawal === w.id
-                            ? "Processing..."
-                            : "✅ Approve"}
+                          ✅ Approve
                         </button>
                         <button
                           onClick={() =>
@@ -3302,36 +4095,38 @@ export default function AdminPanel({ onBack, onExit }) {
                           disabled={processingWithdrawal === w.id}
                           style={{
                             padding: "6px 16px",
-                            borderRadius: 8,
+                            borderRadius: 6,
                             border: "none",
                             background: C.red,
                             color: "#fff",
-                            fontSize: 11,
-                            fontWeight: 700,
+                            fontSize: 12,
+                            fontWeight: 600,
                             cursor:
                               processingWithdrawal === w.id
                                 ? "not-allowed"
                                 : "pointer",
-                            opacity: processingWithdrawal === w.id ? 0.6 : 1,
                           }}
                         >
-                          {processingWithdrawal === w.id
-                            ? "Processing..."
-                            : "❌ Reject"}
+                          ❌ Reject
                         </button>
                       </div>
                     )}
 
-                    {(w.status === "approved" || w.status === "rejected") && (
+                    {w?.status !== "pending" && (
                       <div
                         style={{
                           fontSize: 11,
-                          color: w.status === "approved" ? C.green : C.red,
+                          color: w?.status === "approved" ? C.green : C.red,
                           marginTop: 6,
                         }}
                       >
-                        {w.status === "approved" ? "✅ Approved" : "❌ Rejected"}{" "}
-                        on {new Date(w.approvedAt || w.rejectedAt || w.date).toLocaleString()}
+                        {w?.status === "approved"
+                          ? "✅ Approved"
+                          : "❌ Rejected"}{" "}
+                        on{" "}
+                        {new Date(
+                          w.approvedAt || w.rejectedAt || w.date,
+                        ).toLocaleString()}
                       </div>
                     )}
                   </div>
@@ -3340,14 +4135,218 @@ export default function AdminPanel({ onBack, onExit }) {
             </div>
           )}
 
+          {/* SEND NOTIFICATION TAB */}
+          {tab === "send_notification" && (
+            <div>
+              <div style={{ marginBottom: 24 }}>
+                <div
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 700,
+                    color: "#000000",
+                    marginBottom: 8,
+                  }}
+                >
+                  📧 Send Notification
+                </div>
+                <div style={{ fontSize: 13, color: "#000000" }}>
+                  Send a custom notification to a specific user. They will see
+                  it in their notification panel.
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: "#1e1e2e",
+                  borderRadius: 16,
+                  border: "1px solid #2d2d3d",
+                  padding: "28px",
+                  maxWidth: 550,
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+                }}
+              >
+                {/* SELECT USER */}
+                <div style={{ marginBottom: 20 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "#c0c0c0",
+                      marginBottom: 8,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    Select User *
+                  </div>
+                  <select
+                    value={notifUser || ""}
+                    onChange={(e) => setNotifUser(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "12px 14px",
+                      border: "1px solid #3a3a4a",
+                      borderRadius: 10,
+                      fontSize: 14,
+                      color: "#ffffff",
+                      background: "#252535",
+                      fontFamily: "inherit",
+                      cursor: "pointer",
+                      outline: "none",
+                      transition: "all 0.2s",
+                    }}
+                    onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
+                    onBlur={(e) => (e.target.style.borderColor = "#3a3a4a")}
+                  >
+                    <option value="" style={{ background: "#252535" }}>
+                      -- Select a user --
+                    </option>
+                    {users.map((u) => (
+                      <option
+                        key={u.username}
+                        value={u.username}
+                        style={{ background: "#252535" }}
+                      >
+                        @{u.username} - {u.email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* TITLE */}
+                <div style={{ marginBottom: 20 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "#c0c0c0",
+                      marginBottom: 8,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    Title *
+                  </div>
+                  <input
+                    type="text"
+                    value={notifTitle}
+                    onChange={(e) => setNotifTitle(e.target.value)}
+                    placeholder="e.g., Important Update"
+                    style={{
+                      width: "100%",
+                      padding: "12px 14px",
+                      border: "1px solid #3a3a4a",
+                      borderRadius: 10,
+                      fontSize: 14,
+                      color: "#ffffff",
+                      background: "#252535",
+                      outline: "none",
+                      transition: "all 0.2s",
+                    }}
+                    onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
+                    onBlur={(e) => (e.target.style.borderColor = "#3a3a4a")}
+                  />
+                </div>
+
+                {/* MESSAGE */}
+                <div style={{ marginBottom: 24 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "#c0c0c0",
+                      marginBottom: 8,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    Message (Optional)
+                  </div>
+                  <textarea
+                    value={notifBody}
+                    onChange={(e) => setNotifBody(e.target.value)}
+                    placeholder="Write your notification message here..."
+                    rows={4}
+                    style={{
+                      width: "100%",
+                      padding: "12px 14px",
+                      border: "1px solid #3a3a4a",
+                      borderRadius: 10,
+                      fontSize: 14,
+                      color: "#ffffff",
+                      background: "#252535",
+                      outline: "none",
+                      fontFamily: "inherit",
+                      resize: "vertical",
+                      transition: "all 0.2s",
+                    }}
+                    onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
+                    onBlur={(e) => (e.target.style.borderColor = "#3a3a4a")}
+                  />
+                </div>
+
+                {/* MESSAGE STATUS */}
+                {notifMsg && (
+                  <div
+                    style={{
+                      marginBottom: 20,
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 500,
+                      background:
+                        notifMsg.t === "s" ? "#10b98115" : "#ef444415",
+                      border: `1px solid ${notifMsg.t === "s" ? "#10b98130" : "#ef444430"}`,
+                      color: notifMsg.t === "s" ? "#10b981" : "#ef4444",
+                    }}
+                  >
+                    {notifMsg.t === "s" ? "✓ " : "✗ "}
+                    {notifMsg.m}
+                  </div>
+                )}
+
+                {/* SEND BUTTON */}
+                <button
+                  onClick={handleSendNotification}
+                  disabled={sendingNotif || !notifUser}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: !notifUser ? "#3a3a4a" : "#6366f1",
+                    color: !notifUser ? "#888888" : "#ffffff",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor:
+                      !notifUser || sendingNotif ? "not-allowed" : "pointer",
+                    opacity: sendingNotif ? 0.7 : 1,
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (notifUser && !sendingNotif)
+                      e.target.style.background = "#7c3aed";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (notifUser && !sendingNotif)
+                      e.target.style.background = "#6366f1";
+                  }}
+                >
+                  {sendingNotif ? "Sending..." : "Send Notification"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Completed Trades Tab (Legacy) */}
           {tab === "binary" && (
-            <TxTable rows={safeAllBinaryTrades} title="🎲 All Binary Trades" />
+            <TxTable
+              rows={safeAllBinaryTrades}
+              title="🏆 Completed Binary Trades"
+            />
           )}
           {tab === "deposits" && (
             <TxTable rows={safeAllDeposits} title="💰 Deposits" />
-          )}
-          {tab === "withdraws" && (
-            <TxTable rows={safeAllWithdraws} title="💸 Withdrawals" />
           )}
           {tab === "activity" && (
             <TxTable rows={safeAllTxns} title="📋 Complete Activity Log" />
@@ -3371,25 +4370,3 @@ export default function AdminPanel({ onBack, onExit }) {
     </div>
   );
 }
-
-const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-  * { box-sizing:border-box; margin:0; padding:0; }
-  .ap-tr:hover { background:#f8fafc !important; }
-  .ap-sidebar { display:flex !important; }
-  .ap-sidebar-mob { display:flex !important; }
-  .ap-hamburger { display:none !important; }
-  .text-green { color: #22c55e; }
-  .text-red { color: #ef4444; }
-  
-  .user-table-grid {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  
-  @media(max-width:768px){
-    .ap-sidebar { display:none !important; }
-    .ap-hamburger { display:flex !important; }
-    .ap-content { padding:14px !important; }
-  }
-`;

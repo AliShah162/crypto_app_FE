@@ -6,12 +6,11 @@ import {
   useRef,
   startTransition,
 } from "react";
-import { T, S, PE, usd, f2 } from "./lib/store";
+import { T, PE, usd, f2 } from "./lib/store";
+import { getUser } from "./lib/db";
 import AdminPanel from "./components/AdminPanel";
 import { WelcomeScreen, SignupScreen, LoginScreen } from "./components/Auth";
 import { NotifPanel } from "./components/UI";
-import { getUserNotifications, addUserNotification } from "./lib/notifications";
-import { getUserFromDB } from "./lib/api";
 import {
   HomePage,
   NewsPage,
@@ -32,16 +31,10 @@ import {
   BinaryHistorySub,
 } from "./pages/ProfileSubs";
 
+const API_URL = "https://crypto-backend-production-11dc.up.railway.app";
+
 function initLocalStorage() {
   if (typeof window === "undefined") return;
-
-  if (!localStorage.getItem("users")) {
-    localStorage.setItem("users", JSON.stringify({}));
-  }
-
-  if (!localStorage.getItem("session")) {
-    localStorage.setItem("session", JSON.stringify(null));
-  }
 
   if (!localStorage.getItem("banned")) {
     localStorage.setItem("banned", JSON.stringify([]));
@@ -49,6 +42,11 @@ function initLocalStorage() {
 
   if (!localStorage.getItem("admin_notifs")) {
     localStorage.setItem("admin_notifs", JSON.stringify([]));
+  }
+
+  if (localStorage.getItem("users")) {
+    localStorage.removeItem("users");
+    console.log("🗑️ Removed old users key");
   }
 }
 
@@ -88,52 +86,78 @@ export default function App() {
   const [, tick] = useState(0);
   const px = usePX();
 
+  // Fetch notifications from MongoDB
+  const fetchNotificationsFromDB = useCallback(async () => {
+  const sessionUser = localStorage.getItem("session");
+  // ✅ Skip for admin user
+  if (!sessionUser || sessionUser === "admin") return [];
+  
+  try {
+    const response = await fetch(`${API_URL}/api/users/${sessionUser}/notifications`);
+    const data = await response.json();
+    if (Array.isArray(data)) {
+      sn(data);
+      // Update localStorage cache
+      const allNotifs = JSON.parse(localStorage.getItem("user_notifications") || "{}");
+      allNotifs[sessionUser] = data;
+      localStorage.setItem("user_notifications", JSON.stringify(allNotifs));
+      return data;
+    }
+  } catch (err) {
+    console.error("Failed to fetch notifications from DB:", err);
+  }
+  return [];
+}, []);
+
   useEffect(() => {
     initLocalStorage();
-    S.hydrate();
-    const current = S.get();
 
-    if (current) {
-      const username = current.username?.toLowerCase();
-      const isBanned = (S.banned || []).some(
-        (b) => b.toLowerCase() === username,
-      );
+    if (typeof window !== "undefined") {
+      try {
+        const cachedUsers = JSON.parse(
+          localStorage.getItem("users_cache") || "{}",
+        );
+        const sessionUser = localStorage.getItem("session");
 
-      if (!isBanned) {
-        const tabRole = localStorage.getItem("tabRole") || current.role || "user";
+        if (sessionUser && cachedUsers[sessionUser]) {
+          const userData = cachedUsers[sessionUser];
+          const bannedList = JSON.parse(localStorage.getItem("banned") || "[]");
+          const isBanned = bannedList.some(
+            (b) => b.toLowerCase() === sessionUser.toLowerCase(),
+          );
 
-        startTransition(() => {
-          setUser({ ...current });
-          if (typeof window !== "undefined") {
-            try {
-              const allNotifs = JSON.parse(
-                localStorage.getItem("user_notifications") || "{}",
-              );
-              const userNotifs = allNotifs[username] || [];
-              sn(userNotifs);
-            } catch {
-              sn([]);
-            }
+          if (!isBanned) {
+            const tabRole =
+              localStorage.getItem("tabRole") || userData.role || "user";
+
+            startTransition(() => {
+              setUser({ ...userData });
+              // Load notifications from MongoDB
+              fetchNotificationsFromDB();
+              ss(tabRole === "admin" ? "admin" : "app");
+            });
+            return;
           }
-          ss(tabRole === "admin" ? "admin" : "app");
-        });
-        return;
+        }
+      } catch (e) {
+        console.error("Failed to load user from cache:", e);
       }
     }
 
     startTransition(() => {
       ss("welcome");
     });
-  }, []);
+  }, [fetchNotificationsFromDB]);
 
   useEffect(() => {
     if (scr === "loading") return;
+    if (scr === "admin") return;
 
     const checkSession = async () => {
-      const current = S.get();
-      const bannedList = S.banned || [];
+      if (typeof window === "undefined") return;
 
-      if (!current) {
+      const sessionUser = localStorage.getItem("session");
+      if (!sessionUser) {
         if (scr === "app") {
           startTransition(() => {
             setUser(null);
@@ -146,11 +170,14 @@ export default function App() {
         return;
       }
 
-      const username = current.username?.toLowerCase();
-      const isBanned = bannedList.some((b) => b.toLowerCase() === username);
+      const bannedList = JSON.parse(localStorage.getItem("banned") || "[]");
+      const isBanned = bannedList.some(
+        (b) => b.toLowerCase() === sessionUser.toLowerCase(),
+      );
 
       if (isBanned) {
-        S.setSession(null);
+        localStorage.removeItem("session");
+        localStorage.removeItem("tabRole");
         startTransition(() => {
           setUser(null);
           ss("login");
@@ -161,20 +188,14 @@ export default function App() {
         return;
       }
 
-      if (scr === "app") {
-        // ✅ FETCH FRESH DATA FROM DATABASE every time
+      if (scr === "app" && sessionUser && sessionUser !== "admin") {
         try {
-          const freshUser = await getUserFromDB(username);
-          
-          // ✅ CHECK IF USER WAS DELETED (404 error means user no longer exists)
-          if (freshUser && freshUser.error && freshUser.error === "User not found") {
-            // User was deleted by admin - force logout
-            console.log("User account deleted, logging out...");
-            S.setSession(null);
+          const freshUser = await getUser(sessionUser, true);
+
+          if (freshUser && freshUser.error === "User not found") {
+            console.log("User not found in DB, logging out");
             localStorage.removeItem("session");
             localStorage.removeItem("tabRole");
-            localStorage.removeItem("lastNotifUser");
-            
             startTransition(() => {
               setUser(null);
               ss("login");
@@ -184,18 +205,28 @@ export default function App() {
             });
             return;
           }
-          
+
           if (freshUser && !freshUser.error) {
-            // Update localStorage with fresh data
-            S.users[username] = { ...S.users[username], ...freshUser };
-            localStorage.setItem("users", JSON.stringify(S.users));
+            const cache = JSON.parse(
+              localStorage.getItem("users_cache") || "{}",
+            );
+            const cachedUser = cache[sessionUser] || {};
+
+            const updatedUser = {
+              ...cachedUser,
+              ...freshUser,
+              balance: freshUser.balance ?? cachedUser.balance,
+              transactions: freshUser.transactions || cachedUser.transactions,
+              holdings: freshUser.holdings || cachedUser.holdings,
+              creditScore: freshUser.creditScore ?? cachedUser.creditScore,
+            };
+
+            cache[sessionUser] = { ...updatedUser, _cachedAt: Date.now() };
+            localStorage.setItem("users_cache", JSON.stringify(cache));
+            setUser(updatedUser);
             
-            setUser((prev) => {
-              if (JSON.stringify(prev) !== JSON.stringify(freshUser)) {
-                return { ...freshUser };
-              }
-              return prev;
-            });
+            // Refresh notifications
+            fetchNotificationsFromDB();
           }
         } catch (err) {
           console.error("Failed to fetch fresh user data:", err);
@@ -212,87 +243,118 @@ export default function App() {
       window.removeEventListener("focus", checkSession);
       clearInterval(interval);
     };
-  }, [scr]);
+  }, [scr, fetchNotificationsFromDB]);
 
-  const re = useCallback(() => {
-    const u = S.get();
-    if (u) setUser({ ...u });
+  const re = useCallback(async () => {
+    if (typeof window !== "undefined") {
+      const sessionUser = localStorage.getItem("session");
+      if (sessionUser) {
+        const freshUser = await fetch(
+          `${API_URL}/api/users/${sessionUser}`,
+        ).then((r) => r.json());
+        if (freshUser && !freshUser.error) {
+          const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+          cache[sessionUser] = { ...freshUser, _cachedAt: Date.now() };
+          localStorage.setItem("users_cache", JSON.stringify(cache));
+          setUser(freshUser);
+        }
+      }
+    }
     tick((n) => n + 1);
   }, []);
 
-  const auth = (u) => {
+  const auth = async (u) => {
     if (!u) return;
 
     const username = u.username.toLowerCase().trim();
 
-    S.hydrate();
-    const existingLocal = S.users[username] || {};
+    console.log("🔐 Auth function called for:", username);
 
-    const userObj = {
-      username,
-      email: u.email || existingLocal.email || "",
-      fullName: u.fullName || existingLocal.fullName || username,
-      role: u.role || existingLocal.role || "user",
-      phone: u.phone || existingLocal.phone || "",
-      dob: u.dob || existingLocal.dob || "",
-      country: u.country?.trim() || existingLocal.country || "—",
-      password: existingLocal.password || u.password || "",
-      adminPassword: existingLocal.adminPassword || "",
-      creditScore: u.creditScore ?? existingLocal.creditScore ?? 50,
-      isBanned: u.isBanned ?? existingLocal.isBanned ?? false,
+    try {
+      const dbUser = await getUser(username, true);
 
-      balance: existingLocal.balance ?? u.balance ?? 0,
-      transactions:
-        existingLocal.transactions?.length > 0
-          ? existingLocal.transactions
-          : u.transactions || [],
-      holdings:
-        Object.keys(existingLocal.holdings || {}).length > 0
-          ? existingLocal.holdings
-          : u.holdings || {},
-      savedCards:
-        existingLocal.savedCards?.length > 0
-          ? existingLocal.savedCards
-          : u.savedCards || [],
+      if (dbUser && !dbUser.error) {
+        console.log("📡 User found in database, using DB data");
 
-      loggedInAt: Date.now(),
-    };
+        const userObj = {
+          username: dbUser.username,
+          email: dbUser.email || u.email || "",
+          fullName: dbUser.fullName || u.fullName || username,
+          role: dbUser.role || u.role || "user",
+          phone: dbUser.phone || u.phone || "",
+          dob: dbUser.dob || u.dob || "",
+          country: dbUser.country || u.country || "—",
+          creditScore: dbUser.creditScore ?? 50,
+          isBanned: dbUser.isBanned ?? false,
+          balance: dbUser.balance ?? 0,
+          transactions: dbUser.transactions || [],
+          holdings: dbUser.holdings || {},
+          savedCards: dbUser.savedCards || [],
+          loggedInAt: Date.now(),
+        };
 
-    S.users[username] = { ...existingLocal, ...userObj };
-    if (typeof window !== "undefined") {
-      localStorage.setItem("users", JSON.stringify(S.users));
-    }
+        if (typeof window !== "undefined") {
+          const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+          cache[username] = { ...userObj, _cachedAt: Date.now() };
+          localStorage.setItem("users_cache", JSON.stringify(cache));
+          localStorage.setItem("session", username);
+        }
 
-    S.session = username;
-    if (typeof window !== "undefined") {
-      localStorage.setItem("session", JSON.stringify(username));
-    }
+        setUser(userObj);
+        
+        // Load notifications from MongoDB
+        const notifResponse = await fetch(`${API_URL}/api/users/${username}/notifications`);
+        const notifData = await notifResponse.json();
+        if (Array.isArray(notifData)) {
+          sn(notifData);
+          const allNotifs = JSON.parse(localStorage.getItem("user_notifications") || "{}");
+          allNotifs[username] = notifData;
+          localStorage.setItem("user_notifications", JSON.stringify(allNotifs));
+          localStorage.setItem("lastNotifUser", username);
+        } else {
+          sn([]);
+        }
+      } else {
+        console.log("🆕 New user, please sign up first");
 
-    setUser(S.users[username]);
+        const userObj = {
+          username,
+          email: u.email || "",
+          fullName: u.fullName || username,
+          role: u.role || "user",
+          phone: u.phone || "",
+          dob: u.dob || "",
+          country: u.country || "—",
+          balance: 0,
+          creditScore: 50,
+          transactions: [],
+          holdings: {},
+          savedCards: [],
+          loggedInAt: Date.now(),
+        };
 
-    if (typeof window !== "undefined") {
-      try {
-        const allNotifs = JSON.parse(
-          localStorage.getItem("user_notifications") || "{}",
-        );
-        const userNotifs = allNotifs[username] || [];
-        sn(userNotifs);
-        localStorage.setItem("lastNotifUser", username);
-      } catch {
+        if (typeof window !== "undefined") {
+          const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+          cache[username] = { ...userObj, _cachedAt: Date.now() };
+          localStorage.setItem("users_cache", JSON.stringify(cache));
+          localStorage.setItem("session", username);
+        }
+
+        setUser(userObj);
         sn([]);
       }
-    } else {
-      sn([]);
-    }
 
-    if (u.role === "admin") {
-      localStorage.setItem("tabRole", "admin");
-      ss("admin");
-    } else {
-      localStorage.setItem("tabRole", "user");
-      ss("app");
-      sp("home");
-      ssb(null);
+      if (u.role === "admin" || username === "admin") {
+        localStorage.setItem("tabRole", "admin");
+        ss("admin");
+      } else {
+        localStorage.setItem("tabRole", "user");
+        ss("app");
+        sp("home");
+        ssb(null);
+      }
+    } catch (err) {
+      console.error("Auth error:", err);
     }
   };
 
@@ -302,7 +364,6 @@ export default function App() {
   };
 
   const logout = () => {
-    S.setSession(null);
     localStorage.removeItem("tabRole");
     localStorage.removeItem("lastNotifUser");
     localStorage.removeItem("session");
@@ -327,6 +388,7 @@ export default function App() {
       body,
       time: new Date().toLocaleTimeString(),
       id: Date.now() + Math.random(),
+      read: false,
     };
 
     if (user?.username) {
@@ -347,9 +409,15 @@ export default function App() {
   };
 
   const onDep = (amt) => {
-    const u = S.get();
-    if (!u) return;
-    const newBalance = (u.balance || 0) + amt;
+    const sessionUser =
+      typeof window !== "undefined" ? localStorage.getItem("session") : null;
+    if (!sessionUser) return;
+
+    const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+    const currentUser = cache[sessionUser];
+    if (!currentUser) return;
+
+    const newBalance = (currentUser.balance || 0) + amt;
     const newTxns = [
       {
         type: "Deposit",
@@ -358,17 +426,28 @@ export default function App() {
         date: new Date().toISOString().slice(0, 10),
         up: true,
       },
-      ...(u.transactions || []),
+      ...(currentUser.transactions || []),
     ];
-    S.updateUser(u.username, { balance: newBalance, transactions: newTxns });
+
+    currentUser.balance = newBalance;
+    currentUser.transactions = newTxns;
+    cache[sessionUser] = { ...currentUser, _cachedAt: Date.now() };
+    localStorage.setItem("users_cache", JSON.stringify(cache));
+
     re();
     addN("Deposit Successful", `${usd(amt)} added to your balance`);
   };
 
   const onWith = (amt) => {
-    const u = S.get();
-    if (!u) return;
-    const newBalance = Math.max(0, (u.balance || 0) - amt);
+    const sessionUser =
+      typeof window !== "undefined" ? localStorage.getItem("session") : null;
+    if (!sessionUser) return;
+
+    const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+    const currentUser = cache[sessionUser];
+    if (!currentUser) return;
+
+    const newBalance = Math.max(0, (currentUser.balance || 0) - amt);
     const newTxns = [
       {
         type: "Withdraw",
@@ -377,9 +456,14 @@ export default function App() {
         date: new Date().toISOString().slice(0, 10),
         up: false,
       },
-      ...(u.transactions || []),
+      ...(currentUser.transactions || []),
     ];
-    S.updateUser(u.username, { balance: newBalance, transactions: newTxns });
+
+    currentUser.balance = newBalance;
+    currentUser.transactions = newTxns;
+    cache[sessionUser] = { ...currentUser, _cachedAt: Date.now() };
+    localStorage.setItem("users_cache", JSON.stringify(cache));
+
     re();
     addN("Withdrawal Requested", `${usd(amt)} being processed`);
   };
@@ -401,31 +485,6 @@ export default function App() {
           `You lost ${usd(tradeInfo.amount)} on ${tradeInfo.coin}`,
         );
       }
-    } else if (tradeInfo && tradeInfo.action) {
-      if (tradeInfo.action === "Buy" || tradeInfo.action === "Sell") {
-        addN(
-          `${tradeInfo.action} Successful ✅`,
-          `${tradeInfo.action === "Buy" ? "Purchased" : "Sold"} ${f2(tradeInfo.qty || 0, 4)} ${tradeInfo.coin} for ${usd(tradeInfo.cost || 0)}`,
-        );
-      }
-    } else {
-      const u = S.get();
-      if (u?.transactions?.length) {
-        const latestTx = u.transactions[0];
-        if (latestTx.isBinaryTrade) {
-          addN(
-            latestTx.up ? "🎉 Binary Trade WIN!" : "💔 Binary Trade LOSS",
-            latestTx.up
-              ? `You won ${usd(latestTx.tradeResult?.profit || 0)} on ${latestTx.coin}`
-              : `You lost ${usd(latestTx.amount)} on ${latestTx.coin}`,
-          );
-        } else if (latestTx.type === "Buy" || latestTx.type === "Sell") {
-          addN(
-            `${latestTx.type} Successful ✅`,
-            `${latestTx.type === "Buy" ? "Purchased" : "Sold"} ${f2(latestTx.amount || 0, 4)} ${latestTx.coin} for ${usd(latestTx.usd || 0)}`,
-          );
-        }
-      }
     }
   };
 
@@ -436,10 +495,20 @@ export default function App() {
   );
   const u = user;
 
+  // Calculate unread count for notification bell
+  const unreadCount = notifs.filter(n => !n.read).length;
+
   const renderContent = () => {
     if (page === "profile" && sub) {
       const bk = () => ssb(null);
-      const uu = S.get() || user;
+      const sessionUser =
+        typeof window !== "undefined" ? localStorage.getItem("session") : null;
+      const cache =
+        typeof window !== "undefined"
+          ? JSON.parse(localStorage.getItem("users_cache") || "{}")
+          : {};
+      const uu = (sessionUser && cache[sessionUser]) || user;
+
       switch (sub) {
         case "binaryhistory":
           return <BinaryHistorySub back={bk} user={uu} re={re} />;
@@ -455,7 +524,7 @@ export default function App() {
             />
           );
         case "notif":
-          return <NotifSub back={bk} />;
+          return <NotifSub back={bk} userNotifs={notifs} onMarkRead={() => fetchNotificationsFromDB()} />;
         case "lang":
           return <LangSub back={bk} />;
         case "terms":
@@ -530,7 +599,6 @@ export default function App() {
             localStorage.removeItem("tabRole");
             ss("welcome");
             setUser(null);
-            S.setSession(null);
           }}
         />
       </div>
@@ -618,18 +686,29 @@ export default function App() {
                     >
                       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
                     </svg>
-                    {notifs.filter(n => !n.read).length > 0 && (
+                    
+                    {/* Number badge instead of red dot */}
+                    {unreadCount > 0 && (
                       <div
                         style={{
                           position: "absolute",
-                          top: 5,
-                          right: 5,
-                          width: 6,
-                          height: 6,
-                          borderRadius: "50%",
+                          top: -2,
+                          right: -2,
+                          minWidth: 16,
+                          height: 16,
+                          borderRadius: 8,
                           background: T.red,
+                          color: "#fff",
+                          fontSize: 9,
+                          fontWeight: 700,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "0 4px",
                         }}
-                      />
+                      >
+                        {unreadCount > 4 ? "4+" : unreadCount}
+                      </div>
                     )}
                   </div>
                   <div
@@ -813,26 +892,46 @@ export default function App() {
               <NotifPanel
                 notifs={notifs}
                 onClose={() => snp(false)}
-                onDelete={(notifId) => {
+                onDelete={async (notifId) => {
                   if (user?.username) {
                     try {
-                      const allNotifs = JSON.parse(
-                        localStorage.getItem("user_notifications") || "{}",
-                      );
-                      const userNotifs = allNotifs[user.username] || [];
-                      const updated = userNotifs.filter(
-                        (n) => n.id !== notifId,
-                      );
-                      allNotifs[user.username] = updated;
-                      localStorage.setItem(
-                        "user_notifications",
-                        JSON.stringify(allNotifs),
-                      );
+                      // Delete from MongoDB
+                      await fetch(`${API_URL}/api/users/${user.username}/notifications/${notifId}`, {
+                        method: "DELETE",
+                      });
+                      // Refresh notifications
+                      const updated = await fetch(`${API_URL}/api/users/${user.username}/notifications`).then(r => r.json());
+                      if (Array.isArray(updated)) {
+                        sn(updated);
+                        const allNotifs = JSON.parse(localStorage.getItem("user_notifications") || "{}");
+                        allNotifs[user.username] = updated;
+                        localStorage.setItem("user_notifications", JSON.stringify(allNotifs));
+                      }
                     } catch (e) {
                       console.error("Failed to delete notification:", e);
                     }
                   }
-                  sn((prev) => prev.filter((n) => n.id !== notifId));
+                }}
+                onMarkRead={async (notifId) => {
+                  if (user?.username) {
+                    try {
+                      await fetch(`${API_URL}/api/users/${user.username}/notifications/read`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ notificationId: notifId }),
+                      });
+                      // Refresh notifications
+                      const updated = await fetch(`${API_URL}/api/users/${user.username}/notifications`).then(r => r.json());
+                      if (Array.isArray(updated)) {
+                        sn(updated);
+                        const allNotifs = JSON.parse(localStorage.getItem("user_notifications") || "{}");
+                        allNotifs[user.username] = updated;
+                        localStorage.setItem("user_notifications", JSON.stringify(allNotifs));
+                      }
+                    } catch (e) {
+                      console.error("Failed to mark notification read:", e);
+                    }
+                  }
                 }}
               />
             )}

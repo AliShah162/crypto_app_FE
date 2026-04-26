@@ -769,77 +769,111 @@ export function HistoryPage({ user }) {
 }
 
 // ── Profile ────────────────────────────────────────────
+// ── Profile ────────────────────────────────────────────
+// ── Profile ────────────────────────────────────────────
 export function ProfilePage({ user, onLogout, onSub, re }) {
   const [frozenHVal, setFrozenHVal] = useState(0);
   const [frozenBalance, setFrozenBalance] = useState(0);
   const [, setTick] = useState(0);
+  const [userNotifications, setUserNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Function to fetch notifications from MongoDB
+  const fetchNotifications = async () => {
+    const sessionUser = localStorage.getItem("session");
+    if (sessionUser === "admin") return; // Skip for admin
+    if (sessionUser) {
+      try {
+        const response = await fetch(`https://crypto-backend-production-11dc.up.railway.app/api/users/${sessionUser}/notifications`);
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setUserNotifications(data);
+          const unread = data.filter(n => !n.read).length;
+          setUnreadCount(unread);
+          
+          // Also update localStorage for notification bell
+          const allNotifs = JSON.parse(localStorage.getItem("user_notifications") || "{}");
+          allNotifs[sessionUser] = data;
+          localStorage.setItem("user_notifications", JSON.stringify(allNotifs));
+          
+          // Dispatch event for notification bell update
+          window.dispatchEvent(new CustomEvent("notificationsUpdated", { detail: { count: unread } }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch notifications:", err);
+      }
+    }
+  };
+
+  // Function to mark notification as read
+  const markAsRead = async (notificationId) => {
+    const sessionUser = localStorage.getItem("session");
+    if (sessionUser) {
+      try {
+        await fetch(`https://crypto-backend-production-11dc.up.railway.app/api/users/${sessionUser}/notifications/read`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notificationId }),
+        });
+        await fetchNotifications(); // Refresh
+      } catch (err) {
+        console.error("Failed to mark notification as read:", err);
+      }
+    }
+  };
+
+  const calc = async () => {
+    try {
+      const sessionUser = localStorage.getItem("session");
+      if (sessionUser) {
+        const response = await fetch(`https://crypto-backend-production-11dc.up.railway.app/api/users/${sessionUser}`);
+        const currentUser = await response.json();
+        
+        if (!currentUser.error) {
+          const hv = Object.entries(currentUser.holdings || {}).reduce(
+            (s, [id, q]) => s + Number(q || 0) * Number(PE.p[id] || 0),
+            0,
+          );
+          setFrozenHVal(hv);
+          setFrozenBalance(Number(currentUser.balance || 0));
+          setTick((n) => n + 1);
+        }
+      }
+    } catch (err) {
+      console.error("Profile balance calc error:", err);
+    }
+  };
 
   useEffect(() => {
-    const calc = () => {
-      try {
-        // Force refresh from localStorage to get latest data
-        const allUsers = JSON.parse(localStorage.getItem("users") || "{}");
-        const currentUser = allUsers[user?.username];
-        
-        if (!currentUser) return;
-        
-        const hv = Object.entries(currentUser.holdings || {}).reduce(
-          (s, [id, q]) => s + Number(q || 0) * Number(PE.p[id] || 0),
-          0,
-        );
-        setFrozenHVal(hv);
-        setFrozenBalance(Number(currentUser.balance || 0));
-        setTick((n) => n + 1);
-        
-        // Also sync to S.users for other components
-        if (user?.username) {
-          S.users[user.username] = { ...S.users[user.username], ...currentUser };
-        }
-      } catch (err) {
-        console.error("Profile balance calc error:", err);
-      }
-    };
-    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     calc();
-    const interval = setInterval(calc, 2000); // Update every 2 seconds for faster sync
+    fetchNotifications();
     
-    // Listen for trade completion event for immediate update
+    const interval = setInterval(() => {
+      calc();
+      fetchNotifications();
+    }, 5000);
+    
     const handleTradeComplete = (event) => {
-      try {
-        if (event?.detail?.username === user?.username) {
-          console.log("Trade completed, refreshing profile balance...");
-          calc();
-        }
-      } catch (err) {
-        console.log("Trade completion event error:", err);
+      if (event?.detail?.username === user?.username) {
+        console.log("Trade completed, refreshing profile balance...");
+        calc();
+        fetchNotifications();
       }
     };
     
     const handleFocus = () => {
-      try {
-        calc();
-      } catch (err) {
-        console.log("Focus event error:", err);
-      }
-    };
-    
-    const handleStorage = () => {
-      try {
-        calc();
-      } catch (err) {
-        console.log("Storage event error:", err);
-      }
+      calc();
+      fetchNotifications();
     };
     
     window.addEventListener("tradeCompleted", handleTradeComplete);
     window.addEventListener("focus", handleFocus);
-    window.addEventListener("storage", handleStorage);
     
     return () => {
       clearInterval(interval);
       window.removeEventListener("tradeCompleted", handleTradeComplete);
       window.removeEventListener("focus", handleFocus);
-      window.removeEventListener("storage", handleStorage);
     };
   }, [user?.username]);
 
@@ -847,253 +881,78 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
   const isBan = (S.banned || []).includes(user?.username);
   const tot = frozenBalance + frozenHVal;
 
-  // Count binary trades from transactions
   const binaryTradesCount = (liveUser?.transactions || []).filter(
     (t) => t.isBinaryTrade === true || t.type === "Binary Trade"
   ).length;
 
-  const creditScore =
-    S.users?.[user?.username]?.creditScore ?? liveUser?.creditScore ?? 50;
-
-  const country =
-    S.users?.[user?.username]?.country ||
-    liveUser?.country ||
-    user?.country ||
-    "—";
+  const creditScore = S.users?.[user?.username]?.creditScore ?? liveUser?.creditScore ?? 50;
+  const country = S.users?.[user?.username]?.country || liveUser?.country || user?.country || "—";
 
   const menu = [
     { ic: "📊", l: "Binary History", s: "View all binary trades", sp: "binaryhistory" },
     { ic: "🔐", l: "Security Settings", s: "Password & 2FA", sp: "sec" },
     { ic: "💳", l: "Bank Cards", s: "Payment cards", sp: "card" },
-    { ic: "🔔", l: "Notifications", s: "Alerts & prefs", sp: "notif" },
+    { ic: "🔔", l: "Notifications", s: `${unreadCount} unread`, sp: "notif" },
     { ic: "🌐", l: "Language", s: "English", sp: "lang" },
     { ic: "📄", l: "Terms of Service", s: "Legal", sp: "terms" },
     { ic: "✏️", l: "Edit Profile", s: "Update info", sp: "edit" },
   ];
 
   return (
-    <div
-      style={{
-        flex: 1,
-        overflowY: "auto",
-        scrollbarWidth: "none",
-        paddingBottom: 80,
-      }}
-    >
+    <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none", paddingBottom: 80 }}>
       <div style={{ padding: "18px 15px 0" }}>
         {isBan && (
-          <div
-            style={{
-              background: "rgba(239,68,68,0.09)",
-              border: "1px solid rgba(239,68,68,0.28)",
-              borderRadius: 11,
-              padding: "11px 13px",
-              marginBottom: 14,
-              fontSize: 12,
-              color: T.red,
-              fontWeight: 600,
-            }}
-          >
+          <div style={{ background: "rgba(239,68,68,0.09)", border: "1px solid rgba(239,68,68,0.28)", borderRadius: 11, padding: "11px 13px", marginBottom: 14, fontSize: 12, color: T.red, fontWeight: 600 }}>
             ⚠️ Account suspended by admin. Contact support.
           </div>
         )}
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 13,
-            marginBottom: 16,
-          }}
-        >
-          <div
-            style={{
-              width: 58,
-              height: 58,
-              borderRadius: "50%",
-              background: "linear-gradient(135deg,#00e5b0,#3b82f6)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 24,
-              fontWeight: 900,
-              color: "#fff",
-              flexShrink: 0,
-            }}
-          >
+        <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 16 }}>
+          <div style={{ width: 58, height: 58, borderRadius: "50%", background: "linear-gradient(135deg,#00e5b0,#3b82f6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 900, color: "#fff", flexShrink: 0 }}>
             {(liveUser?.fullName || liveUser?.username || "U")[0].toUpperCase()}
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 900, color: T.text }}>
-              {liveUser?.fullName || liveUser?.username}
+            <div style={{ fontSize: 16, fontWeight: 900, color: T.text }}>{liveUser?.fullName || liveUser?.username}</div>
+            <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>@{liveUser?.username} · {liveUser?.email}</div>
+          </div>
+        </div>
+
+        <div style={{ background: "linear-gradient(135deg,#0c2340,#1a3a5c)", borderRadius: 16, padding: "16px 15px", marginBottom: 13, boxShadow: "0 5px 18px rgba(0,0,0,0.4)" }}>
+          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", letterSpacing: 1, marginBottom: 4 }}>TOTAL PORTFOLIO VALUE</div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: "#fff", marginBottom: 11 }}>{usd(tot)}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div style={{ background: "rgba(0,0,0,0.22)", borderRadius: 9, padding: "8px 10px" }}>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 2 }}>Cash Balance</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: T.acc }}>{usd(frozenBalance)}</div>
             </div>
-            <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>
-              @{liveUser?.username} · {liveUser?.email}
+            <div style={{ background: "rgba(0,0,0,0.22)", borderRadius: 9, padding: "8px 10px" }}>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 2 }}>Holdings</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: T.gold }}>{usd(frozenHVal)}</div>
             </div>
           </div>
         </div>
 
-        <div
-          style={{
-            background: "linear-gradient(135deg,#0c2340,#1a3a5c)",
-            borderRadius: 16,
-            padding: "16px 15px",
-            marginBottom: 13,
-            boxShadow: "0 5px 18px rgba(0,0,0,0.4)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              color: "rgba(255,255,255,0.45)",
-              letterSpacing: 1,
-              marginBottom: 4,
-            }}
-          >
-            TOTAL PORTFOLIO VALUE
-          </div>
-          <div
-            style={{
-              fontSize: 24,
-              fontWeight: 900,
-              color: "#fff",
-              marginBottom: 11,
-            }}
-          >
-            {usd(tot)}
-          </div>
-          <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}
-          >
-            <div
-              style={{
-                background: "rgba(0,0,0,0.22)",
-                borderRadius: 9,
-                padding: "8px 10px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 9,
-                  color: "rgba(255,255,255,0.4)",
-                  marginBottom: 2,
-                }}
-              >
-                Cash Balance
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: T.acc }}>
-                {usd(frozenBalance)}
-              </div>
-            </div>
-            <div
-              style={{
-                background: "rgba(0,0,0,0.22)",
-                borderRadius: 9,
-                padding: "8px 10px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 9,
-                  color: "rgba(255,255,255,0.4)",
-                  marginBottom: 2,
-                }}
-              >
-                Holdings
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: T.gold }}>
-                {usd(frozenHVal)}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: 8,
-            marginBottom: 13,
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 13 }}>
           {[
-            {
-              l: "Trades",
-              v: String(binaryTradesCount),
-            },
-            {
-              l: "Deposits",
-              v: String(
-                (liveUser?.transactions || []).filter(
-                  (t) => t.type === "Deposit",
-                ).length,
-              ),
-            },
-            {
-              l: "Credit Score",
-              v:
-                creditScore >= 80
-                  ? "🟢 " + creditScore
-                  : creditScore >= 50
-                    ? "🟡 " + creditScore
-                    : "🔴 " + creditScore,
-            },
-            {
-              l: "Country",
-              v: country,
-            },
+            { l: "Trades", v: String(binaryTradesCount) },
+            { l: "Deposits", v: String((liveUser?.transactions || []).filter((t) => t.type === "Deposit").length) },
+            { l: "Credit Score", v: creditScore >= 80 ? "🟢 " + creditScore : creditScore >= 50 ? "🟡 " + creditScore : "🔴 " + creditScore },
+            { l: "Country", v: country },
           ].map((s) => (
-            <div
-              key={s.l}
-              style={{
-                background: T.card,
-                borderRadius: 12,
-                padding: "11px 8px",
-                textAlign: "center",
-                border: `1px solid ${T.line}`,
-              }}
-            >
-              <div style={{ fontSize: 12, fontWeight: 800, color: T.acc }}>
-                {s.v}
-              </div>
-              <div style={{ fontSize: 9, color: T.dim, marginTop: 2 }}>
-                {s.l}
-              </div>
+            <div key={s.l} style={{ background: T.card, borderRadius: 12, padding: "11px 8px", textAlign: "center", border: `1px solid ${T.line}` }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: T.acc }}>{s.v}</div>
+              <div style={{ fontSize: 9, color: T.dim, marginTop: 2 }}>{s.l}</div>
             </div>
           ))}
         </div>
 
-        <div
-          style={{
-            background: T.card,
-            borderRadius: 15,
-            padding: "4px 13px",
-            border: `1px solid ${T.line}`,
-            marginBottom: 11,
-          }}
-        >
+        <div style={{ background: T.card, borderRadius: 15, padding: "4px 13px", border: `1px solid ${T.line}`, marginBottom: 11 }}>
           {menu.map((item, i) => (
-            <div
-              key={item.sp}
-              onClick={() => onSub(item.sp)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 11,
-                padding: "13px 0",
-                borderBottom:
-                  i < menu.length - 1 ? `1px solid ${T.line}` : "none",
-                cursor: "pointer",
-              }}
-            >
+            <div key={item.sp} onClick={() => onSub(item.sp)} style={{ display: "flex", alignItems: "center", gap: 11, padding: "13px 0", borderBottom: i < menu.length - 1 ? `1px solid ${T.line}` : "none", cursor: "pointer" }}>
               <span style={{ fontSize: 17, flexShrink: 0 }}>{item.ic}</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>
-                  {item.l}
-                </div>
-                <div style={{ fontSize: 9, color: T.dim, marginTop: 1 }}>
-                  {item.s}
-                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{item.l}</div>
+                <div style={{ fontSize: 9, color: T.dim, marginTop: 1 }}>{item.s}</div>
               </div>
               <span style={{ color: T.dim, fontSize: 17 }}>›</span>
             </div>

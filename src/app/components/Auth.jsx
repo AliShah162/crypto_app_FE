@@ -1,8 +1,7 @@
 "use client";
 import { useState } from "react";
-import { T, S, COINS, ADMIN_USER, ADMIN_PASS,saveLS,loadLS } from "../lib/store";
+import { T, COINS, ADMIN_USER, ADMIN_PASS } from "../lib/store";
 import { Input, PB } from "./UI";
-import { registerUser, loginUser } from "../lib/api";
 
 /* ================= COUNTRIES LIST ================= */
 const COUNTRIES = [
@@ -35,8 +34,9 @@ const COUNTRIES = [
   "Zambia","Zimbabwe",
 ];
 
-/* ================= BACK BUTTON ================= */
+const API_URL = "https://crypto-backend-production-11dc.up.railway.app";
 
+/* ================= BACK BUTTON ================= */
 export function BackButton({ onClick }) {
   return (
     <button
@@ -57,7 +57,6 @@ export function BackButton({ onClick }) {
 }
 
 /* ================= ERROR BOX ================= */
-
 function ErrorBox({ msg }) {
   if (!msg) return null;
   return (
@@ -97,8 +96,6 @@ function CountrySelect({ value, onChange }) {
       }}>
         COUNTRY
       </label>
-
-      {/* Trigger button */}
       <div
         onClick={() => setOpen((o) => !o)}
         style={{
@@ -123,8 +120,6 @@ function CountrySelect({ value, onChange }) {
           <path d="M6 9l6 6 6-6" />
         </svg>
       </div>
-
-      {/* Dropdown */}
       {open && (
         <div style={{
           position: "absolute", top: "100%", left: 0, right: 0, zIndex: 999,
@@ -133,7 +128,6 @@ function CountrySelect({ value, onChange }) {
           boxShadow: "0 12px 40px rgba(0,0,0,0.7)",
           overflow: "hidden",
         }}>
-          {/* Search box inside dropdown */}
           <div style={{ padding: "8px 10px", borderBottom: `1px solid ${T.line}` }}>
             <input
               autoFocus
@@ -148,8 +142,6 @@ function CountrySelect({ value, onChange }) {
               }}
             />
           </div>
-
-          {/* List */}
           <div style={{ maxHeight: 200, overflowY: "auto", scrollbarWidth: "none" }}>
             {filtered.length === 0 ? (
               <div style={{ padding: "12px 14px", fontSize: 12, color: T.dim }}>
@@ -168,12 +160,6 @@ function CountrySelect({ value, onChange }) {
                     borderLeft: c === value ? `3px solid ${T.acc}` : "3px solid transparent",
                     transition: "background 0.15s",
                   }}
-                  onMouseEnter={(e) => {
-                    if (c !== value) e.currentTarget.style.background = "rgba(255,255,255,0.04)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (c !== value) e.currentTarget.style.background = "transparent";
-                  }}
                 >
                   {c}
                 </div>
@@ -187,7 +173,6 @@ function CountrySelect({ value, onChange }) {
 }
 
 /* ================= WELCOME ================= */
-
 export function WelcomeScreen({ go }) {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: 42 }}>
@@ -222,11 +207,10 @@ export function WelcomeScreen({ go }) {
 }
 
 /* ================= SIGNUP ================= */
-
 export function SignupScreen({ go, onAuth }) {
   const [step, ss] = useState(1);
   const [err, setErr] = useState("");
-  const [fieldErr, setFieldErr] = useState(""); // ✅ inline field-level error (email duplicate)
+  const [fieldErr, setFieldErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [f, sf] = useState({
     user: "", email: "", pw: "", cpw: "",
@@ -246,38 +230,41 @@ export function SignupScreen({ go, onAuth }) {
 
     setLoading(true);
     try {
-      const res = await registerUser({
-        username,
-        email: f.email.toLowerCase(),
-        password: f.pw,
-        fullName: f.fn,
-        phone: f.ph,
-        dob: f.dob,
-        country: f.co,
+      const res = await fetch(`${API_URL}/api/users/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username,
+          email: f.email.toLowerCase(),
+          password: f.pw,
+          fullName: f.fn,
+          phone: f.ph,
+          dob: f.dob,
+          country: f.co,
+        }),
       });
+      
+      const data = await res.json();
 
-      if (!res || res.error) {
-        const msg = res?.error || "Registration failed. Please try again.";
-
-        // ✅ If it's an email duplicate error, go back to step 1 and show it inline
+      if (data.error) {
+        const msg = data.error;
         if (msg.toLowerCase().includes("email")) {
           ss(1);
           setFieldErr(msg);
           return;
         }
-
         setErr(msg);
         return;
       }
 
-      onAuth({
-        username: res.username,
-        email: res.email,
-        fullName: res.fullName || f.fn || "",
-        role: res.role || "user",
-        phone: res.phone || f.ph || "",
-        dob: res.dob || f.dob || "",
-        country: res.country || f.co || "",
+      await onAuth({
+        username: data.username,
+        email: data.email,
+        fullName: data.fullName || f.fn || "",
+        role: data.role || "user",
+        phone: data.phone || f.ph || "",
+        dob: data.dob || f.dob || "",
+        country: data.country || f.co || "",
         loggedInAt: Date.now(),
       });
     } catch (e) {
@@ -296,8 +283,6 @@ export function SignupScreen({ go, onAuth }) {
         <>
           <ErrorBox msg={fieldErr || err} />
           <Input label="USERNAME" val={f.user} set={sv("user")} />
-
-          {/* Email with inline error below the field */}
           <div style={{ marginBottom: fieldErr ? 4 : 0 }}>
             <Input label="EMAIL" val={f.email} set={(v) => { sv("email")(v); setFieldErr(""); }} />
           </div>
@@ -309,7 +294,6 @@ export function SignupScreen({ go, onAuth }) {
               ⚠ {fieldErr}
             </div>
           )}
-
           <Input label="PASSWORD" type="password" val={f.pw} set={sv("pw")} />
           <Input label="CONFIRM PASSWORD" type="password" val={f.cpw} set={sv("cpw")} />
           <PB
@@ -337,10 +321,7 @@ export function SignupScreen({ go, onAuth }) {
           <Input label="FULL NAME" val={f.fn} set={sv("fn")} />
           <Input label="PHONE" val={f.ph} set={sv("ph")} />
           <Input label="DOB" type="date" val={f.dob} set={sv("dob")} />
-
-          {/* ✅ New styled country selector with search */}
           <CountrySelect value={f.co} onChange={sv("co")} />
-
           <PB lbl={loading ? "Creating…" : "Create Account 🎉"} onClick={submit} />
         </>
       )}
@@ -349,20 +330,19 @@ export function SignupScreen({ go, onAuth }) {
 }
 
 /* ================= LOGIN ================= */
-
 export function LoginScreen({ go, onAuth, onAdmin }) {
   const [f, sf] = useState({ user: "", pw: "" });
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const go2 = async () => {
+  const handleLogin = async () => {
     setErr("");
     const cleanUser = f.user.toLowerCase().trim();
 
     if (!cleanUser) return setErr("Please enter your username.");
     if (!f.pw) return setErr("Please enter your password.");
 
-    // ── ADMIN ──
+    // Admin login
     if (cleanUser === ADMIN_USER && f.pw === ADMIN_PASS) {
       const adminSession = {
         username: "admin",
@@ -371,112 +351,49 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
         role: "admin",
         loggedInAt: Date.now(),
       };
-
-      if (!S.users["admin"]) {
-        S.users["admin"] = {
-          username: "admin", email: "admin@coinbase.com",
-          fullName: "Administrator", role: "admin",
-          balance: 0, creditScore: 100,
-          transactions: [], holdings: {}, savedCards: [],
-        };
-        if (typeof window !== "undefined") {
-saveLS("users", S.users);        }
-      }
-
-      onAuth(adminSession);
+      await onAuth(adminSession);
       onAdmin?.();
       return;
     }
 
-    if (S.banned?.includes(cleanUser)) {
-      return setErr("Your account has been banned.");
-    }
-
-    if (cleanUser === ADMIN_USER && f.pw !== ADMIN_PASS) {
-      return setErr("Incorrect admin password.");
-    }
-
-    // ── Check if admin has overridden this user's password in localStorage ──
-    // Admin panel saves the new password to localStorage under user.password and
-    // user.adminPassword. If either exists, we must validate against it FIRST
-    // before the backend (which still has the old password).
-    try {
-const localUsers = loadLS("users", {});
-      const localUser  = localUsers[cleanUser];
-      if (localUser) {
-        // Prefer adminPassword (set by admin panel); fall back to password field
-        const overridePw = localUser.adminPassword ?? localUser.password ?? null;
-        if (overridePw !== null) {
-          // An override exists — validate locally, skip backend password check
-          if (f.pw !== overridePw) {
-            return setErr("Incorrect password. Please try again.");
-          }
-          // Password matches — proceed to backend only for user data, not auth
-          setLoading(true);
-          try {
-            const res = await loginUser({ username: cleanUser, password: overridePw });
-            // Even if backend rejects (old pw mismatch), we trust local override
-            const userData = (!res || res.error) ? localUser : res;
-            onAuth({
-              username: userData.username || cleanUser,
-              email: userData.email || localUser.email || "",
-              fullName: userData.fullName || localUser.fullName || "",
-              role: userData.role || localUser.role || "user",
-              phone: userData.phone || localUser.phone || "",
-              dob: userData.dob || localUser.dob || "",
-              country: userData.country || localUser.country || "",
-              loggedInAt: Date.now(),
-            });
-          } catch {
-            // Backend unreachable — still allow login with local data
-            onAuth({
-              username: localUser.username || cleanUser,
-              email: localUser.email || "",
-              fullName: localUser.fullName || "",
-              role: localUser.role || "user",
-              phone: localUser.phone || "",
-              dob: localUser.dob || "",
-              country: localUser.country || "",
-              loggedInAt: Date.now(),
-            });
-          } finally {
-            setLoading(false);
-          }
-          return;
-        }
-      }
-    } catch {
-      // localStorage unavailable — fall through to normal backend login
-    }
-
-    // ── Normal backend login (no local override) ──
     setLoading(true);
     try {
-      const res = await loginUser({ username: cleanUser, password: f.pw });
+      // Call the backend login API
+      const response = await fetch(`${API_URL}/api/users/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          username: cleanUser, 
+          password: f.pw 
+        }),
+      });
+      
+      const data = await response.json();
 
-      if (!res) return setErr("No response from server. Please try again.");
-      if (res.error) {
-        const msg = typeof res.error === "string" ? res.error : "";
-        if (msg.toLowerCase().includes("not found") || msg.toLowerCase().includes("no user"))
-          return setErr("Account not found. Please check your username.");
-        if (msg.toLowerCase().includes("password") || msg.toLowerCase().includes("invalid"))
-          return setErr("Incorrect password. Please try again.");
-        return setErr(msg || "Login failed. Please check your credentials.");
+      if (data.error) {
+        if (data.error === "BANNED") {
+          setErr("Your account has been banned.");
+        } else {
+          setErr("Invalid username or password. Please try again.");
+        }
+        return;
       }
 
-      onAuth({
-        username: res.username,
-        email: res.email,
-        fullName: res.fullName || "",
-        role: res.role || "user",
-        phone: res.phone || "",
-        dob: res.dob || "",
-        country: res.country || "",
+      // Login successful - call onAuth with user data
+      await onAuth({
+        username: data.username,
+        email: data.email,
+        fullName: data.fullName || "",
+        role: data.role || "user",
+        phone: data.phone || "",
+        dob: data.dob || "",
+        country: data.country || "",
         loggedInAt: Date.now(),
       });
+      
     } catch (e) {
-      setErr("Network error. Please check your connection.");
       console.error("LOGIN ERROR:", e);
+      setErr("Network error. Please check if the server is running.");
     } finally {
       setLoading(false);
     }
@@ -495,15 +412,20 @@ const localUsers = loadLS("users", {});
 
       <ErrorBox msg={err} />
       <Input
-        label="USERNAME" val={f.user} placeholder="Enter your username"
+        label="USERNAME" 
+        val={f.user} 
+        placeholder="Enter your username"
         set={(v) => sf((p) => ({ ...p, user: v }))}
       />
       <Input
-        label="PASSWORD" type="password" placeholder="Enter your password"
-        val={f.pw} set={(v) => sf((p) => ({ ...p, pw: v }))}
+        label="PASSWORD" 
+        type="password" 
+        placeholder="Enter your password"
+        val={f.pw} 
+        set={(v) => sf((p) => ({ ...p, pw: v }))}
       />
 
-      <PB lbl={loading ? "Signing in…" : "Sign In"} onClick={go2} />
+      <PB lbl={loading ? "Signing in…" : "Sign In"} onClick={handleLogin} />
     </div>
   );
 }

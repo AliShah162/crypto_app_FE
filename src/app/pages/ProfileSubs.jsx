@@ -231,76 +231,121 @@ export function CardSub({ back, user, re }) {
   );
 }
 
-export function NotifSub({ back }) {
-  const [p, sp] = useState({ tr: true, dep: true, news: false, sec: true });
-  const items = [
-    { k: "tr", l: "Trade Alerts", d: "Order fills" },
-    { k: "dep", l: "Deposits & Withdrawals", d: "Confirmations" },
-    { k: "news", l: "Market News", d: "Breaking news" },
-    { k: "sec", l: "Security Alerts", d: "Login changes" },
-  ];
+export function NotifSub({ back, userNotifs, onMarkRead }) {
+  const [notifications, setNotifications] = useState(userNotifs || []);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchNotifs = async () => {
+      const sessionUser = localStorage.getItem("session");
+      if (sessionUser) {
+        try {
+          const res = await fetch(
+            `https://crypto-backend-production-11dc.up.railway.app/api/users/${sessionUser}/notifications`,
+          );
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setNotifications(data);
+          }
+        } catch (err) {
+          console.error("Failed to fetch notifications:", err);
+        }
+      }
+      setLoading(false);
+    };
+    fetchNotifs();
+  }, []);
+
+  const markAsRead = async (notifId) => {
+    const sessionUser = localStorage.getItem("session");
+    if (sessionUser) {
+      try {
+        await fetch(
+          `https://crypto-backend-production-11dc.up.railway.app/api/users/${sessionUser}/notifications/read`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ notificationId: notifId }),
+          },
+        );
+        // Update local state
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notifId ? { ...n, read: true } : n)),
+        );
+        if (onMarkRead) onMarkRead();
+      } catch (err) {
+        console.error("Failed to mark as read:", err);
+      }
+    }
+  };
+
   return (
-    <div style={{ flex: 1, overflowY: "auto" }}>
+    <div
+      style={{
+        flex: 1,
+        overflowY: "auto",
+        paddingBottom: 20,
+        scrollbarWidth: "none",
+        msOverflowStyle: "none",
+      }}
+    >
+      <style>{`.notif-scroll::-webkit-scrollbar { display: none; }`}</style>
       <BHdr title="Notifications" back={back} />
       <div style={{ padding: "15px" }}>
-        <div
-          style={{
-            background: T.card,
-            borderRadius: 15,
-            padding: "4px 13px",
-            border: `1px solid ${T.line}`,
-          }}
-        >
-          {items.map((item, i) => (
+        {loading ? (
+          <div style={{ textAlign: "center", color: T.dim, padding: 40 }}>
+            Loading...
+          </div>
+        ) : notifications.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              color: T.dim,
+              padding: 40,
+              fontSize: 13,
+            }}
+          >
+            🔔 No notifications yet
+          </div>
+        ) : (
+          notifications.map((notif) => (
             <div
-              key={item.k}
+              key={notif.id}
+              onClick={() => !notif.read && markAsRead(notif.id)}
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "13px 0",
-                borderBottom:
-                  i < items.length - 1 ? `1px solid ${T.line}` : "none",
+                background: notif.read ? T.card2 : "rgba(0,229,176,0.08)",
+                borderRadius: 12,
+                padding: "14px 16px",
+                marginBottom: 10,
+                border: `1px solid ${notif.read ? T.line : T.acc}`,
+                cursor: notif.read ? "default" : "pointer",
               }}
             >
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>
-                  {item.l}
-                </div>
-                <div style={{ fontSize: 10, color: T.dim, marginTop: 1 }}>
-                  {item.d}
-                </div>
-              </div>
               <div
-                onClick={() => sp((q) => ({ ...q, [item.k]: !q[item.k] }))}
                 style={{
-                  width: 42,
-                  height: 22,
-                  borderRadius: 11,
-                  background: p[item.k] ? T.acc : T.line,
-                  cursor: "pointer",
-                  position: "relative",
-                  transition: "background .2s",
-                  flexShrink: 0,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: T.text,
+                  marginBottom: 5,
                 }}
               >
-                <div
-                  style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: "50%",
-                    background: "#fff",
-                    position: "absolute",
-                    top: 2,
-                    left: p[item.k] ? 22 : 2,
-                    transition: "left .2s",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-                  }}
-                />
+                {notif.title}
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: notif.read ? T.dim : T.acc,
+                  lineHeight: 1.5,
+                }}
+              >
+                {notif.body}
+              </div>
+              <div style={{ fontSize: 11, color: T.dim, marginTop: 8 }}>
+                {new Date(notif.date).toLocaleString()}
               </div>
             </div>
-          ))}
-        </div>
+          ))
+        )}
       </div>
     </div>
   );
@@ -435,7 +480,11 @@ export function EditSub({ back, user, re }) {
     try {
       const { updateUserInDB } = await import("../lib/api");
       if (u && typeof updateUserInDB === "function") {
-        await updateUserInDB(u.username, { fullName: f.fn, phone: f.ph, country: f.co });
+        await updateUserInDB(u.username, {
+          fullName: f.fn,
+          phone: f.ph,
+          country: f.co,
+        });
       }
     } catch (e) {
       console.error("Failed to sync profile to DB:", e);
@@ -488,20 +537,27 @@ export function EditSub({ back, user, re }) {
 // NEW: Binary History Sub Component
 export function BinaryHistorySub({ back, user, re }) {
   const [BinaryHistoryComponent, setBinaryHistoryComponent] = useState(null);
-  
+
   useEffect(() => {
     import("../components/BinaryHistory").then((mod) => {
       setBinaryHistoryComponent(() => mod.default);
     });
   }, []);
-  
+
   if (!BinaryHistoryComponent) {
     return (
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <div style={{ color: T.dim }}>Loading binary history...</div>
       </div>
     );
   }
-  
+
   return <BinaryHistoryComponent user={user} back={back} />;
 }

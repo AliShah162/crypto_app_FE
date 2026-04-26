@@ -20,6 +20,10 @@ export function loadLS(key, fallback) {
 
 export function saveLS(key, value) {
   if (typeof window === "undefined") return;
+  if (key === "users") {
+    console.warn("Blocked writing to old users key");
+    return;
+  }
   localStorage.setItem(key, JSON.stringify(value));
 }
 

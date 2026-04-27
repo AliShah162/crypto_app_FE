@@ -1051,21 +1051,6 @@ export function HistoryPage({ user, onBack }) {
                             </span>
                           </div>
 
-                          {tx.status === "pending" && (
-                            <div
-                              style={{
-                                marginTop: 12,
-                                padding: "8px 12px",
-                                background: "rgba(245,158,11,0.1)",
-                                borderRadius: 8,
-                                textAlign: "center",
-                              }}
-                            >
-                              <span style={{ fontSize: 11, color: T.gold }}>
-                                ⏳ Awaiting admin confirmation
-                              </span>
-                            </div>
-                          )}
                         </>
                       ) : (
                         <>

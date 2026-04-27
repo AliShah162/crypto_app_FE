@@ -30,8 +30,7 @@ import {
   EditSub,
   BinaryHistorySub,
 } from "./pages/ProfileSubs";
-
-const API_URL = "https://crypto-backend-production-11dc.up.railway.app";
+import { API_URL } from "./lib/config";
 
 function initLocalStorage() {
   if (typeof window === "undefined") return;

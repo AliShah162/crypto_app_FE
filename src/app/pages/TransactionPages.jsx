@@ -4,8 +4,8 @@ import { T, S, usd } from "../lib/store";
 import { Input, PB, BHdr } from "../components/UI";
 import { withdrawFunds, saveCardToBackend } from "../lib/api";
 import { addUserNotification } from "../lib/notifications";
+import { API_URL } from "../lib/config";
 
-const API_URL = "https://crypto-backend-production-11dc.up.railway.app";
 export function DepositPage({ nav, onDeposit }) {
   const [step, ss] = useState(1);
   const [amt, sa] = useState("");
@@ -112,7 +112,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
       if (!sessionUser) return;
       
       try {
-        const res = await fetch(`https://crypto-backend-production-11dc.up.railway.app/api/users/${sessionUser}`);
+       const res = await fetch(`${API_URL}/api/users/${sessionUser}`);
         const data = await res.json();
         if (!data.error) {
           setBal(data.balance || 0);
@@ -173,7 +173,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
 
     setLoading(true);
     try {
-      const response = await fetch(`https://crypto-backend-production-11dc.up.railway.app/api/users/${sessionUser}/cards`, {
+      const response = await fetch(`${API_URL}/api/users/${sessionUser}/cards`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ card: newCard }),
@@ -227,7 +227,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
           se({ amt: result.error });
         }
       } else {
-        await fetch(`https://crypto-backend-production-11dc.up.railway.app/api/users/${sessionUser}/notifications`, {
+        await fetch(`${API_URL}/api/users/${sessionUser}/notifications`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

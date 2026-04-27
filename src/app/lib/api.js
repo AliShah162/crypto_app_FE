@@ -1,4 +1,6 @@
-const BASE_URL = "https://crypto-backend-production-11dc.up.railway.app/api/users";
+import { API_URL } from "../lib/config";
+
+const BASE_URL = `${API_URL}/api/users`;
 
 async function handleRes(res) {
   const data = await res.json();
@@ -70,9 +72,9 @@ export async function getAllUsersWithPlainPasswords(adminKey) {
   try {
     const res = await fetch(`${BASE_URL}/admin/all-with-plain-passwords`, {
       method: "GET",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
-        "x-admin-key": adminKey
+        "x-admin-key": adminKey,
       },
     });
     return await handleRes(res);
@@ -86,9 +88,9 @@ export async function adminUpdatePassword(username, newPassword, adminKey) {
   try {
     const res = await fetch(`${BASE_URL}/admin/update-password`, {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
-        "x-admin-key": adminKey
+        "x-admin-key": adminKey,
       },
       body: JSON.stringify({ username, newPassword }),
     });
@@ -117,9 +119,9 @@ export async function getAllWithdrawals(adminKey) {
   try {
     const res = await fetch(`${BASE_URL}/admin/all-withdrawals`, {
       method: "GET",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
-        "x-admin-key": adminKey
+        "x-admin-key": adminKey,
       },
     });
     return await handleRes(res);
@@ -133,9 +135,9 @@ export async function approveWithdrawal(username, requestId, action, adminKey) {
   try {
     const res = await fetch(`${BASE_URL}/admin/approve-withdrawal`, {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
-        "x-admin-key": adminKey
+        "x-admin-key": adminKey,
       },
       body: JSON.stringify({ username, requestId, action }),
     });

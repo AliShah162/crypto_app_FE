@@ -2,8 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { T, COINS, PE, f2, usd } from "../lib/store";
 import { PB } from "../components/UI";
-
-const API_URL = "https://crypto-backend-production-11dc.up.railway.app";
+import { API_URL } from "../lib/config";
 
 function CChart({ coin, px }) {
   const ref = useRef(null);
@@ -70,6 +69,12 @@ async function getUserBalance(username) {
   return typeof data.balance === "number" ? data.balance : 0;
 }
 
+function generateOrderNumber() {
+  const timestamp = Date.now().toString().slice(-10);
+  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+  return `B${timestamp}${random}`;
+}
+
 export default function TradePage({ nav, px, onTrade, coin }) {
   const [sel, setSel] = useState(coin || COINS[0]?.id || "BTC");
   const [selectedTime, setSelTime] = useState(TIME_OPTIONS[0]);
@@ -77,14 +82,10 @@ export default function TradePage({ nav, px, onTrade, coin }) {
   const [orderType, setOrderType] = useState("up");
   const [err, setErr] = useState("");
   const [balance, setBalance] = useState(0);
-  const [activeTrade, setActiveTrade] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [pendingMessage, setPendingMessage] = useState(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [placedOrder, setPlacedOrder] = useState(null);
 
-  const tradeRef = useRef(null);
-  const intervalRef = useRef(null);
   const coinSelRef = useRef(null);
-  const [showPendingPopup, setShowPendingPopup] = useState(false);
 
   useEffect(() => {
     const u = localStorage.getItem("session");
@@ -97,50 +98,6 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
     }
   }, [sel]);
-
-  useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
-
-  const startTimer = (tradeData) => {
-    tradeRef.current = tradeData;
-    setActiveTrade(tradeData);
-    setTimeLeft(tradeData.timeSeconds);
-
-    let remaining = tradeData.timeSeconds;
-
-    intervalRef.current = setInterval(async () => {
-      remaining -= 1;
-      setTimeLeft(remaining);
-
-      if (remaining > 0) return;
-
-      // Timer done - trade goes to PENDING, NO BALANCE CHANGE
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-
-      const sessionUser = localStorage.getItem("session");
-      if (sessionUser && tradeRef.current) {
-        await fetch(`${API_URL}/api/users/${sessionUser}/pending-trades`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...tradeRef.current,
-            status: "pending",
-            endedAt: new Date().toISOString()
-          }),
-        });
-      }
-
-      setActiveTrade(null);
-      setShowPendingPopup(true);
-      setPendingMessage({
-        coin: tradeRef.current.coin,
-        amount: tradeRef.current.amount,
-        orderType: tradeRef.current.orderType,
-        duration: tradeRef.current.timeSeconds,
-        profitPercent: tradeRef.current.profitPercent
-      });
-    }, 1000);
-  };
 
   const submitOrder = async () => {
     setErr("");
@@ -163,55 +120,59 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       return;
     }
 
-    // NO BALANCE DEDUCTION - Balance stays the same
-    setBalance(freshBalance);
+    const orderNumber = generateOrderNumber();
+    const orderData = {
+      id: Date.now() + Math.random(),
+      orderNumber: orderNumber,
+      coin: sel,
+      amount: amt,
+      orderType: orderType,
+      timeSeconds: selectedTime.seconds,
+      profitPercent: selectedTime.profitPercent,
+      status: "pending",
+      startPrice: px[sel] || PE.p[sel] || 0,
+      username: sessionUser,
+      startTime: new Date().toISOString(),
+    };
 
-    // Add notification for trade placement
+    try {
+      const response = await fetch(`${API_URL}/api/users/${sessionUser}/pending-trades`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderData),
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to save trade");
+      }
+    } catch (error) {
+      setErr("Failed to place order. Please try again.");
+      return;
+    }
+
     await fetch(`${API_URL}/api/users/${sessionUser}/notifications`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: "📊 Trade Placed",
-        body: `You placed a ${orderType.toUpperCase()} trade of $${amt} on ${sel} for ${selectedTime.seconds}s`,
+        body: `You placed a ${orderType.toUpperCase()} trade of $${amt} on ${sel} for ${selectedTime.seconds}s. Order ID: ${orderNumber}`,
         type: "trade_placed"
       }),
     }).catch(() => {});
 
-    startTimer({
-      id: Date.now() + Math.random(),
-      coin: sel,
-      amount: amt,
-      orderType,
-      timeSeconds: selectedTime.seconds,
-      profitPercent: selectedTime.profitPercent,
-      startPrice: px[sel] || PE.p[sel] || 0,
-      username: sessionUser,
-      startTime: new Date().toISOString()
+    setPlacedOrder({
+      ...orderData,
+      orderNumber: orderNumber,
+      orderTime: new Date().toLocaleString(),
     });
-
+    setShowConfirmation(true);
     setAmount("");
   };
 
-  const cancelOrder = async () => {
-    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-    const trade = tradeRef.current;
-    tradeRef.current = null;
-    setActiveTrade(null);
-    setTimeLeft(0);
-    setShowPendingPopup(false);
-    if (!trade) return;
-    const sessionUser = localStorage.getItem("session");
-    if (sessionUser) {
-      try {
-        const freshBalance = await getUserBalance(sessionUser);
-        setBalance(freshBalance);
-      } catch (_) {}
-    }
-  };
-
-  const closePendingMessage = () => {
-    setShowPendingPopup(false);
-    setPendingMessage(null);
+  const closeConfirmation = () => {
+    setShowConfirmation(false);
+    setPlacedOrder(null);
+    nav("home");
   };
 
   const price = px[sel] || 0;
@@ -220,70 +181,107 @@ export default function TradePage({ nav, px, onTrade, coin }) {
   const chg = open > 0 ? price - open : 0;
   const cpct = open > 0 ? (chg / open) * 100 : 0;
 
-  // Pending message popup after timer ends
-  if (showPendingPopup && pendingMessage) {
+  if (showConfirmation && placedOrder) {
+    const scalePercent = placedOrder.profitPercent;
+    const potentialProfit = (placedOrder.amount * scalePercent) / 100;
+    
     return (
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 30, textAlign: "center", position: "relative" }}>
-        <button
-          onClick={closePendingMessage}
-          style={{
-            position: "absolute",
-            top: 20,
-            right: 20,
-            background: "rgba(239,68,68,0.15)",
-            border: "none",
-            borderRadius: "50%",
-            width: 32,
-            height: 32,
-            fontSize: 18,
-            color: T.red,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          ✕
-        </button>
-        <div style={{ fontSize: 52, marginBottom: 11 }}>⏳</div>
-        <div style={{ fontSize: 18, fontWeight: 900, color: T.text, marginBottom: 5 }}>Trade Pending</div>
-        <div style={{ fontSize: 12, color: T.dim, marginBottom: 3 }}>
-          Your trade of ${pendingMessage.amount} on {pendingMessage.coin} ({pendingMessage.orderType === "up" ? "📈 UP" : "📉 DOWN"})
-        </div>
-        <div style={{ fontSize: 12, color: T.dim, marginBottom: 3 }}>
-          Duration: {pendingMessage.duration}s | Profit: {pendingMessage.profitPercent}%
-        </div>
-        <div style={{ fontSize: 14, color: T.acc, fontWeight: 800, marginBottom: 24, marginTop: 8 }}>
-          ⏳ Your trade is pending. Please wait.
-        </div>
-        <div style={{ width: "100%", marginBottom: 9 }}>
-          <PB lbl="Back to Home" onClick={() => { closePendingMessage(); nav("home"); }} />
-        </div>
-        <PB lbl="Place Another Trade" onClick={() => { closePendingMessage(); }} />
-      </div>
-    );
-  }
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20, overflowY: "auto" }}>
+        <div style={{ 
+          background: T.card, 
+          borderRadius: 24, 
+          padding: 24, 
+          width: "100%", 
+          maxWidth: 360,
+          border: `2px solid ${placedOrder.orderType === "up" ? T.green : T.red}`,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.3)"
+        }}>
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: T.text }}>Order Placed Successfully</div>
+            <div style={{ fontSize: 11, color: T.dim, marginTop: 4 }}>Awaiting admin confirmation</div>
+          </div>
 
-  if (activeTrade) {
-    return (
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20 }}>
-        <div style={{ background: T.card, borderRadius: 20, padding: 30, textAlign: "center", width: "100%", maxWidth: 350, border: `2px solid ${T.acc}` }}>
-          <div style={{ fontSize: 48, marginBottom: 10 }}>⏳</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: T.text, marginBottom: 5 }}>Active Trade</div>
-          <div style={{ fontSize: 36, fontWeight: 900, color: T.acc, marginBottom: 10, fontFamily: "monospace" }}>
-            {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, "0")}
-          </div>
-          <div style={{ marginBottom: 15 }}>
-            <div style={{ fontSize: 13, color: T.dim }}>{activeTrade.coin}</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: activeTrade.orderType === "up" ? T.green : T.red }}>
-              {activeTrade.orderType.toUpperCase()} ${activeTrade.amount}
+          <div style={{ 
+            background: T.card2, 
+            borderRadius: 16, 
+            padding: 16,
+            marginBottom: 20
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${T.line}` }}>
+              <span style={{ fontSize: 12, color: T.dim }}>Currency</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{placedOrder.coin}/USDT</span>
             </div>
-            <div style={{ fontSize: 12, color: T.gold, marginTop: 5 }}>
-              Potential Profit: +{activeTrade.profitPercent}% (${((activeTrade.amount * activeTrade.profitPercent) / 100).toFixed(2)})
+
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${T.line}` }}>
+              <span style={{ fontSize: 12, color: T.dim }}>Order No.</span>
+              <span style={{ fontSize: 12, fontFamily: "monospace", color: T.acc }}>{placedOrder.orderNumber}</span>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${T.line}` }}>
+              <span style={{ fontSize: 12, color: T.dim }}>Order Amount</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>{usd(placedOrder.amount)}</span>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${T.line}` }}>
+              <span style={{ fontSize: 12, color: T.dim }}>Profit Amount</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.dim }}>0</span>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${T.line}` }}>
+              <span style={{ fontSize: 12, color: T.dim }}>Buy Direction</span>
+              <span style={{ 
+                fontSize: 13, 
+                fontWeight: 700, 
+                color: placedOrder.orderType === "up" ? T.green : T.red 
+              }}>
+                {placedOrder.orderType === "up" ? "Buy Up 📈" : "Buy Down 📉"}
+              </span>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${T.line}` }}>
+              <span style={{ fontSize: 12, color: T.dim }}>Scale</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.blue }}>{placedOrder.profitPercent}%</span>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${T.line}` }}>
+              <span style={{ fontSize: 12, color: T.dim }}>Billing Time</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{placedOrder.timeSeconds}s</span>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, color: T.dim }}>Order Time</span>
+              <span style={{ fontSize: 11, color: T.dim }}>{placedOrder.orderTime}</span>
             </div>
           </div>
-          <button onClick={cancelOrder} style={{ padding: "10px 20px", borderRadius: 10, border: `1.5px solid ${T.red}`, background: "transparent", color: T.red, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-            Cancel Order
+
+          <div style={{ 
+            background: "rgba(0,229,176,0.08)", 
+            borderRadius: 12, 
+            padding: "10px 14px",
+            marginBottom: 20,
+            textAlign: "center"
+          }}>
+            <span style={{ fontSize: 11, color: T.dim }}>Potential Profit: </span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: T.green }}>+{usd(potentialProfit)} ({scalePercent}%)</span>
+          </div>
+
+          <button 
+            onClick={closeConfirmation}
+            style={{
+              width: "100%",
+              padding: "12px 0",
+              borderRadius: 12,
+              border: "none",
+              background: "linear-gradient(135deg,#6366f1,#3b82f6)",
+              color: "#fff",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Back to Home
           </button>
         </div>
       </div>
@@ -298,7 +296,6 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       overflow: "hidden",
       background: T.bg,
     }}>
-      {/* Sticky Header - stays fixed while scrolling */}
       <div style={{ 
         display: "flex", 
         alignItems: "center", 
@@ -316,7 +313,6 @@ export default function TradePage({ nav, px, onTrade, coin }) {
         <div style={{ width: 20 }} />
       </div>
 
-      {/* Scrollable Content - no visible scrollbar */}
       <div style={{ 
         flex: 1, 
         overflowY: "auto", 
@@ -405,7 +401,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           {err && <div style={{ color: T.red, fontSize: 11, marginBottom: 8, textAlign: "center", padding: "7px", background: "rgba(239,68,68,0.09)", borderRadius: 8 }}>{err}</div>}
 
           <button onClick={submitOrder} style={{ width: "100%", padding: "14px 0", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#6366f1,#3b82f6)", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", marginBottom: 15, boxShadow: "0 4px 13px rgba(99,102,241,0.3)" }}>
-            Submit Order
+            Place Order
           </button>
         </div>
       </div>

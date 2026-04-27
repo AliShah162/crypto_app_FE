@@ -12,7 +12,8 @@ import {
 } from "../lib/api";
 import { addUserNotification } from "../lib/notifications";
 
-const BASE_URL = "https://crypto-backend-production-11dc.up.railway.app";
+import { API_URL } from "../lib/config";
+const BASE_URL = API_URL;
 
 /* ─── helpers ─── */
 function loadLocalUsers() {
@@ -680,6 +681,400 @@ function BalanceEditor({ username, usersState, setUsersState }) {
 }
 
 /* ══════════════════════════════════════════════════════
+   FREEZE EDITOR (Admin can freeze/unfreeze user balance)
+══════════════════════════════════════════════════════ */
+function FreezeEditor({ username, usersState, setUsersState, onRefresh }) {
+  const [mode, setMode] = useState("freeze");
+  const [val, setVal] = useState("");
+  const [msg, setMsg] = useState(null);
+  const [freezeId, setFreezeId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [frozenData, setFrozenData] = useState({
+    frozenTotal: 0,
+    frozenAmounts: [],
+  });
+
+  const u = usersState[username] || {};
+
+  // Fetch frozen data
+  const fetchFrozenData = async () => {
+    try {
+      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+      const response = await fetch(`${BASE_URL}/api/users/${username}/frozen`, {
+        headers: { "x-admin-key": adminKey },
+      });
+      const data = await response.json();
+      if (!data.error) {
+        setFrozenData(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch frozen data:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (username) fetchFrozenData();
+  }, [username, usersState]);
+
+  const applyFreeze = async () => {
+    const n = parseFloat(val);
+    if (!val || isNaN(n) || n < 0) {
+      setMsg({ t: "e", m: "Enter a valid positive number." });
+      return;
+    }
+
+    setLoading(true);
+    setMsg(null);
+
+    try {
+      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+
+      let response;
+      if (mode === "freeze") {
+        response = await fetch(`${BASE_URL}/api/users/admin/freeze-balance`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": adminKey,
+          },
+          body: JSON.stringify({
+            username,
+            amount: n,
+            action: "freeze",
+            reason: "Admin freeze action",
+          }),
+        });
+      } else {
+        // Unfreeze
+        response = await fetch(`${BASE_URL}/api/users/admin/freeze-balance`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": adminKey,
+          },
+          body: JSON.stringify({
+            username,
+            amount: n,
+            action: "unfreeze",
+            ...(freezeId ? { freezeId } : {}),
+          }),
+        });
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        setMsg({ t: "s", m: data.message });
+        setVal("");
+        setFreezeId(null);
+
+        // Update local state
+        const fresh = S.users[username] || usersState[username] || {};
+        const updated = {
+          ...fresh,
+          balance:
+            data.newBalance !== undefined ? data.newBalance : fresh.balance,
+          frozenTotal: data.frozenTotal,
+          frozenAmounts: data.frozenAmounts,
+        };
+
+        S.users[username] = updated;
+        const ns = { ...usersState, [username]: updated };
+        setUsersState(ns);
+        saveUsers(ns);
+
+        fetchFrozenData();
+        if (onRefresh) onRefresh();
+      } else {
+        setMsg({ t: "e", m: data.error || "Operation failed" });
+      }
+    } catch (err) {
+      setMsg({ t: "e", m: "Network error. Try again." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const unfreezeSpecific = async (id, amount) => {
+    setLoading(true);
+    try {
+      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+      const response = await fetch(
+        `${BASE_URL}/api/users/admin/freeze-balance`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": adminKey,
+          },
+          body: JSON.stringify({
+            username,
+            amount,
+            action: "unfreeze",
+            freezeId: id,
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        setMsg({ t: "s", m: data.message });
+
+        const fresh = S.users[username] || usersState[username] || {};
+        const updated = {
+          ...fresh,
+          balance:
+            data.newBalance !== undefined ? data.newBalance : fresh.balance,
+          frozenTotal: data.frozenTotal,
+          frozenAmounts: data.frozenAmounts,
+        };
+
+        S.users[username] = updated;
+        const ns = { ...usersState, [username]: updated };
+        setUsersState(ns);
+        saveUsers(ns);
+
+        fetchFrozenData();
+        if (onRefresh) onRefresh();
+      } else {
+        setMsg({ t: "e", m: data.error || "Unfreeze failed" });
+      }
+    } catch (err) {
+      setMsg({ t: "e", m: "Network error." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        background: C.card,
+        borderRadius: 14,
+        border: `1px solid ${C.border}`,
+        padding: "20px 22px",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+        marginTop: 14,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 800,
+          color: C.text,
+          marginBottom: 14,
+        }}
+      >
+        ❄️ Freeze / Unfreeze User Balance
+      </div>
+
+      {/* Frozen Summary */}
+      <div
+        style={{
+          background: "#f0f9ff",
+          borderRadius: 10,
+          padding: "10px 12px",
+          marginBottom: 14,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#0284c7" }}>
+          Total Frozen: {usd(frozenData.frozenTotal || 0)}
+        </span>
+        <span style={{ fontSize: 11, color: "#0284c7" }}>
+          {frozenData.frozenAmounts?.length || 0} freeze record(s)
+        </span>
+      </div>
+
+      {/* Freeze Records List */}
+      {frozenData.frozenAmounts && frozenData.frozenAmounts.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: C.sub, marginBottom: 6 }}>
+            Frozen Transactions:
+          </div>
+          {frozenData.frozenAmounts.map((freeze) => (
+            <div
+              key={freeze.id}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "6px 0",
+                borderBottom: `1px solid ${C.border}`,
+              }}
+            >
+              <div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.red }}>
+                  {usd(freeze.amount)}
+                </span>
+                <div style={{ fontSize: 10, color: C.sub }}>
+                  {new Date(freeze.frozenAt).toLocaleDateString()}
+                </div>
+              </div>
+              <button
+                onClick={() => unfreezeSpecific(freeze.id, freeze.amount)}
+                disabled={loading}
+                style={{
+                  padding: "3px 10px",
+                  borderRadius: 6,
+                  border: `1px solid ${C.blue}`,
+                  background: C.blue + "15",
+                  color: C.blue,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: loading ? "not-allowed" : "pointer",
+                }}
+              >
+                Unfreeze
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        <button
+          onClick={() => {
+            setMode("freeze");
+            setMsg(null);
+            setFreezeId(null);
+          }}
+          style={{
+            flex: 1,
+            padding: "7px 0",
+            borderRadius: 7,
+            border: `1.5px solid ${mode === "freeze" ? C.blue : C.border}`,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: "pointer",
+            background: mode === "freeze" ? C.blue + "18" : "transparent",
+            color: mode === "freeze" ? C.blue : C.sub,
+          }}
+        >
+          ❄️ Freeze
+        </button>
+        <button
+          onClick={() => {
+            setMode("unfreeze");
+            setMsg(null);
+            setFreezeId(null);
+          }}
+          style={{
+            flex: 1,
+            padding: "7px 0",
+            borderRadius: 7,
+            border: `1.5px solid ${mode === "unfreeze" ? C.green : C.border}`,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: "pointer",
+            background: mode === "unfreeze" ? C.green + "18" : "transparent",
+            color: mode === "unfreeze" ? C.green : C.sub,
+          }}
+        >
+          🔓 Unfreeze
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ position: "relative", flex: 1 }}>
+          <span
+            style={{
+              position: "absolute",
+              left: 12,
+              top: "50%",
+              transform: "translateY(-50%)",
+              fontSize: 14,
+              color: C.sub,
+              fontWeight: 700,
+            }}
+          >
+            $
+          </span>
+          <input
+            type="number"
+            min="0"
+            placeholder="0.00"
+            value={val}
+            onChange={(e) => {
+              setVal(e.target.value);
+              setMsg(null);
+            }}
+            style={{
+              width: "100%",
+              padding: "10px 12px 10px 26px",
+              border: `1.5px solid ${C.border}`,
+              borderRadius: 9,
+              fontSize: 14,
+              color: C.text,
+              outline: "none",
+              fontFamily: "inherit",
+              background: "#f8fafc",
+            }}
+          />
+        </div>
+        <button
+          onClick={applyFreeze}
+          disabled={loading}
+          style={{
+            padding: "10px 20px",
+            borderRadius: 9,
+            border: "none",
+            background: mode === "freeze" ? C.blue : C.green,
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: loading ? "not-allowed" : "pointer",
+            fontFamily: "inherit",
+            whiteSpace: "nowrap",
+            opacity: loading ? 0.6 : 1,
+          }}
+        >
+          {loading
+            ? "Processing..."
+            : mode === "freeze"
+              ? "Freeze"
+              : "Unfreeze"}
+        </button>
+      </div>
+
+      <div style={{ marginTop: 8, fontSize: 12, color: C.sub }}>
+        Current Balance:{" "}
+        <strong style={{ color: C.text }}>{usd(u.balance || 0)}</strong>
+        {frozenData.frozenTotal > 0 && (
+          <span style={{ marginLeft: 8 }}>
+            | Frozen:{" "}
+            <strong style={{ color: C.red }}>
+              {usd(frozenData.frozenTotal)}
+            </strong>
+          </span>
+        )}
+      </div>
+
+      {msg && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: "9px 12px",
+            borderRadius: 8,
+            fontSize: 12,
+            fontWeight: 600,
+            background: msg.t === "s" ? C.green + "15" : C.red + "15",
+            color: msg.t === "s" ? C.green : C.red,
+            border: `1px solid ${msg.t === "s" ? C.green + "30" : C.red + "30"}`,
+          }}
+        >
+          {msg.t === "s" ? "✅ " : "❌ "}
+          {msg.m}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
    FORCE TRADE PANEL
 ══════════════════════════════════════════════════════ */
 function ForceTradePanel({ username, usersState, setUsersState }) {
@@ -1091,7 +1486,7 @@ function UserDrawer({
     ["balance", "💰 Balance"],
     ["binary", "🎲 Binary Trades"],
     ["history", "📜 All Activity"],
-    ["holdings", "💼 Holdings"],
+    ["holdings", "❄️ Frozen"],
     ["cards", "💳 Cards"],
     ["info", "ℹ️ Info"],
   ];
@@ -1119,7 +1514,7 @@ function UserDrawer({
             background: C.sidebar,
             padding: "20px 22px",
             display: "flex",
-            alignItems: "center",
+            flexDirection: "column",
             gap: 14,
             flexShrink: 0,
           }}
@@ -1179,6 +1574,7 @@ function UserDrawer({
               color: "#a5b4fc",
               cursor: "pointer",
               fontFamily: "inherit",
+              width: "100%",
             }}
           >
             📧 Send Notification
@@ -1227,10 +1623,10 @@ function UserDrawer({
               background: C.card,
             }}
           >
-            <div style={{ fontSize: 13, fontWeight: 800, color: C.gold }}>
-              {usd(hVal)}
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.red }}>
+              {usd(u.frozenTotal || 0)}
             </div>
-            <div style={{ fontSize: 9, color: C.sub }}>Holdings</div>
+            <div style={{ fontSize: 9, color: C.sub }}>Frozen</div>
           </div>
           <div
             style={{
@@ -1504,6 +1900,45 @@ function UserDrawer({
                 usersState={usersState}
                 setUsersState={setUsersState}
               />
+              <FreezeEditor
+                username={username}
+                usersState={usersState}
+                setUsersState={setUsersState}
+                onRefresh={() => {
+                  // Refresh user data after freeze/unfreeze
+                  const refreshUser = async () => {
+                    try {
+                      const adminKey =
+                        localStorage.getItem("adminApiKey") || "admin123456";
+                      const response = await fetch(
+                        `${BASE_URL}/api/users/admin/all-with-plain-passwords`,
+                        {
+                          headers: { "x-admin-key": adminKey },
+                        },
+                      );
+                      const users = await response.json();
+                      if (Array.isArray(users)) {
+                        const userData = users.find(
+                          (u) => u.username === username,
+                        );
+                        if (userData) {
+                          const updated = {
+                            ...usersState[username],
+                            ...userData,
+                          };
+                          const ns = { ...usersState, [username]: updated };
+                          setUsersState(ns);
+                          S.users[username] = updated;
+                          saveUsers(ns);
+                        }
+                      }
+                    } catch (err) {
+                      console.error("Failed to refresh user:", err);
+                    }
+                  };
+                  refreshUser();
+                }}
+              />
               <ForceTradePanel
                 username={username}
                 usersState={usersState}
@@ -1734,7 +2169,7 @@ function UserDrawer({
             </div>
           )}
 
-          {/* Holdings Tab */}
+          {/* Frozen Tab - Replaces Holdings */}
           {tab === "holdings" && (
             <div>
               <div
@@ -1754,14 +2189,14 @@ function UserDrawer({
                     marginBottom: 3,
                   }}
                 >
-                  TOTAL HOLDINGS VALUE
+                  TOTAL FROZEN AMOUNT
                 </div>
-                <div style={{ fontSize: 24, fontWeight: 900, color: C.text }}>
-                  {usd(hVal)}
+                <div style={{ fontSize: 24, fontWeight: 900, color: C.red }}>
+                  {usd(u.frozenTotal || 0)}
                 </div>
               </div>
-              {Object.entries(u.holdings || {}).filter(([, q]) => q > 0)
-                .length === 0 ? (
+
+              {!u.frozenAmounts || u.frozenAmounts.length === 0 ? (
                 <div
                   style={{
                     textAlign: "center",
@@ -1770,70 +2205,65 @@ function UserDrawer({
                     fontSize: 13,
                   }}
                 >
-                  No crypto holdings. Use Force Trade to add.
+                  No frozen amounts. Admin can freeze balance from admin panel.
                 </div>
               ) : (
-                Object.entries(u.holdings || {})
-                  .filter(([, q]) => q > 0)
-                  .map(([id, q]) => {
-                    const cm = coinMeta(id);
-                    const val = q * (PE.p[id] || 0);
-                    return (
+                u.frozenAmounts.map((freeze) => (
+                  <div
+                    key={freeze.id}
+                    style={{
+                      background: C.card,
+                      borderRadius: 10,
+                      border: `1px solid ${C.border}`,
+                      padding: "12px 14px",
+                      marginBottom: 8,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: "50%",
+                        background: "#fee2e2",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 18,
+                        color: C.red,
+                        flexShrink: 0,
+                      }}
+                    >
+                      ❄️
+                    </div>
+                    <div style={{ flex: 1 }}>
                       <div
-                        key={id}
                         style={{
-                          background: C.card,
-                          borderRadius: 10,
-                          border: `1px solid ${C.border}`,
-                          padding: "12px 14px",
-                          marginBottom: 8,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 12,
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: C.text,
                         }}
                       >
-                        <div
-                          style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: "50%",
-                            background: cm.bg,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 15,
-                            color: cm.cl,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {cm.sym}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 700,
-                              color: C.text,
-                            }}
-                          >
-                            {id}
-                          </div>
-                          <div style={{ fontSize: 11, color: C.sub }}>
-                            {f2(q, 6)} · @ {usd(PE.p[id] || 0)}
-                          </div>
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 800,
-                            color: C.green,
-                          }}
-                        >
-                          {usd(val)}
-                        </div>
+                        {usd(freeze.amount)}
                       </div>
-                    );
-                  })
+                      <div style={{ fontSize: 11, color: C.sub }}>
+                        {freeze.reason || "Frozen by admin"} ·{" "}
+                        {new Date(freeze.frozenAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 800,
+                        color: C.red,
+                      }}
+                    >
+                      ❄️
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           )}
@@ -3099,6 +3529,7 @@ export default function AdminPanel({ onBack, onExit }) {
                 background: "transparent",
                 fontSize: 20,
                 cursor: "pointer",
+                color: C.text,
                 padding: 4,
               }}
             >

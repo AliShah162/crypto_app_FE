@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { T, S, COINS, NEWS, PE, f2, usd } from "../lib/store";
 import { PB, BHdr, CoinIcon } from "../components/UI";
+import { API_URL } from "../lib/config";
 
 // ── Banner ─────────────────────────────────────────────
 export function Banner() {
@@ -772,8 +773,8 @@ export function HistoryPage({ user }) {
 // ── Profile ────────────────────────────────────────────
 // ── Profile ────────────────────────────────────────────
 export function ProfilePage({ user, onLogout, onSub, re }) {
-  const [frozenHVal, setFrozenHVal] = useState(0);
   const [frozenBalance, setFrozenBalance] = useState(0);
+  const [frozenTotal, setFrozenTotal] = useState(0); 
   const [, setTick] = useState(0);
   const [userNotifications, setUserNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -784,7 +785,7 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
     if (sessionUser === "admin") return; // Skip for admin
     if (sessionUser) {
       try {
-        const response = await fetch(`https://crypto-backend-production-11dc.up.railway.app/api/users/${sessionUser}/notifications`);
+        const response = await fetch(`${API_URL}/api/users/${sessionUser}/notifications`);
         const data = await response.json();
         if (Array.isArray(data)) {
           setUserNotifications(data);
@@ -810,7 +811,7 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
     const sessionUser = localStorage.getItem("session");
     if (sessionUser) {
       try {
-        await fetch(`https://crypto-backend-production-11dc.up.railway.app/api/users/${sessionUser}/notifications/read`, {
+        await fetch(`${API_URL}/api/users/${sessionUser}/notifications/read`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ notificationId }),
@@ -822,27 +823,23 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
     }
   };
 
-  const calc = async () => {
-    try {
-      const sessionUser = localStorage.getItem("session");
-      if (sessionUser) {
-        const response = await fetch(`https://crypto-backend-production-11dc.up.railway.app/api/users/${sessionUser}`);
-        const currentUser = await response.json();
-        
-        if (!currentUser.error) {
-          const hv = Object.entries(currentUser.holdings || {}).reduce(
-            (s, [id, q]) => s + Number(q || 0) * Number(PE.p[id] || 0),
-            0,
-          );
-          setFrozenHVal(hv);
-          setFrozenBalance(Number(currentUser.balance || 0));
-          setTick((n) => n + 1);
-        }
+ const calc = async () => {
+  try {
+    const sessionUser = localStorage.getItem("session");
+    if (sessionUser) {
+      const response = await fetch(`${API_URL}/api/users/${sessionUser}`);
+      const currentUser = await response.json();
+      
+      if (!currentUser.error) {
+        setFrozenBalance(Number(currentUser.balance || 0));
+        setFrozenTotal(Number(currentUser.frozenTotal || 0));
+        setTick((n) => n + 1);
       }
-    } catch (err) {
-      console.error("Profile balance calc error:", err);
     }
-  };
+  } catch (err) {
+    console.error("Profile balance calc error:", err);
+  }
+};
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -879,7 +876,7 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
 
   const liveUser = S.users?.[user?.username] || user || {};
   const isBan = (S.banned || []).includes(user?.username);
-  const tot = frozenBalance + frozenHVal;
+  const tot = frozenBalance + frozenTotal;
 
   const binaryTradesCount = (liveUser?.transactions || []).filter(
     (t) => t.isBinaryTrade === true || t.type === "Binary Trade"
@@ -918,19 +915,19 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
         </div>
 
         <div style={{ background: "linear-gradient(135deg,#0c2340,#1a3a5c)", borderRadius: 16, padding: "16px 15px", marginBottom: 13, boxShadow: "0 5px 18px rgba(0,0,0,0.4)" }}>
-          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", letterSpacing: 1, marginBottom: 4 }}>TOTAL PORTFOLIO VALUE</div>
-          <div style={{ fontSize: 24, fontWeight: 900, color: "#fff", marginBottom: 11 }}>{usd(tot)}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div style={{ background: "rgba(0,0,0,0.22)", borderRadius: 9, padding: "8px 10px" }}>
-              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 2 }}>Cash Balance</div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: T.acc }}>{usd(frozenBalance)}</div>
-            </div>
-            <div style={{ background: "rgba(0,0,0,0.22)", borderRadius: 9, padding: "8px 10px" }}>
-              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 2 }}>Holdings</div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: T.gold }}>{usd(frozenHVal)}</div>
-            </div>
-          </div>
-        </div>
+  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", letterSpacing: 1, marginBottom: 4 }}>TOTAL PORTFOLIO VALUE</div>
+  <div style={{ fontSize: 24, fontWeight: 900, color: "#fff", marginBottom: 11 }}>{usd(frozenBalance + frozenTotal)}</div>
+  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+    <div style={{ background: "rgba(0,0,0,0.22)", borderRadius: 9, padding: "8px 10px" }}>
+      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 2 }}>Cash Balance</div>
+      <div style={{ fontSize: 13, fontWeight: 800, color: T.acc }}>{usd(frozenBalance)}</div>
+    </div>
+    <div style={{ background: "rgba(0,0,0,0.22)", borderRadius: 9, padding: "8px 10px" }}>
+      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 2 }}>Frozen</div>
+      <div style={{ fontSize: 13, fontWeight: 800, color: T.red }}>{usd(frozenTotal)}</div>
+    </div>
+  </div>
+</div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 13 }}>
           {[

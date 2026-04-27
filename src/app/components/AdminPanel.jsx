@@ -4068,7 +4068,7 @@ export default function AdminPanel({ onBack, onExit }) {
                 onFilterChange={setTradeTimeFilter}
               />
 
-              {filteredTrades.filter(t => t.status === "pending").length === 0 ? (
+              {filteredTrades.length === 0 ? (
                 <div
                   style={{
                     background: C.card,
@@ -4083,7 +4083,7 @@ export default function AdminPanel({ onBack, onExit }) {
                   <div style={{ fontSize: 13 }}>No binary trades found</div>
                 </div>
               ) : (
-                filteredTrades.filter(t => t.status === "pending").map((trade, index) => (
+                filteredTrades.map((trade, index) => (
                   <div
                     key={`${trade.id}-${index}`}
                     style={{

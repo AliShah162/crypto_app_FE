@@ -100,29 +100,60 @@ export default function TradePage({ nav, px, onTrade, coin }) {
   }, [sel]);
 
   const submitOrder = async () => {
-    setErr("");
-    const amt = parseFloat(amount);
-    const sessionUser = localStorage.getItem("session");
-    if (!sessionUser) { setErr("Not logged in"); return; }
-    if (!amt || amt <= 0) { setErr("Enter a valid amount"); return; }
+  setErr("");
+  const amt = parseFloat(amount);
+  const sessionUser = localStorage.getItem("session");
+  if (!sessionUser) { setErr("Not logged in"); return; }
+  if (!amt || amt <= 0) { setErr("Enter a valid amount"); return; }
 
-    let freshBalance;
-    try {
-      freshBalance = await getUserBalance(sessionUser);
-    } catch {
-      setErr("Cannot reach server. Check your connection.");
-      return;
+  let freshBalance;
+  try {
+    freshBalance = await getUserBalance(sessionUser);
+  } catch {
+    setErr("Cannot reach server. Check your connection.");
+    return;
+  }
+
+  if (freshBalance < amt) {
+    setBalance(freshBalance);
+    setErr(`Insufficient balance. Available: ${usd(freshBalance)}`);
+    return;
+  }
+
+  const orderNumber = generateOrderNumber();
+  const orderData = {
+    id: Date.now() + Math.random(),
+    orderNumber: orderNumber,
+    coin: sel,
+    amount: amt,
+    orderType: orderType,
+    timeSeconds: selectedTime.seconds,
+    profitPercent: selectedTime.profitPercent,
+    status: "pending",
+    startPrice: px[sel] || PE.p[sel] || 0,
+    username: sessionUser,
+    startTime: new Date().toISOString(),
+  };
+
+  try {
+    const response = await fetch(`${API_URL}/api/users/${sessionUser}/pending-trades`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(orderData),
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to save trade");
     }
+  } catch (error) {
+    setErr("Failed to place order. Please try again.");
+    return;
+  }
 
-    if (freshBalance < amt) {
-      setBalance(freshBalance);
-      setErr(`Insufficient balance. Available: ${usd(freshBalance)}`);
-      return;
-    }
-
-    const orderNumber = generateOrderNumber();
-    const orderData = {
-      id: Date.now() + Math.random(),
+  // Save to user's transaction history
+  try {
+    const transactionData = {
+      type: "Binary Trade",
       orderNumber: orderNumber,
       coin: sel,
       amount: amt,
@@ -130,44 +161,38 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       timeSeconds: selectedTime.seconds,
       profitPercent: selectedTime.profitPercent,
       status: "pending",
-      startPrice: px[sel] || PE.p[sel] || 0,
-      username: sessionUser,
-      startTime: new Date().toISOString(),
+      profitAmount: 0,
+      date: new Date().toISOString(),
+      formattedDate: new Date().toLocaleString(),
     };
-
-    try {
-      const response = await fetch(`${API_URL}/api/users/${sessionUser}/pending-trades`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(orderData),
-      });
-      
-      if (!response.ok) {
-        throw new Error("Failed to save trade");
-      }
-    } catch (error) {
-      setErr("Failed to place order. Please try again.");
-      return;
-    }
-
-    await fetch(`${API_URL}/api/users/${sessionUser}/notifications`, {
+    
+    await fetch(`${API_URL}/api/users/${sessionUser}/transactions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: "📊 Trade Placed",
-        body: `You placed a ${orderType.toUpperCase()} trade of $${amt} on ${sel} for ${selectedTime.seconds}s. Order ID: ${orderNumber}`,
-        type: "trade_placed"
-      }),
-    }).catch(() => {});
-
-    setPlacedOrder({
-      ...orderData,
-      orderNumber: orderNumber,
-      orderTime: new Date().toLocaleString(),
+      body: JSON.stringify(transactionData),
     });
-    setShowConfirmation(true);
-    setAmount("");
-  };
+  } catch (error) {
+    console.error("Failed to save transaction history:", error);
+  }
+
+  await fetch(`${API_URL}/api/users/${sessionUser}/notifications`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: "📊 Trade Placed",
+      body: `You placed a ${orderType.toUpperCase()} trade of $${amt} on ${sel} for ${selectedTime.seconds}s. Order ID: ${orderNumber}`,
+      type: "trade_placed"
+    }),
+  }).catch(() => {});
+
+  setPlacedOrder({
+    ...orderData,
+    orderNumber: orderNumber,
+    orderTime: new Date().toLocaleString(),
+  });
+  setShowConfirmation(true);
+  setAmount("");
+};
 
   const closeConfirmation = () => {
     setShowConfirmation(false);

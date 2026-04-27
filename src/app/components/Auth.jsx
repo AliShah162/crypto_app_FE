@@ -214,18 +214,20 @@ export function SignupScreen({ go, onAuth }) {
   const [loading, setLoading] = useState(false);
   const [f, sf] = useState({
     user: "", email: "", pw: "", cpw: "",
-    fn: "", ph: "", dob: "", co: "",
+    fn: "", ph: "", co: "",
   });
   const sv = (k) => (v) => sf((p) => ({ ...p, [k]: v }));
+
+  const isValidEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
   const submit = async () => {
     setErr("");
     setFieldErr("");
     const username = f.user.toLowerCase().trim();
 
-    if (!f.dob) return setErr("Date of birth is required.");
-    if (!isAtLeast18(f.dob))
-      return setErr("You must be at least 18 years old to use this app.");
     if (!f.co) return setErr("Please select your country.");
 
     setLoading(true);
@@ -239,7 +241,6 @@ export function SignupScreen({ go, onAuth }) {
           password: f.pw,
           fullName: f.fn,
           phone: f.ph,
-          dob: f.dob,
           country: f.co,
         }),
       });
@@ -263,7 +264,6 @@ export function SignupScreen({ go, onAuth }) {
         fullName: data.fullName || f.fn || "",
         role: data.role || "user",
         phone: data.phone || f.ph || "",
-        dob: data.dob || f.dob || "",
         country: data.country || f.co || "",
         loggedInAt: Date.now(),
       });
@@ -276,7 +276,14 @@ export function SignupScreen({ go, onAuth }) {
   };
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
+    <div style={{ 
+      flex: 1, 
+      display: "flex", 
+      flexDirection: "column",
+      justifyContent: "center",
+      padding: 20,
+      overflowY: "auto",
+    }}>
       <BackButton onClick={() => { go("welcome"); setErr(""); setFieldErr(""); }} />
 
       {step === 1 && (
@@ -299,13 +306,15 @@ export function SignupScreen({ go, onAuth }) {
           <PB
             lbl="Continue →"
             onClick={() => {
-              setErr(""); setFieldErr("");
+              setErr(""); 
+              setFieldErr("");
               const username = f.user.toLowerCase().trim();
 
               if (!username) return setErr("Username is required.");
               if (!/^[a-z0-9._]+$/.test(username))
                 return setErr("Username can only contain letters, numbers, dots, or underscores.");
               if (!f.email) return setErr("Email is required.");
+              if (!isValidEmail(f.email)) return setErr("Please enter a valid email address (e.g., name@example.com).");
               if (!f.pw) return setErr("Password is required.");
               if (f.pw !== f.cpw) return setErr("Passwords do not match.");
               if (f.pw.length < 6) return setErr("Password must be at least 6 characters.");
@@ -320,7 +329,6 @@ export function SignupScreen({ go, onAuth }) {
           <ErrorBox msg={err} />
           <Input label="FULL NAME" val={f.fn} set={sv("fn")} />
           <Input label="PHONE" val={f.ph} set={sv("ph")} />
-          <Input label="DOB" type="date" val={f.dob} set={sv("dob")} />
           <CountrySelect value={f.co} onChange={sv("co")} />
           <PB lbl={loading ? "Creating…" : "Create Account 🎉"} onClick={submit} />
         </>

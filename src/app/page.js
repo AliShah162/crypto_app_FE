@@ -216,7 +216,6 @@ export default function App() {
               ...freshUser,
               balance: freshUser.balance ?? cachedUser.balance,
               transactions: freshUser.transactions || cachedUser.transactions,
-              holdings: freshUser.holdings || cachedUser.holdings,
               creditScore: freshUser.creditScore ?? cachedUser.creditScore,
             };
 
@@ -235,7 +234,7 @@ export default function App() {
 
     window.addEventListener("storage", checkSession);
     window.addEventListener("focus", checkSession);
-    const interval = setInterval(checkSession, 3000);
+    const interval = setInterval(checkSession, 30000);
 
     return () => {
       window.removeEventListener("storage", checkSession);
@@ -281,13 +280,11 @@ export default function App() {
           fullName: dbUser.fullName || u.fullName || username,
           role: dbUser.role || u.role || "user",
           phone: dbUser.phone || u.phone || "",
-          dob: dbUser.dob || u.dob || "",
           country: dbUser.country || u.country || "—",
           creditScore: dbUser.creditScore ?? 50,
           isBanned: dbUser.isBanned ?? false,
           balance: dbUser.balance ?? 0,
           transactions: dbUser.transactions || [],
-          holdings: dbUser.holdings || {},
           savedCards: dbUser.savedCards || [],
           loggedInAt: Date.now(),
         };
@@ -322,12 +319,10 @@ export default function App() {
           fullName: u.fullName || username,
           role: u.role || "user",
           phone: u.phone || "",
-          dob: u.dob || "",
           country: u.country || "—",
           balance: 0,
           creditScore: 50,
           transactions: [],
-          holdings: {},
           savedCards: [],
           loggedInAt: Date.now(),
         };
@@ -550,7 +545,7 @@ export default function App() {
       case "market":
         return <MarketPage px={px} nav={nav} />;
       case "history":
-        return <HistoryPage user={u} />;
+        return <HistoryPage user={u} onBack={() => nav("home")} />;
       case "profile":
         return (
           <ProfilePage

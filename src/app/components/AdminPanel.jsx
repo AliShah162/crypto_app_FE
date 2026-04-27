@@ -1420,10 +1420,7 @@ function UserDrawer({
   });
 
   const cards = u.savedCards || [];
-  const hVal = Object.entries(u.holdings || {}).reduce(
-    (s, [id, q]) => s + q * (PE.p[id] || 0),
-    0,
-  );
+
   const deps = allTransactions
     .filter((t) => t.type === "Deposit")
     .reduce((s, t) => s + (t.usd || 0), 0);
@@ -1514,7 +1511,7 @@ function UserDrawer({
             background: C.sidebar,
             padding: "20px 22px",
             display: "flex",
-            flexDirection: "column",
+            alignItems: "center",
             gap: 14,
             flexShrink: 0,
           }}
@@ -1533,10 +1530,12 @@ function UserDrawer({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              flexShrink: 0,
             }}
           >
             ←
           </button>
+
           <div
             style={{
               width: 42,
@@ -1554,6 +1553,7 @@ function UserDrawer({
           >
             {username && username[0] ? username[0].toUpperCase() : "?"}
           </div>
+
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>
               @{username || "?"}
@@ -1562,36 +1562,48 @@ function UserDrawer({
               {u.email || "—"}
             </div>
           </div>
-          <button
-            onClick={() => setShowNotificationModal(true)}
+
+          <div
             style={{
-              background: "rgba(99,102,241,0.2)",
-              border: "1px solid #6366f1",
-              borderRadius: 8,
-              padding: "6px 12px",
-              fontSize: 11,
-              fontWeight: 600,
-              color: "#a5b4fc",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              alignItems: "flex-end",
             }}
           >
-            📧 Send Notification
-          </button>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              padding: "4px 10px",
-              borderRadius: 20,
-              ...(isBan
-                ? { background: "rgba(239,68,68,0.2)", color: "#f87171" }
-                : { background: "rgba(34,197,94,0.2)", color: "#4ade80" }),
-            }}
-          >
-            {isBan ? "BANNED" : "ACTIVE"}
-          </span>
+            <button
+              onClick={() => setShowNotificationModal(true)}
+              style={{
+                background: "rgba(99,102,241,0.2)",
+                border: "1px solid #6366f1",
+                borderRadius: 8,
+                padding: "6px 12px",
+                fontSize: 11,
+                fontWeight: 600,
+                color: "#a5b4fc",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                whiteSpace: "nowrap",
+              }}
+            >
+              📧 Send Notification
+            </button>
+
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                padding: "4px 10px",
+                borderRadius: 20,
+                ...(isBan
+                  ? { background: "rgba(239,68,68,0.2)", color: "#f87171" }
+                  : { background: "rgba(34,197,94,0.2)", color: "#4ade80" }),
+                textAlign: "center",
+              }}
+            >
+              {isBan ? "BANNED" : "ACTIVE"}
+            </span>
+          </div>
         </div>
 
         {/* Quick Stats */}
@@ -2244,9 +2256,23 @@ function UserDrawer({
                           fontSize: 13,
                           fontWeight: 700,
                           color: C.text,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                          gap: 8,
                         }}
                       >
-                        {usd(freeze.amount)}
+                        <span>{usd(freeze.amount)}</span>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: C.accent,
+                          }}
+                        >
+                          @{freeze.username || username}
+                        </span>
                       </div>
                       <div style={{ fontSize: 11, color: C.sub }}>
                         {freeze.reason || "Frozen by admin"} ·{" "}
@@ -2258,6 +2284,7 @@ function UserDrawer({
                         fontSize: 14,
                         fontWeight: 800,
                         color: C.red,
+                        flexShrink: 0,
                       }}
                     >
                       ❄️
@@ -2361,12 +2388,11 @@ function UserDrawer({
                   true,
                 ],
                 ["Phone", u.phone || "—", "📞"],
-                ["Date of Birth", u.dob || "—", "🎂"],
                 ["Country", u.country || "—", "🌍"],
                 ["Status", isBan ? "BANNED" : "ACTIVE", "🔒"],
                 ["Credit Score", `${score}/100`, "⭐"],
                 ["Cash Balance", usd(u.balance || 0), "💰"],
-                ["Holdings Value", usd(hVal), "📈"],
+                ["Frozen Amount", usd(u.frozenTotal || 0), "❄️"],
                 ["Binary Trades", binaryTrades.length, "🎲"],
                 ["Binary Wins", binaryWins, "🏆"],
                 ["Binary Losses", binaryLosses, "💔"],
@@ -3526,14 +3552,30 @@ export default function AdminPanel({ onBack, onExit }) {
               onClick={() => setSideOpen((v) => !v)}
               style={{
                 border: "none",
-                background: "transparent",
-                fontSize: 20,
+                background: C.card,
+                borderRadius: 8,
+                width: 36,
+                height: 36,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 cursor: "pointer",
-                color: C.text,
-                padding: 4,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
               }}
             >
-              ☰
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={C.text}
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
             </button>
             <div>
               <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
@@ -3607,10 +3649,12 @@ export default function AdminPanel({ onBack, onExit }) {
                     icon: "💰",
                   },
                   {
-                    label: "Holdings",
-                    value: usd(totalHoldings),
-                    color: C.gold,
-                    icon: "📈",
+                    label: "Total Frozen",
+                    value: usd(
+                      users.reduce((a, u) => a + (u?.frozenTotal || 0), 0),
+                    ),
+                    color: C.red,
+                    icon: "❄️",
                   },
                   {
                     label: "Binary Trades",
@@ -3992,14 +4036,14 @@ export default function AdminPanel({ onBack, onExit }) {
                   justifyContent: "space-between",
                   alignItems: "center",
                   flexWrap: "wrap",
-                  gap: 12,
+                  gap: 10,
                 }}
               >
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
                     🎲 All Binary Trades
                   </div>
-                  <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
+                  <div style={{ fontSize: 11, color: C.sub, marginTop: 2 }}>
                     Complete history of all binary trades with status
                   </div>
                 </div>
@@ -4007,10 +4051,11 @@ export default function AdminPanel({ onBack, onExit }) {
                   onClick={() => fetchAllTrades()}
                   style={{
                     padding: "6px 12px",
-                    borderRadius: 6,
+                    borderRadius: 8,
                     border: `1px solid ${C.border}`,
                     background: C.card,
-                    fontSize: 12,
+                    fontSize: 11,
+                    fontWeight: 500,
                     cursor: "pointer",
                   }}
                 >
@@ -4029,258 +4074,407 @@ export default function AdminPanel({ onBack, onExit }) {
                     background: C.card,
                     borderRadius: 12,
                     border: `1px solid ${C.border}`,
-                    padding: "60px 20px",
+                    padding: "40px 20px",
                     textAlign: "center",
                     color: C.sub,
                   }}
                 >
-                  <div style={{ fontSize: 48, marginBottom: 12 }}>🎲</div>
-                  <div>No binary trades found</div>
+                  <div style={{ fontSize: 40, marginBottom: 8 }}>🎲</div>
+                  <div style={{ fontSize: 13 }}>No binary trades found</div>
                 </div>
               ) : (
-                filteredTrades.map((trade) => (
+                filteredTrades.map((trade, index) => (
                   <div
-                    key={trade.id}
+                    key={`${trade.id}-${index}`}
                     style={{
                       background: C.card,
                       borderRadius: 12,
-                      border: `1px solid ${trade.status === "pending" ? C.gold : trade.status === "won" ? C.green : trade.status === "lost" ? C.red : C.blue}`,
-                      padding: "16px",
                       marginBottom: 12,
+                      border: `1px solid ${trade.status === "pending" ? C.gold : trade.status === "won" ? C.green : trade.status === "lost" ? C.red : C.blue}`,
+                      overflow: "hidden",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
                     }}
                   >
+                    {/* Header - Status Bar */}
                     <div
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: 12,
-                        flexWrap: "wrap",
-                        gap: 8,
+                        padding: "8px 12px",
+                        background:
+                          trade.status === "pending"
+                            ? `${C.gold}8`
+                            : trade.status === "won"
+                              ? `${C.green}8`
+                              : trade.status === "lost"
+                                ? `${C.red}8`
+                                : `${C.blue}8`,
+                        borderBottom: `1px solid ${C.border}`,
                       }}
                     >
                       <div
                         style={{
                           display: "flex",
+                          justifyContent: "space-between",
                           alignItems: "center",
-                          gap: 8,
                           flexWrap: "wrap",
-                        }}
-                      >
-                        {getTradeStatusBadge(trade.status)}
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: C.sub,
-                            fontFamily: "monospace",
-                          }}
-                        >
-                          ID: {String(trade.id).slice(-8)}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 11, color: C.sub }}>
-                        {new Date(trade.startTime).toLocaleString()}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: 12,
-                        marginBottom: 12,
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 10,
-                            color: C.sub,
-                            marginBottom: 2,
-                          }}
-                        >
-                          👤 User
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 15,
-                            fontWeight: 700,
-                            color: C.text,
-                          }}
-                        >
-                          @{trade.username}
-                        </div>
-                        <div style={{ fontSize: 11, color: C.sub }}>
-                          {trade.userEmail}
-                        </div>
-                      </div>
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 10,
-                            color: C.sub,
-                            marginBottom: 2,
-                          }}
-                        >
-                          📊 Trade Details
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 15,
-                            fontWeight: 700,
-                            color: trade.orderType === "up" ? C.green : C.red,
-                          }}
-                        >
-                          {trade.coin} ·{" "}
-                          {trade.orderType === "up" ? "📈 UP" : "📉 DOWN"}
-                        </div>
-                        <div style={{ fontSize: 11, color: C.sub }}>
-                          Amount: ${trade.amount} · Duration:{" "}
-                          {trade.timeSeconds}s · Profit: {trade.profitPercent}%
-                        </div>
-                      </div>
-                    </div>
-
-                    {trade.status === "pending" && (
-                      <div
-                        style={{
-                          background: C.bg,
-                          borderRadius: 10,
-                          padding: "14px",
-                          marginBottom: 12,
+                          gap: 6,
                         }}
                       >
                         <div
                           style={{
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: C.text,
-                            color: "#1a1a1a",
-                            marginBottom: 10,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
                           }}
                         >
-                          🎯 Resolution Options:
-                        </div>
-                        <div
-                          style={{ display: "flex", gap: 10, flexWrap: "wrap" }}
-                        >
-                          <button
-                            onClick={() =>
-                              handleResolveTrade(
-                                trade.username,
-                                trade.id,
-                                "win",
-                              )
-                            }
-                            disabled={processingTrade === trade.id}
+                          {getTradeStatusBadge(trade.status)}
+                          <span
                             style={{
-                              padding: "8px 20px",
-                              borderRadius: 8,
-                              border: "none",
-                              background: C.green,
-                              color: "#fff",
-                              fontSize: 12,
-                              fontWeight: 700,
-                              cursor:
-                                processingTrade === trade.id
-                                  ? "not-allowed"
-                                  : "pointer",
-                              opacity: processingTrade === trade.id ? 0.6 : 1,
+                              fontSize: 10,
+                              color: C.sub,
+                              fontFamily: "monospace",
+                              background: `${C.border}40`,
+                              padding: "2px 6px",
+                              borderRadius: 10,
                             }}
                           >
-                            🎉 WIN (Add $
-                            {(
-                              trade.amount *
-                              (trade.profitPercent / 100)
-                            ).toFixed(2)}{" "}
-                            profit + ${trade.amount} wager)
-                          </button>
-                          <button
-                            onClick={() =>
-                              handleResolveTrade(
-                                trade.username,
-                                trade.id,
-                                "loss",
-                              )
-                            }
-                            disabled={processingTrade === trade.id}
-                            style={{
-                              padding: "8px 20px",
-                              borderRadius: 8,
-                              border: "none",
-                              background: C.red,
-                              color: "#fff",
-                              fontSize: 12,
-                              fontWeight: 700,
-                              cursor:
-                                processingTrade === trade.id
-                                  ? "not-allowed"
-                                  : "pointer",
-                              opacity: processingTrade === trade.id ? 0.6 : 1,
-                            }}
-                          >
-                            💔 LOSS (Keep ${trade.amount} deduction)
-                          </button>
-                          <button
-                            onClick={() =>
-                              handleResolveTrade(
-                                trade.username,
-                                trade.id,
-                                "freeze",
-                              )
-                            }
-                            disabled={processingTrade === trade.id}
-                            style={{
-                              padding: "8px 20px",
-                              borderRadius: 8,
-                              border: "none",
-                              background: C.gold,
-                              color: "#fff",
-                              fontSize: 12,
-                              fontWeight: 700,
-                              cursor:
-                                processingTrade === trade.id
-                                  ? "not-allowed"
-                                  : "pointer",
-                              opacity: processingTrade === trade.id ? 0.6 : 1,
-                            }}
-                          >
-                            ⏸️ FREEZE (Hold amount temporarily)
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {trade.status !== "pending" && trade.result && (
-                      <div
-                        style={{
-                          fontSize: 11,
-                          background:
-                            trade.status === "won"
-                              ? C.green + "10"
-                              : trade.status === "lost"
-                                ? C.red + "10"
-                                : C.blue + "10",
-                          borderRadius: 8,
-                          padding: "8px 12px",
-                          marginTop: 8,
-                          color: "#1a1a1a",
-                        }}
-                      >
-                        <strong style={{ color: "#1a1a1a" }}>Result:</strong>{" "}
-                        <span style={{ color: "#1a1a1a" }}>{trade.result}</span>{" "}
-                        • Resolved at:{" "}
-                        <span style={{ color: "#1a1a1a" }}>
-                          {new Date(trade.resolvedAt).toLocaleString()}
-                        </span>
-                        {trade.profitAmount && (
-                          <span style={{ color: "#1a1a1a" }}>
-                            {" "}
-                            • Profit: +${trade.profitAmount.toFixed(2)}
+                            #{String(trade.id).slice(-6)}
                           </span>
-                        )}
+                        </div>
+                        <div style={{ fontSize: 10, color: C.sub }}>
+                          {new Date(trade.startTime).toLocaleString()}
+                        </div>
                       </div>
-                    )}
+                    </div>
+
+                    {/* Body */}
+                    <div style={{ padding: "12px" }}>
+                      {/* User Section - Compact */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          marginBottom: 10,
+                          paddingBottom: 8,
+                          borderBottom: `1px solid ${C.border}`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: "50%",
+                            background:
+                              "linear-gradient(135deg,#6366f1,#3b82f6)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: "#fff",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {trade.username?.[0]?.toUpperCase() || "?"}
+                        </div>
+                        <div>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: C.text,
+                            }}
+                          >
+                            @{trade.username}
+                          </div>
+                          <div style={{ fontSize: 10, color: C.sub }}>
+                            {trade.userEmail}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Trade Details - Compact Grid */}
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(4, 1fr)",
+                          gap: 8,
+                          marginBottom: 10,
+                        }}
+                      >
+                        <div
+                          style={{
+                            background: C.bg,
+                            borderRadius: 8,
+                            padding: "6px 8px",
+                          }}
+                        >
+                          <div style={{ fontSize: 9, color: C.sub }}>Coin</div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: C.text,
+                            }}
+                          >
+                            {trade.coin}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            background: C.bg,
+                            borderRadius: 8,
+                            padding: "6px 8px",
+                          }}
+                        >
+                          <div style={{ fontSize: 9, color: C.sub }}>
+                            Direction
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: trade.orderType === "up" ? C.green : C.red,
+                            }}
+                          >
+                            {trade.orderType === "up" ? "UP 📈" : "DOWN 📉"}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            background: C.bg,
+                            borderRadius: 8,
+                            padding: "6px 8px",
+                          }}
+                        >
+                          <div style={{ fontSize: 9, color: C.sub }}>
+                            Amount
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: C.gold,
+                            }}
+                          >
+                            ${trade.amount}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            background: C.bg,
+                            borderRadius: 8,
+                            padding: "6px 8px",
+                          }}
+                        >
+                          <div style={{ fontSize: 9, color: C.sub }}>
+                            Time / %
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: C.blue,
+                            }}
+                          >
+                            {trade.timeSeconds}s / {trade.profitPercent}%
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Resolution Section (if resolved) - Compact */}
+                      {trade.status !== "pending" && trade.result && (
+                        <div
+                          style={{
+                            background:
+                              trade.status === "won"
+                                ? `${C.green}8`
+                                : trade.status === "lost"
+                                  ? `${C.red}8`
+                                  : `${C.blue}8`,
+                            borderRadius: 8,
+                            padding: "8px 10px",
+                            marginTop: 6,
+                            fontSize: 11,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              flexWrap: "wrap",
+                              gap: 6,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                              }}
+                            >
+                              <span>
+                                {trade.status === "won"
+                                  ? "🏆"
+                                  : trade.status === "lost"
+                                    ? "💔"
+                                    : "⏸️"}
+                              </span>
+                              <span>
+                                <strong>Result:</strong>{" "}
+                                <span
+                                  style={{
+                                    color:
+                                      trade.status === "won"
+                                        ? C.green
+                                        : trade.status === "lost"
+                                          ? C.red
+                                          : C.blue,
+                                  }}
+                                >
+                                  {trade.result}
+                                </span>
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 10, color: C.sub }}>
+                              {new Date(trade.resolvedAt).toLocaleString()}
+                            </span>
+                          </div>
+                          {trade.profitAmount > 0 && (
+                            <div
+                              style={{
+                                marginTop: 4,
+                                fontSize: 11,
+                                color: C.green,
+                              }}
+                            >
+                              +${trade.profitAmount.toFixed(2)} profit
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Resolution Buttons (for pending trades) - Compact */}
+                      {trade.status === "pending" && (
+                        <div
+                          style={{
+                            background: `${C.gold}6`,
+                            borderRadius: 8,
+                            padding: "10px",
+                            marginTop: 6,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: C.gold,
+                              marginBottom: 8,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <span>🎯</span> Resolution Options
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 8,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <button
+                              onClick={() =>
+                                handleResolveTrade(
+                                  trade.username,
+                                  trade.id,
+                                  "win",
+                                )
+                              }
+                              disabled={processingTrade === trade.id}
+                              style={{
+                                padding: "5px 12px",
+                                borderRadius: 6,
+                                border: "none",
+                                background: C.green,
+                                color: "#fff",
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor:
+                                  processingTrade === trade.id
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity: processingTrade === trade.id ? 0.6 : 1,
+                              }}
+                            >
+                              🎉 WIN (+$
+                              {(
+                                (trade.amount * trade.profitPercent) /
+                                100
+                              ).toFixed(2)}
+                              )
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleResolveTrade(
+                                  trade.username,
+                                  trade.id,
+                                  "loss",
+                                )
+                              }
+                              disabled={processingTrade === trade.id}
+                              style={{
+                                padding: "5px 12px",
+                                borderRadius: 6,
+                                border: "none",
+                                background: C.red,
+                                color: "#fff",
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor:
+                                  processingTrade === trade.id
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity: processingTrade === trade.id ? 0.6 : 1,
+                              }}
+                            >
+                              💔 LOSS (-${trade.amount})
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleResolveTrade(
+                                  trade.username,
+                                  trade.id,
+                                  "freeze",
+                                )
+                              }
+                              disabled={processingTrade === trade.id}
+                              style={{
+                                padding: "5px 12px",
+                                borderRadius: 6,
+                                border: "none",
+                                background: C.gold,
+                                color: "#fff",
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor:
+                                  processingTrade === trade.id
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity: processingTrade === trade.id ? 0.6 : 1,
+                              }}
+                            >
+                              ⏸️ FREEZE
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))
               )}

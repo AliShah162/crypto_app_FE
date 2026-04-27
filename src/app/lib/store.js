@@ -136,12 +136,10 @@ export const S = {
       password: data.password || "",
       fullName: data.fullName || "",
       phone: data.phone || "",
-      dob: data.dob || "",
       country: data.country || "",
       balance: 0,
       creditScore: 50,
       transactions: [],
-      holdings: {},
       savedCards: [],
       binaryTrades: [], // Added for binary trades storage
     };
@@ -320,7 +318,7 @@ export const T = {
 export const f2 = (n, d = 2) =>
   typeof n === "number" ? n.toFixed(d) : "0.00";
 
-export const usd = (n) => "$" + f2(n);
+export const usd = (n) => "$" + (typeof n === 'number' ? n.toFixed(2) : parseFloat(n || 0).toFixed(2));
 
 // ───── PENDING TRADES (admin-approval system) ─────
 export const PT = {

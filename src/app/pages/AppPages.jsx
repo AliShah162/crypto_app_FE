@@ -633,148 +633,316 @@ export function MarketPage({ px, nav }) {
 }
 
 // ── History ────────────────────────────────────────────
-export function HistoryPage({ user }) {
+// ── History ────────────────────────────────────────────
+export function HistoryPage({ user, onBack }) {
   const [filt, sf] = useState("All");
   const all = user?.transactions || [];
   const list = filt === "All" ? all : all.filter((t) => t.type === filt);
+
+  const getStatusColor = (status) => {
+    if (status === "won") return T.green;
+    if (status === "lost") return T.red;
+    if (status === "pending") return T.gold;
+    return T.dim;
+  };
+
+  const getStatusText = (status) => {
+    if (status === "won") return "WON";
+    if (status === "lost") return "LOST";
+    if (status === "pending") return "PENDING";
+    return status;
+  };
+
   return (
     <div
       style={{
         flex: 1,
-        overflowY: "auto",
-        scrollbarWidth: "none",
-        paddingBottom: 80,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
       }}
     >
-      <div style={{ padding: "17px 13px 9px" }}>
-        <div
-          style={{
-            fontSize: 19,
-            fontWeight: 900,
-            color: T.text,
-            marginBottom: 11,
-          }}
-        >
-          History
-        </div>
+      {/* Fixed Header - stays at top while scrolling */}
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
+          background: T.bg,
+          padding: "15px 13px 10px",
+          borderBottom: `1px solid ${T.line}`,
+        }}
+      >
         <div
           style={{
             display: "flex",
-            gap: 6,
-            marginBottom: 11,
-            overflowX: "auto",
+            alignItems: "center",
+            gap: 12,
           }}
         >
-          {["All", "Buy", "Sell", "Deposit", "Withdraw"].map((t) => (
-            <button
-              key={t}
-              onClick={() => sf(t)}
-              style={{
-                padding: "5px 12px",
-                borderRadius: 17,
-                border: `1.5px solid ${filt === t ? T.acc : T.line}`,
-                background: filt === t ? "rgba(0,229,176,0.08)" : T.card,
-                color: filt === t ? T.acc : T.dim,
-                fontSize: 11,
-                fontWeight: 700,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                fontFamily: "inherit",
-              }}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-        {list.length === 0 ? (
-          <div
+          <button
+            onClick={onBack}
             style={{
-              textAlign: "center",
-              color: T.dim,
-              fontSize: 12,
-              padding: "40px 0",
+              background: "rgba(0,229,176,0.1)",
+              border: `1px solid ${T.acc}`,
+              borderRadius: 30,
+              width: 36,
+              height: 36,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: T.acc,
+              fontSize: 18,
+              flexShrink: 0,
             }}
           >
-            No{" "}
-            {filt === "All"
-              ? "transactions yet."
-              : filt.toLowerCase() + " history yet."}
+            ←
+          </button>
+          <div
+            style={{
+              fontSize: 19,
+              fontWeight: 900,
+              color: T.text,
+            }}
+          >
+            History
           </div>
-        ) : (
-          list.map((tx, i) => {
-            const m = COINS.find((c) => c.id === tx.coin);
-            return (
+        </div>
+      </div>
+
+      {/* Scrollable Content */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          paddingBottom: 20,
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
+        }}
+      >
+        <style>
+          {`
+            div::-webkit-scrollbar {
+              display: none;
+            }
+          `}
+        </style>
+
+        <div style={{ padding: "13px 13px 20px" }}>
+          {list.length === 0 ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "column",
+                padding: 60,
+              }}
+            >
+              <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
+              <div style={{ fontSize: 13, color: T.dim, textAlign: "center" }}>
+                No transactions yet
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Filter Buttons */}
               <div
-                key={i}
                 style={{
-                  background: T.card,
-                  borderRadius: 13,
-                  padding: "11px 13px",
                   display: "flex",
-                  alignItems: "center",
-                  gap: 11,
-                  marginBottom: 8,
-                  border: `1px solid ${T.line}`,
+                  gap: 6,
+                  marginBottom: 15,
+                  overflowX: "auto",
+                  flexWrap: "wrap",
                 }}
               >
-                <div
-                  style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: "50%",
-                    background: tx.up
-                      ? "rgba(16,185,129,0.13)"
-                      : "rgba(239,68,68,0.13)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 15,
-                    color: m?.cl || T.acc,
-                    flexShrink: 0,
-                  }}
-                >
-                  {m?.sym || "$"}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: T.text }}>
-                    {tx.type}·{tx.coin || "USD"}
-                  </div>
-                  <div style={{ fontSize: 9, color: T.dim, marginTop: 1 }}>
-                    {tx.date}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div
+                {["All", "Binary Trade", "Deposit", "Withdraw", "Freeze", "Unfreeze"].map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => sf(t)}
                     style={{
+                      padding: "5px 12px",
+                      borderRadius: 17,
+                      border: `1.5px solid ${filt === t ? T.acc : T.line}`,
+                      background: filt === t ? "rgba(0,229,176,0.08)" : T.card,
+                      color: filt === t ? T.acc : T.dim,
                       fontSize: 11,
                       fontWeight: 700,
-                      color: tx.up ? T.green : T.red,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                      fontFamily: "inherit",
                     }}
                   >
-                    {tx.up ? "+" : "-"}
-                    {usd(tx.usd)}
-                  </div>
-                  {tx.amount && (
-                    <div style={{ fontSize: 9, color: T.dim, marginTop: 1 }}>
-                      {f2(tx.amount, 4)} {tx.coin}
-                    </div>
-                  )}
-                </div>
+                    {t}
+                  </button>
+                ))}
               </div>
-            );
-          })
-        )}
+
+              {/* Transaction Cards */}
+              {list.map((tx, i) => {
+                const isBinary = tx.type === "Binary Trade";
+                const statusColor = getStatusColor(tx.status);
+                const statusText = getStatusText(tx.status);
+
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      background: T.card,
+                      borderRadius: 16,
+                      marginBottom: 12,
+                      border: `1px solid ${tx.status === "pending" ? T.gold : tx.status === "won" ? T.green : tx.status === "lost" ? T.red : T.line}`,
+                      overflow: "hidden",
+                    }}
+                  >
+                    {/* Header */}
+                    <div
+                      style={{
+                        padding: "12px 14px",
+                        background: isBinary ? "rgba(0,229,176,0.05)" : "transparent",
+                        borderBottom: `1px solid ${T.line}`,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: 6,
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 20 }}>
+                            {tx.type === "Binary Trade" ? "🎲" : tx.type === "Deposit" ? "💰" : tx.type === "Withdraw" ? "💸" : "❄️"}
+                          </span>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: T.text }}>
+                            {tx.type}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: "2px 8px",
+                              borderRadius: 20,
+                              background: `${statusColor}20`,
+                              color: statusColor,
+                            }}
+                          >
+                            {statusText}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 10, color: T.dim }}>
+                          {tx.formattedDate || new Date(tx.date).toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Body */}
+                    <div style={{ padding: "14px" }}>
+                      {isBinary ? (
+                        <>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                            <span style={{ fontSize: 12, color: T.dim }}>Order No.</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: T.acc, fontFamily: "monospace" }}>
+                              {tx.orderNumber || "—"}
+                            </span>
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                            <span style={{ fontSize: 12, color: T.dim }}>Currency</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{tx.coin}/USDT</span>
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                            <span style={{ fontSize: 12, color: T.dim }}>Order Amount</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>${tx.amount}</span>
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                            <span style={{ fontSize: 12, color: T.dim }}>Profit Amount</span>
+                            <span style={{ 
+                              fontSize: 13, 
+                              fontWeight: 700, 
+                              color: tx.status === "won" ? T.green : tx.status === "lost" ? T.red : T.dim 
+                            }}>
+                              {tx.status === "won" ? `+$${tx.profitAmount || 0}` : tx.status === "lost" ? `-$${tx.amount}` : "0"}
+                            </span>
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                            <span style={{ fontSize: 12, color: T.dim }}>Buy Direction</span>
+                            <span style={{ 
+                              fontSize: 13, 
+                              fontWeight: 700, 
+                              color: tx.orderType === "up" ? T.green : T.red 
+                            }}>
+                              {tx.orderType === "up" ? "Buy Up 📈" : "Buy Down 📉"}
+                            </span>
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                            <span style={{ fontSize: 12, color: T.dim }}>Scale</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: T.blue }}>{tx.profitPercent || 0}%</span>
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                            <span style={{ fontSize: 12, color: T.dim }}>Billing Time</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{tx.timeSeconds || "—"}s</span>
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "space-between" }}>
+                            <span style={{ fontSize: 12, color: T.dim }}>Order Time</span>
+                            <span style={{ fontSize: 11, color: T.dim }}>{tx.formattedDate || new Date(tx.date).toLocaleString()}</span>
+                          </div>
+
+                          {tx.status === "pending" && (
+                            <div style={{ 
+                              marginTop: 12, 
+                              padding: "8px 12px", 
+                              background: "rgba(245,158,11,0.1)", 
+                              borderRadius: 8,
+                              textAlign: "center"
+                            }}>
+                              <span style={{ fontSize: 11, color: T.gold }}>⏳ Awaiting admin confirmation</span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ display: "flex", justifyContent: "space-between" }}>
+                            <span style={{ fontSize: 12, color: T.dim }}>Amount</span>
+                            <span style={{ 
+                              fontSize: 15, 
+                              fontWeight: 700, 
+                              color: tx.type === "Deposit" || tx.type === "Unfreeze" ? T.green : T.red 
+                            }}>
+                              {tx.type === "Deposit" || tx.type === "Unfreeze" ? "+" : "-"}${tx.usd || tx.amount || 0}
+                            </span>
+                          </div>
+                          {tx.reason && (
+                            <div style={{ marginTop: 8, fontSize: 11, color: T.dim }}>
+                              {tx.reason}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
 // ── Profile ────────────────────────────────────────────
-// ── Profile ────────────────────────────────────────────
-// ── Profile ────────────────────────────────────────────
 export function ProfilePage({ user, onLogout, onSub, re }) {
   const [frozenBalance, setFrozenBalance] = useState(0);
-  const [frozenTotal, setFrozenTotal] = useState(0); 
+  const [frozenTotal, setFrozenTotal] = useState(0);
   const [, setTick] = useState(0);
   const [userNotifications, setUserNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -785,20 +953,28 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
     if (sessionUser === "admin") return; // Skip for admin
     if (sessionUser) {
       try {
-        const response = await fetch(`${API_URL}/api/users/${sessionUser}/notifications`);
+        const response = await fetch(
+          `${API_URL}/api/users/${sessionUser}/notifications`,
+        );
         const data = await response.json();
         if (Array.isArray(data)) {
           setUserNotifications(data);
-          const unread = data.filter(n => !n.read).length;
+          const unread = data.filter((n) => !n.read).length;
           setUnreadCount(unread);
-          
+
           // Also update localStorage for notification bell
-          const allNotifs = JSON.parse(localStorage.getItem("user_notifications") || "{}");
+          const allNotifs = JSON.parse(
+            localStorage.getItem("user_notifications") || "{}",
+          );
           allNotifs[sessionUser] = data;
           localStorage.setItem("user_notifications", JSON.stringify(allNotifs));
-          
+
           // Dispatch event for notification bell update
-          window.dispatchEvent(new CustomEvent("notificationsUpdated", { detail: { count: unread } }));
+          window.dispatchEvent(
+            new CustomEvent("notificationsUpdated", {
+              detail: { count: unread },
+            }),
+          );
         }
       } catch (err) {
         console.error("Failed to fetch notifications:", err);
@@ -823,34 +999,35 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
     }
   };
 
- const calc = async () => {
-  try {
-    const sessionUser = localStorage.getItem("session");
-    if (sessionUser) {
-      const response = await fetch(`${API_URL}/api/users/${sessionUser}`);
-      const currentUser = await response.json();
-      
-      if (!currentUser.error) {
-        setFrozenBalance(Number(currentUser.balance || 0));
-        setFrozenTotal(Number(currentUser.frozenTotal || 0));
-        setTick((n) => n + 1);
+  const calc = async () => {
+    try {
+      const sessionUser = localStorage.getItem("session");
+      if (sessionUser) {
+        const response = await fetch(`${API_URL}/api/users/${sessionUser}`);
+        const currentUser = await response.json();
+        
+        if (!currentUser.error) {
+          // Round to 2 decimal places
+          setFrozenBalance(parseFloat(Number(currentUser.balance || 0).toFixed(2)));
+          setFrozenTotal(parseFloat(Number(currentUser.frozenTotal || 0).toFixed(2)));
+          setTick((n) => n + 1);
+        }
       }
+    } catch (err) {
+      console.error("Profile balance calc error:", err);
     }
-  } catch (err) {
-    console.error("Profile balance calc error:", err);
-  }
-};
+  };
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     calc();
     fetchNotifications();
-    
+
     const interval = setInterval(() => {
       calc();
       fetchNotifications();
     }, 5000);
-    
+
     const handleTradeComplete = (event) => {
       if (event?.detail?.username === user?.username) {
         console.log("Trade completed, refreshing profile balance...");
@@ -858,15 +1035,15 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
         fetchNotifications();
       }
     };
-    
+
     const handleFocus = () => {
       calc();
       fetchNotifications();
     };
-    
+
     window.addEventListener("tradeCompleted", handleTradeComplete);
     window.addEventListener("focus", handleFocus);
-    
+
     return () => {
       clearInterval(interval);
       window.removeEventListener("tradeCompleted", handleTradeComplete);
@@ -876,17 +1053,26 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
 
   const liveUser = S.users?.[user?.username] || user || {};
   const isBan = (S.banned || []).includes(user?.username);
-  const tot = frozenBalance + frozenTotal;
 
   const binaryTradesCount = (liveUser?.transactions || []).filter(
-    (t) => t.isBinaryTrade === true || t.type === "Binary Trade"
+    (t) => t.isBinaryTrade === true || t.type === "Binary Trade",
   ).length;
 
-  const creditScore = S.users?.[user?.username]?.creditScore ?? liveUser?.creditScore ?? 50;
-  const country = S.users?.[user?.username]?.country || liveUser?.country || user?.country || "—";
+  const creditScore =
+    S.users?.[user?.username]?.creditScore ?? liveUser?.creditScore ?? 50;
+  const country =
+    S.users?.[user?.username]?.country ||
+    liveUser?.country ||
+    user?.country ||
+    "—";
 
   const menu = [
-    { ic: "📊", l: "Binary History", s: "View all binary trades", sp: "binaryhistory" },
+    {
+      ic: "📊",
+      l: "Binary History",
+      s: "View all binary trades",
+      sp: "binaryhistory",
+    },
     { ic: "🔐", l: "Security Settings", s: "Password & 2FA", sp: "sec" },
     { ic: "💳", l: "Bank Cards", s: "Payment cards", sp: "card" },
     { ic: "🔔", l: "Notifications", s: `${unreadCount} unread`, sp: "notif" },
@@ -896,60 +1082,222 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
   ];
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none", paddingBottom: 80 }}>
+    <div
+      style={{
+        flex: 1,
+        overflowY: "auto",
+        scrollbarWidth: "none",
+        paddingBottom: 80,
+      }}
+    >
       <div style={{ padding: "18px 15px 0" }}>
         {isBan && (
-          <div style={{ background: "rgba(239,68,68,0.09)", border: "1px solid rgba(239,68,68,0.28)", borderRadius: 11, padding: "11px 13px", marginBottom: 14, fontSize: 12, color: T.red, fontWeight: 600 }}>
+          <div
+            style={{
+              background: "rgba(239,68,68,0.09)",
+              border: "1px solid rgba(239,68,68,0.28)",
+              borderRadius: 11,
+              padding: "11px 13px",
+              marginBottom: 14,
+              fontSize: 12,
+              color: T.red,
+              fontWeight: 600,
+            }}
+          >
             ⚠️ Account suspended by admin. Contact support.
           </div>
         )}
 
-        <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 16 }}>
-          <div style={{ width: 58, height: 58, borderRadius: "50%", background: "linear-gradient(135deg,#00e5b0,#3b82f6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 900, color: "#fff", flexShrink: 0 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 13,
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              width: 58,
+              height: 58,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg,#00e5b0,#3b82f6)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 24,
+              fontWeight: 900,
+              color: "#fff",
+              flexShrink: 0,
+            }}
+          >
             {(liveUser?.fullName || liveUser?.username || "U")[0].toUpperCase()}
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 900, color: T.text }}>{liveUser?.fullName || liveUser?.username}</div>
-            <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>@{liveUser?.username} · {liveUser?.email}</div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: T.text }}>
+              {liveUser?.fullName || liveUser?.username}
+            </div>
+            <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>
+              @{liveUser?.username} · {liveUser?.email}
+            </div>
           </div>
         </div>
 
-        <div style={{ background: "linear-gradient(135deg,#0c2340,#1a3a5c)", borderRadius: 16, padding: "16px 15px", marginBottom: 13, boxShadow: "0 5px 18px rgba(0,0,0,0.4)" }}>
-  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", letterSpacing: 1, marginBottom: 4 }}>TOTAL PORTFOLIO VALUE</div>
-  <div style={{ fontSize: 24, fontWeight: 900, color: "#fff", marginBottom: 11 }}>{usd(frozenBalance + frozenTotal)}</div>
-  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-    <div style={{ background: "rgba(0,0,0,0.22)", borderRadius: 9, padding: "8px 10px" }}>
-      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 2 }}>Cash Balance</div>
-      <div style={{ fontSize: 13, fontWeight: 800, color: T.acc }}>{usd(frozenBalance)}</div>
-    </div>
-    <div style={{ background: "rgba(0,0,0,0.22)", borderRadius: 9, padding: "8px 10px" }}>
-      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 2 }}>Frozen</div>
-      <div style={{ fontSize: 13, fontWeight: 800, color: T.red }}>{usd(frozenTotal)}</div>
-    </div>
-  </div>
-</div>
+        <div
+          style={{
+            background: "linear-gradient(135deg,#0c2340,#1a3a5c)",
+            borderRadius: 16,
+            padding: "16px 15px",
+            marginBottom: 13,
+            boxShadow: "0 5px 18px rgba(0,0,0,0.4)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10,
+              color: "rgba(255,255,255,0.45)",
+              letterSpacing: 1,
+              marginBottom: 4,
+            }}
+          >
+            TOTAL PORTFOLIO VALUE
+          </div>
+          <div
+            style={{
+              fontSize: 24,
+              fontWeight: 900,
+              color: "#fff",
+              marginBottom: 11,
+            }}
+          >
+            {usd((frozenBalance + frozenTotal).toFixed(2))}
+          </div>
+          <div
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}
+          >
+            <div
+              style={{
+                background: "rgba(0,0,0,0.22)",
+                borderRadius: 9,
+                padding: "8px 10px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9,
+                  color: "rgba(255,255,255,0.4)",
+                  marginBottom: 2,
+                }}
+              >
+                Cash Balance
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: T.acc }}>
+                {usd(frozenBalance.toFixed(2))}
+              </div>
+            </div>
+            <div
+              style={{
+                background: "rgba(0,0,0,0.22)",
+                borderRadius: 9,
+                padding: "8px 10px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9,
+                  color: "rgba(255,255,255,0.4)",
+                  marginBottom: 2,
+                }}
+              >
+                Frozen
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: T.red }}>
+                {usd(frozenTotal.toFixed(2))}
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 13 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: 8,
+            marginBottom: 13,
+          }}
+        >
           {[
             { l: "Trades", v: String(binaryTradesCount) },
-            { l: "Deposits", v: String((liveUser?.transactions || []).filter((t) => t.type === "Deposit").length) },
-            { l: "Credit Score", v: creditScore >= 80 ? "🟢 " + creditScore : creditScore >= 50 ? "🟡 " + creditScore : "🔴 " + creditScore },
+            {
+              l: "Deposits",
+              v: String(
+                (liveUser?.transactions || []).filter(
+                  (t) => t.type === "Deposit",
+                ).length,
+              ),
+            },
+            {
+              l: "Credit Score",
+              v:
+                creditScore >= 80
+                  ? "🟢 " + creditScore
+                  : creditScore >= 50
+                    ? "🟡 " + creditScore
+                    : "🔴 " + creditScore,
+            },
             { l: "Country", v: country },
           ].map((s) => (
-            <div key={s.l} style={{ background: T.card, borderRadius: 12, padding: "11px 8px", textAlign: "center", border: `1px solid ${T.line}` }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: T.acc }}>{s.v}</div>
-              <div style={{ fontSize: 9, color: T.dim, marginTop: 2 }}>{s.l}</div>
+            <div
+              key={s.l}
+              style={{
+                background: T.card,
+                borderRadius: 12,
+                padding: "11px 8px",
+                textAlign: "center",
+                border: `1px solid ${T.line}`,
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 800, color: T.acc }}>
+                {s.v}
+              </div>
+              <div style={{ fontSize: 9, color: T.dim, marginTop: 2 }}>
+                {s.l}
+              </div>
             </div>
           ))}
         </div>
 
-        <div style={{ background: T.card, borderRadius: 15, padding: "4px 13px", border: `1px solid ${T.line}`, marginBottom: 11 }}>
+        <div
+          style={{
+            background: T.card,
+            borderRadius: 15,
+            padding: "4px 13px",
+            border: `1px solid ${T.line}`,
+            marginBottom: 11,
+          }}
+        >
           {menu.map((item, i) => (
-            <div key={item.sp} onClick={() => onSub(item.sp)} style={{ display: "flex", alignItems: "center", gap: 11, padding: "13px 0", borderBottom: i < menu.length - 1 ? `1px solid ${T.line}` : "none", cursor: "pointer" }}>
+            <div
+              key={item.sp}
+              onClick={() => onSub(item.sp)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 11,
+                padding: "13px 0",
+                borderBottom:
+                  i < menu.length - 1 ? `1px solid ${T.line}` : "none",
+                cursor: "pointer",
+              }}
+            >
               <span style={{ fontSize: 17, flexShrink: 0 }}>{item.ic}</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{item.l}</div>
-                <div style={{ fontSize: 9, color: T.dim, marginTop: 1 }}>{item.s}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>
+                  {item.l}
+                </div>
+                <div style={{ fontSize: 9, color: T.dim, marginTop: 1 }}>
+                  {item.s}
+                </div>
               </div>
               <span style={{ color: T.dim, fontSize: 17 }}>›</span>
             </div>

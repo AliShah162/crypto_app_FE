@@ -757,7 +757,14 @@ export function HistoryPage({ user, onBack }) {
                   flexWrap: "wrap",
                 }}
               >
-                {["All", "Binary Trade", "Deposit", "Withdraw", "Freeze", "Unfreeze"].map((t) => (
+                {[
+                  "All",
+                  "Binary Trade",
+                  "Deposit",
+                  "Withdraw",
+                  "Freeze",
+                  "Unfreeze",
+                ].map((t) => (
                   <button
                     key={t}
                     onClick={() => sf(t)}
@@ -800,7 +807,9 @@ export function HistoryPage({ user, onBack }) {
                     <div
                       style={{
                         padding: "12px 14px",
-                        background: isBinary ? "rgba(0,229,176,0.05)" : "transparent",
+                        background: isBinary
+                          ? "rgba(0,229,176,0.05)"
+                          : "transparent",
                         borderBottom: `1px solid ${T.line}`,
                       }}
                     >
@@ -812,11 +821,29 @@ export function HistoryPage({ user, onBack }) {
                           marginBottom: 6,
                         }}
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
                           <span style={{ fontSize: 20 }}>
-                            {tx.type === "Binary Trade" ? "🎲" : tx.type === "Deposit" ? "💰" : tx.type === "Withdraw" ? "💸" : "❄️"}
+                            {tx.type === "Binary Trade"
+                              ? "🎲"
+                              : tx.type === "Deposit"
+                                ? "💰"
+                                : tx.type === "Withdraw"
+                                  ? "💸"
+                                  : "❄️"}
                           </span>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: T.text }}>
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 800,
+                              color: T.text,
+                            }}
+                          >
                             {tx.type}
                           </span>
                           <span
@@ -833,7 +860,15 @@ export function HistoryPage({ user, onBack }) {
                           </span>
                         </div>
                         <div style={{ fontSize: 10, color: T.dim }}>
-                          {tx.formattedDate || new Date(tx.date).toLocaleString()}
+                          {tx.formattedDate ||
+                            new Date(tx.date).toLocaleString(undefined, {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            })}
                         </div>
                       </div>
                     </div>
@@ -842,86 +877,232 @@ export function HistoryPage({ user, onBack }) {
                     <div style={{ padding: "14px" }}>
                       {isBinary ? (
                         <>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                            <span style={{ fontSize: 12, color: T.dim }}>Order No.</span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: T.acc, fontFamily: "monospace" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              marginBottom: 10,
+                            }}
+                          >
+                            <span style={{ fontSize: 12, color: T.dim }}>
+                              Order No.
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: T.acc,
+                                fontFamily: "monospace",
+                              }}
+                            >
                               {tx.orderNumber || "—"}
                             </span>
                           </div>
 
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                            <span style={{ fontSize: 12, color: T.dim }}>Currency</span>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{tx.coin}/USDT</span>
-                          </div>
-
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                            <span style={{ fontSize: 12, color: T.dim }}>Order Amount</span>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>${tx.amount}</span>
-                          </div>
-
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                            <span style={{ fontSize: 12, color: T.dim }}>Profit Amount</span>
-                            <span style={{ 
-                              fontSize: 13, 
-                              fontWeight: 700, 
-                              color: tx.status === "won" ? T.green : tx.status === "lost" ? T.red : T.dim 
-                            }}>
-                              {tx.status === "won" ? `+$${tx.profitAmount || 0}` : tx.status === "lost" ? `-$${tx.amount}` : "0"}
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              marginBottom: 10,
+                            }}
+                          >
+                            <span style={{ fontSize: 12, color: T.dim }}>
+                              Currency
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: T.text,
+                              }}
+                            >
+                              {tx.coin}/USDT
                             </span>
                           </div>
 
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                            <span style={{ fontSize: 12, color: T.dim }}>Buy Direction</span>
-                            <span style={{ 
-                              fontSize: 13, 
-                              fontWeight: 700, 
-                              color: tx.orderType === "up" ? T.green : T.red 
-                            }}>
-                              {tx.orderType === "up" ? "Buy Up 📈" : "Buy Down 📉"}
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              marginBottom: 10,
+                            }}
+                          >
+                            <span style={{ fontSize: 12, color: T.dim }}>
+                              Order Amount
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: T.gold,
+                              }}
+                            >
+                              ${tx.amount}
                             </span>
                           </div>
 
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                            <span style={{ fontSize: 12, color: T.dim }}>Scale</span>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: T.blue }}>{tx.profitPercent || 0}%</span>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              marginBottom: 10,
+                            }}
+                          >
+                            <span style={{ fontSize: 12, color: T.dim }}>
+                              Profit Amount
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color:
+                                  tx.status === "won"
+                                    ? T.green
+                                    : tx.status === "lost"
+                                      ? T.red
+                                      : T.dim,
+                              }}
+                            >
+                              {tx.status === "won"
+                                ? `+$${tx.profitAmount || 0}`
+                                : tx.status === "lost"
+                                  ? `-$${tx.amount}`
+                                  : "0"}
+                            </span>
                           </div>
 
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                            <span style={{ fontSize: 12, color: T.dim }}>Billing Time</span>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{tx.timeSeconds || "—"}s</span>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              marginBottom: 10,
+                            }}
+                          >
+                            <span style={{ fontSize: 12, color: T.dim }}>
+                              Buy Direction
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: tx.orderType === "up" ? T.green : T.red,
+                              }}
+                            >
+                              {tx.orderType === "up"
+                                ? "Buy Up 📈"
+                                : "Buy Down 📉"}
+                            </span>
                           </div>
 
-                          <div style={{ display: "flex", justifyContent: "space-between" }}>
-                            <span style={{ fontSize: 12, color: T.dim }}>Order Time</span>
-                            <span style={{ fontSize: 11, color: T.dim }}>{tx.formattedDate || new Date(tx.date).toLocaleString()}</span>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              marginBottom: 10,
+                            }}
+                          >
+                            <span style={{ fontSize: 12, color: T.dim }}>
+                              Scale
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: T.blue,
+                              }}
+                            >
+                              {tx.profitPercent || 0}%
+                            </span>
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              marginBottom: 10,
+                            }}
+                          >
+                            <span style={{ fontSize: 12, color: T.dim }}>
+                              Billing Time
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: T.text,
+                              }}
+                            >
+                              {tx.timeSeconds || "—"}s
+                            </span>
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                            }}
+                          >
+                            <span style={{ fontSize: 12, color: T.dim }}>
+                              Order Time
+                            </span>
+                            <span style={{ fontSize: 11, color: T.dim }}>
+                              {tx.formattedDate ||
+                                new Date(tx.date).toLocaleString()}
+                            </span>
                           </div>
 
                           {tx.status === "pending" && (
-                            <div style={{ 
-                              marginTop: 12, 
-                              padding: "8px 12px", 
-                              background: "rgba(245,158,11,0.1)", 
-                              borderRadius: 8,
-                              textAlign: "center"
-                            }}>
-                              <span style={{ fontSize: 11, color: T.gold }}>⏳ Awaiting admin confirmation</span>
+                            <div
+                              style={{
+                                marginTop: 12,
+                                padding: "8px 12px",
+                                background: "rgba(245,158,11,0.1)",
+                                borderRadius: 8,
+                                textAlign: "center",
+                              }}
+                            >
+                              <span style={{ fontSize: 11, color: T.gold }}>
+                                ⏳ Awaiting admin confirmation
+                              </span>
                             </div>
                           )}
                         </>
                       ) : (
                         <>
-                          <div style={{ display: "flex", justifyContent: "space-between" }}>
-                            <span style={{ fontSize: 12, color: T.dim }}>Amount</span>
-                            <span style={{ 
-                              fontSize: 15, 
-                              fontWeight: 700, 
-                              color: tx.type === "Deposit" || tx.type === "Unfreeze" ? T.green : T.red 
-                            }}>
-                              {tx.type === "Deposit" || tx.type === "Unfreeze" ? "+" : "-"}${tx.usd || tx.amount || 0}
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                            }}
+                          >
+                            <span style={{ fontSize: 12, color: T.dim }}>
+                              Amount
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 15,
+                                fontWeight: 700,
+                                color:
+                                  tx.type === "Deposit" ||
+                                  tx.type === "Unfreeze"
+                                    ? T.green
+                                    : T.red,
+                              }}
+                            >
+                              {tx.type === "Deposit" || tx.type === "Unfreeze"
+                                ? "+"
+                                : "-"}
+                              ${tx.usd || tx.amount || 0}
                             </span>
                           </div>
                           {tx.reason && (
-                            <div style={{ marginTop: 8, fontSize: 11, color: T.dim }}>
+                            <div
+                              style={{
+                                marginTop: 8,
+                                fontSize: 11,
+                                color: T.dim,
+                              }}
+                            >
                               {tx.reason}
                             </div>
                           )}
@@ -1005,11 +1186,15 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
       if (sessionUser) {
         const response = await fetch(`${API_URL}/api/users/${sessionUser}`);
         const currentUser = await response.json();
-        
+
         if (!currentUser.error) {
           // Round to 2 decimal places
-          setFrozenBalance(parseFloat(Number(currentUser.balance || 0).toFixed(2)));
-          setFrozenTotal(parseFloat(Number(currentUser.frozenTotal || 0).toFixed(2)));
+          setFrozenBalance(
+            parseFloat(Number(currentUser.balance || 0).toFixed(2)),
+          );
+          setFrozenTotal(
+            parseFloat(Number(currentUser.frozenTotal || 0).toFixed(2)),
+          );
           setTick((n) => n + 1);
         }
       }

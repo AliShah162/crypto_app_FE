@@ -2307,7 +2307,7 @@ function UserDrawer({
                     fontSize: 13,
                   }}
                 >
-                  No saved cards
+                  No saved bank accounts
                 </div>
               )}
               {cards.map((c, i) => (
@@ -2330,36 +2330,114 @@ function UserDrawer({
                       marginBottom: 12,
                     }}
                   >
-                    BANK CARD
+                    BANK ACCOUNT
                   </div>
+
+                  {/* Account Number */}
                   <div
                     style={{
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: 900,
                       color: "#fff",
-                      letterSpacing: 3,
                       marginBottom: 14,
                       fontFamily: "monospace",
+                      letterSpacing: 1,
                     }}
                   >
-                    {c.display || "**** **** **** ****"}
+                    {c.accNumber || c.num || "••••••••"}
                   </div>
+
+                  {/* Holder Name & Bank Name */}
                   <div
-                    style={{ display: "flex", justifyContent: "space-between" }}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: 8,
+                    }}
                   >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "rgba(255,255,255,0.6)",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {c.name || "—"}
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 9,
+                          color: "rgba(255,255,255,0.4)",
+                          marginBottom: 2,
+                        }}
+                      >
+                        Account Holder
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "rgba(255,255,255,0.8)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {c.holderName || c.name || "—"}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div
+                        style={{
+                          fontSize: 9,
+                          color: "rgba(255,255,255,0.4)",
+                          marginBottom: 2,
+                        }}
+                      >
+                        Bank Name
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "rgba(255,255,255,0.8)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {c.bankName || "—"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CVV */}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginTop: 8,
+                      paddingTop: 8,
+                      borderTop: "1px solid rgba(255,255,255,0.1)",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 9,
+                          color: "rgba(255,255,255,0.4)",
+                          marginBottom: 2,
+                        }}
+                      >
+                        CVV
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "rgba(255,255,255,0.8)",
+                          fontFamily: "monospace",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {c.cvv || "•••"}
+                      </div>
                     </div>
                     <div
-                      style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}
+                      style={{
+                        fontSize: 10,
+                        color: "rgba(255,255,255,0.3)",
+                        fontFamily: "monospace",
+                      }}
                     >
-                      Exp: {c.exp || "—"}
+                      {c.display ||
+                        `${c.bankName || "Bank"} - ${(c.accNumber || "").slice(-4) || "****"}`}
                     </div>
                   </div>
                 </div>
@@ -2526,6 +2604,8 @@ export default function AdminPanel({ onBack, onExit }) {
   const [notifTitle, setNotifTitle] = useState("");
   const [notifBody, setNotifBody] = useState("");
   const [notifMsg, setNotifMsg] = useState(null);
+  const [depositRequests, setDepositRequests] = useState([]);
+  const [processingDeposit, setProcessingDeposit] = useState(null);
 
   // Time filters
   const [tradeTimeFilter, setTradeTimeFilter] = useState("all");
@@ -2573,6 +2653,63 @@ export default function AdminPanel({ onBack, onExit }) {
       setAllTrades([]);
     }
   }, []);
+
+  const fetchDepositRequests = useCallback(async () => {
+    try {
+      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+      console.log("🔍 Fetching deposit requests with admin key:", adminKey);
+
+      const response = await fetch(`${BASE_URL}/api/users/admin/all-deposits`, {
+        headers: { "x-admin-key": adminKey },
+      });
+      console.log("📡 Response status:", response.status);
+
+      const data = await response.json();
+      console.log("📦 Deposit requests data:", data);
+
+      if (Array.isArray(data)) {
+        setDepositRequests(data);
+        console.log("✅ Set depositRequests to:", data.length, "items");
+      } else {
+        console.log("❌ Data is not an array:", data);
+        setDepositRequests([]);
+      }
+    } catch (error) {
+      console.error("Error fetching deposit requests:", error);
+      setDepositRequests([]);
+    }
+  }, []);
+
+  const handleDepositAction = async (username, requestId, action) => {
+    if (processingDeposit === requestId) return;
+    setProcessingDeposit(requestId);
+    try {
+      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+      const response = await fetch(
+        `${BASE_URL}/api/users/admin/approve-deposit`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": adminKey,
+          },
+          body: JSON.stringify({ username, requestId, action }),
+        },
+      );
+      const result = await response.json();
+      if (result.success) {
+        alert(`✅ Deposit ${action}d successfully!`);
+        await fetchDepositRequests();
+        await fetchUsers();
+      } else {
+        alert(`❌ Failed: ${result.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Error: ${error.message}`);
+    } finally {
+      setProcessingDeposit(null);
+    }
+  };
 
   const handleResolveTrade = async (username, tradeId, action) => {
     if (processingTrade === tradeId) return;
@@ -2753,15 +2890,17 @@ export default function AdminPanel({ onBack, onExit }) {
     fetchUsers();
     fetchWithdrawals();
     fetchAllTrades();
-  }, [fetchUsers, fetchWithdrawals, fetchAllTrades]);
+    fetchDepositRequests();
+  }, [fetchUsers, fetchWithdrawals, fetchAllTrades, fetchDepositRequests]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       fetchAllTrades();
       fetchWithdrawals();
+      fetchDepositRequests();
     }, 5000);
     return () => clearInterval(interval);
-  }, [fetchAllTrades, fetchWithdrawals]);
+  }, [fetchAllTrades, fetchWithdrawals, fetchDepositRequests]);
 
   useEffect(() => {
     S.banned = banned;
@@ -3313,17 +3452,42 @@ export default function AdminPanel({ onBack, onExit }) {
       }}
     >
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-        * { box-sizing:border-box; margin:0; padding:0; }
-        .ap-sidebar { display:flex !important; }
-        .ap-sidebar-mob { display:flex !important; }
-        .ap-hamburger { display:none !important; }
-        @media(max-width:768px){
-          .ap-sidebar { display:none !important; }
-          .ap-hamburger { display:flex !important; }
-          .ap-content { padding:14px !important; }
-        }
-      `}</style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  * { box-sizing:border-box; margin:0; padding:0; }
+  .ap-sidebar { display:flex !important; }
+  .ap-sidebar-mob { display:flex !important; }
+  .ap-hamburger { display:none !important; }
+  
+  /* Custom Scrollbar */
+  .custom-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .custom-scroll::-webkit-scrollbar-track {
+    background: #e2e8f0;
+    border-radius: 10px;
+  }
+  
+  .custom-scroll::-webkit-scrollbar-thumb {
+    background: #6366f1;
+    border-radius: 10px;
+  }
+  
+  .custom-scroll::-webkit-scrollbar-thumb:hover {
+    background: #818cf8;
+  }
+  
+  @media(max-width:768px){
+    .ap-sidebar { display:none !important; }
+    .ap-hamburger { display:flex !important; }
+    .ap-content { padding:14px !important; }
+    
+    /* Mobile adjustments for scrollable containers */
+    .custom-scroll {
+      max-height: calc(100vh - 200px) !important;
+    }
+  }
+`}</style>
       {selUser && (
         <div
           onClick={() => setSelUser(null)}
@@ -3732,6 +3896,7 @@ export default function AdminPanel({ onBack, onExit }) {
                   </div>
                 ))}
               </div>
+
               <div
                 style={{
                   fontSize: 14,
@@ -3742,7 +3907,18 @@ export default function AdminPanel({ onBack, onExit }) {
               >
                 📋 Recent Activity
               </div>
-              <TxTable rows={safeAllTxns.slice(0, 15)} />
+
+              {/* Scrollable Recent Activity */}
+              <div
+                className="custom-scroll"
+                style={{
+                  maxHeight: "calc(100vh - 350px)",
+                  overflowY: "auto",
+                  paddingRight: 6,
+                }}
+              >
+                <TxTable rows={safeAllTxns.slice(0, 15)} />
+              </div>
             </div>
           )}
 
@@ -3787,7 +3963,14 @@ export default function AdminPanel({ onBack, onExit }) {
               )}
 
               {!loading && (
-                <div style={{ overflowX: "auto" }}>
+                <div
+                  className="custom-scroll"
+                  style={{
+                    maxHeight: "calc(100vh - 180px)",
+                    overflowY: "auto",
+                    overflowX: "auto",
+                  }}
+                >
                   <div style={{ minWidth: "1000px" }}>
                     {/* Table Header */}
                     <div
@@ -3803,6 +3986,10 @@ export default function AdminPanel({ onBack, onExit }) {
                         textTransform: "uppercase",
                         letterSpacing: "0.06em",
                         gap: "8px",
+                        position: "sticky",
+                        top: 0,
+                        background: C.bg,
+                        zIndex: 5,
                       }}
                     >
                       <span>Username</span>
@@ -4047,20 +4234,67 @@ export default function AdminPanel({ onBack, onExit }) {
                     Complete history of all binary trades with status
                   </div>
                 </div>
-                <button
-                  onClick={() => fetchAllTrades()}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 8,
-                    border: `1px solid ${C.border}`,
-                    background: C.card,
-                    fontSize: 11,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                  }}
-                >
-                  ↻ Refresh
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={() => fetchAllTrades()}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: `1px solid ${C.border}`,
+                      background: C.card,
+                      fontSize: 11,
+                      color: "#000000",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    ↻ Refresh
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (
+                        confirm(
+                          "⚠️ Are you sure? This will clear ALL completed trades (WON, LOST, FROZEN) while keeping PENDING trades. This action cannot be undone!",
+                        )
+                      ) {
+                        try {
+                          const adminKey =
+                            localStorage.getItem("adminApiKey") ||
+                            "admin123456";
+                          const response = await fetch(
+                            `${BASE_URL}/api/users/admin/clear-completed-trades`,
+                            {
+                              method: "DELETE",
+                              headers: { "x-admin-key": adminKey },
+                            },
+                          );
+                          const result = await response.json();
+                          if (result.success) {
+                            alert(`✅ ${result.message}`);
+                            await fetchAllTrades();
+                            await fetchUsers();
+                          } else {
+                            alert(`❌ Failed: ${result.error}`);
+                          }
+                        } catch (error) {
+                          alert(`❌ Error: ${error.message}`);
+                        }
+                      }
+                    }}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: `1px solid ${C.red}`,
+                      background: `${C.red}10`,
+                      fontSize: 11,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      color: C.red,
+                    }}
+                  >
+                    🗑 Clear Completed Trades
+                  </button>
+                </div>
               </div>
 
               <TimeFilterButtons
@@ -4068,416 +4302,432 @@ export default function AdminPanel({ onBack, onExit }) {
                 onFilterChange={setTradeTimeFilter}
               />
 
-              {filteredTrades.length === 0 ? (
-                <div
-                  style={{
-                    background: C.card,
-                    borderRadius: 12,
-                    border: `1px solid ${C.border}`,
-                    padding: "40px 20px",
-                    textAlign: "center",
-                    color: C.sub,
-                  }}
-                >
-                  <div style={{ fontSize: 40, marginBottom: 8 }}>🎲</div>
-                  <div style={{ fontSize: 13 }}>No binary trades found</div>
-                </div>
-              ) : (
-                filteredTrades.map((trade, index) => (
+              {/* Scrollable Trades List */}
+              <div
+                className="custom-scroll"
+                style={{
+                  maxHeight: "calc(100vh - 220px)",
+                  overflowY: "auto",
+                  paddingRight: 6,
+                }}
+              >
+                {filteredTrades.length === 0 ? (
                   <div
-                    key={`${trade.id}-${index}`}
                     style={{
                       background: C.card,
                       borderRadius: 12,
-                      marginBottom: 12,
-                      border: `1px solid ${trade.status === "pending" ? C.gold : trade.status === "won" ? C.green : trade.status === "lost" ? C.red : C.blue}`,
-                      overflow: "hidden",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                      border: `1px solid ${C.border}`,
+                      padding: "40px 20px",
+                      textAlign: "center",
+                      color: C.sub,
                     }}
                   >
-                    {/* Header - Status Bar */}
+                    <div style={{ fontSize: 40, marginBottom: 8 }}>🎲</div>
+                    <div style={{ fontSize: 13 }}>No binary trades found</div>
+                  </div>
+                ) : (
+                  filteredTrades.map((trade, index) => (
                     <div
+                      key={`${trade.id}-${index}`}
                       style={{
-                        padding: "8px 12px",
-                        background:
-                          trade.status === "pending"
-                            ? `${C.gold}8`
-                            : trade.status === "won"
-                              ? `${C.green}8`
-                              : trade.status === "lost"
-                                ? `${C.red}8`
-                                : `${C.blue}8`,
-                        borderBottom: `1px solid ${C.border}`,
+                        background: C.card,
+                        borderRadius: 12,
+                        marginBottom: 12,
+                        border: `1px solid ${trade.status === "pending" ? C.gold : trade.status === "won" ? C.green : trade.status === "lost" ? C.red : C.blue}`,
+                        overflow: "hidden",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
                       }}
                     >
+                      {/* Header - Status Bar */}
                       <div
                         style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          flexWrap: "wrap",
-                          gap: 6,
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                          }}
-                        >
-                          {getTradeStatusBadge(trade.status)}
-                          <span
-                            style={{
-                              fontSize: 10,
-                              color: C.sub,
-                              fontFamily: "monospace",
-                              background: `${C.border}40`,
-                              padding: "2px 6px",
-                              borderRadius: 10,
-                            }}
-                          >
-                            #{String(trade.id).slice(-6)}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 10, color: C.sub }}>
-                          {new Date(trade.startTime).toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Body */}
-                    <div style={{ padding: "12px" }}>
-                      {/* User Section - Compact */}
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          marginBottom: 10,
-                          paddingBottom: 8,
+                          padding: "8px 12px",
+                          background:
+                            trade.status === "pending"
+                              ? `${C.gold}8`
+                              : trade.status === "won"
+                                ? `${C.green}8`
+                                : trade.status === "lost"
+                                  ? `${C.red}8`
+                                  : `${C.blue}8`,
                           borderBottom: `1px solid ${C.border}`,
                         }}
                       >
                         <div
                           style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: "50%",
-                            background:
-                              "linear-gradient(135deg,#6366f1,#3b82f6)",
                             display: "flex",
+                            justifyContent: "space-between",
                             alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 13,
-                            fontWeight: 700,
-                            color: "#fff",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {trade.username?.[0]?.toUpperCase() || "?"}
-                        </div>
-                        <div>
-                          <div
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 700,
-                              color: C.text,
-                            }}
-                          >
-                            @{trade.username}
-                          </div>
-                          <div style={{ fontSize: 10, color: C.sub }}>
-                            {trade.userEmail}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Trade Details - Compact Grid */}
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(4, 1fr)",
-                          gap: 8,
-                          marginBottom: 10,
-                        }}
-                      >
-                        <div
-                          style={{
-                            background: C.bg,
-                            borderRadius: 8,
-                            padding: "6px 8px",
-                          }}
-                        >
-                          <div style={{ fontSize: 9, color: C.sub }}>Coin</div>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: C.text,
-                            }}
-                          >
-                            {trade.coin}
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            background: C.bg,
-                            borderRadius: 8,
-                            padding: "6px 8px",
-                          }}
-                        >
-                          <div style={{ fontSize: 9, color: C.sub }}>
-                            Direction
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: trade.orderType === "up" ? C.green : C.red,
-                            }}
-                          >
-                            {trade.orderType === "up" ? "UP 📈" : "DOWN 📉"}
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            background: C.bg,
-                            borderRadius: 8,
-                            padding: "6px 8px",
-                          }}
-                        >
-                          <div style={{ fontSize: 9, color: C.sub }}>
-                            Amount
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: C.gold,
-                            }}
-                          >
-                            ${trade.amount}
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            background: C.bg,
-                            borderRadius: 8,
-                            padding: "6px 8px",
-                          }}
-                        >
-                          <div style={{ fontSize: 9, color: C.sub }}>
-                            Time / %
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: C.blue,
-                            }}
-                          >
-                            {trade.timeSeconds}s / {trade.profitPercent}%
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Resolution Section (if resolved) - Compact */}
-                      {trade.status !== "pending" && trade.result && (
-                        <div
-                          style={{
-                            background:
-                              trade.status === "won"
-                                ? `${C.green}8`
-                                : trade.status === "lost"
-                                  ? `${C.red}8`
-                                  : `${C.blue}8`,
-                            borderRadius: 8,
-                            padding: "8px 10px",
-                            marginTop: 6,
-                            fontSize: 11,
+                            flexWrap: "wrap",
+                            gap: 6,
                           }}
                         >
                           <div
                             style={{
                               display: "flex",
-                              justifyContent: "space-between",
                               alignItems: "center",
-                              flexWrap: "wrap",
-                              gap: 6,
+                              gap: 8,
+                            }}
+                          >
+                            {getTradeStatusBadge(trade.status)}
+                            <span
+                              style={{
+                                fontSize: 10,
+                                color: C.sub,
+                                fontFamily: "monospace",
+                                background: `${C.border}40`,
+                                padding: "2px 6px",
+                                borderRadius: 10,
+                              }}
+                            >
+                              #{String(trade.id).slice(-6)}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 10, color: C.sub }}>
+                            {new Date(trade.startTime).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Body */}
+                      <div style={{ padding: "12px" }}>
+                        {/* User Section - Compact */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            marginBottom: 10,
+                            paddingBottom: 8,
+                            borderBottom: `1px solid ${C.border}`,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: "50%",
+                              background:
+                                "linear-gradient(135deg,#6366f1,#3b82f6)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: "#fff",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {trade.username?.[0]?.toUpperCase() || "?"}
+                          </div>
+                          <div>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: C.text,
+                              }}
+                            >
+                              @{trade.username}
+                            </div>
+                            <div style={{ fontSize: 10, color: C.sub }}>
+                              {trade.userEmail}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Trade Details - Compact Grid */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(4, 1fr)",
+                            gap: 8,
+                            marginBottom: 10,
+                          }}
+                        >
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          >
+                            <div style={{ fontSize: 9, color: C.sub }}>
+                              Coin
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: C.text,
+                              }}
+                            >
+                              {trade.coin}
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          >
+                            <div style={{ fontSize: 9, color: C.sub }}>
+                              Direction
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color:
+                                  trade.orderType === "up" ? C.green : C.red,
+                              }}
+                            >
+                              {trade.orderType === "up" ? "UP 📈" : "DOWN 📉"}
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          >
+                            <div style={{ fontSize: 9, color: C.sub }}>
+                              Amount
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: C.gold,
+                              }}
+                            >
+                              ${trade.amount}
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          >
+                            <div style={{ fontSize: 9, color: C.sub }}>
+                              Time / %
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: C.blue,
+                              }}
+                            >
+                              {trade.timeSeconds}s / {trade.profitPercent}%
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Resolution Section (if resolved) - Compact */}
+                        {trade.status !== "pending" && trade.result && (
+                          <div
+                            style={{
+                              background:
+                                trade.status === "won"
+                                  ? `${C.green}8`
+                                  : trade.status === "lost"
+                                    ? `${C.red}8`
+                                    : `${C.blue}8`,
+                              borderRadius: 8,
+                              padding: "8px 10px",
+                              marginTop: 6,
+                              fontSize: 11,
                             }}
                           >
                             <div
                               style={{
                                 display: "flex",
+                                justifyContent: "space-between",
                                 alignItems: "center",
+                                flexWrap: "wrap",
                                 gap: 6,
                               }}
                             >
-                              <span>
-                                {trade.status === "won"
-                                  ? "🏆"
-                                  : trade.status === "lost"
-                                    ? "💔"
-                                    : "⏸️"}
-                              </span>
-                              <span>
-                                <strong>Result:</strong>{" "}
-                                <span
-                                  style={{
-                                    color:
-                                      trade.status === "won"
-                                        ? C.green
-                                        : trade.status === "lost"
-                                          ? C.red
-                                          : C.blue,
-                                  }}
-                                >
-                                  {trade.result}
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                }}
+                              >
+                                <span>
+                                  {trade.status === "won"
+                                    ? "🏆"
+                                    : trade.status === "lost"
+                                      ? "💔"
+                                      : "⏸️"}
                                 </span>
+                                <span>
+                                  <strong>Result:</strong>{" "}
+                                  <span
+                                    style={{
+                                      color:
+                                        trade.status === "won"
+                                          ? C.green
+                                          : trade.status === "lost"
+                                            ? C.red
+                                            : C.blue,
+                                    }}
+                                  >
+                                    {trade.result}
+                                  </span>
+                                </span>
+                              </div>
+                              <span style={{ fontSize: 10, color: C.sub }}>
+                                {new Date(trade.resolvedAt).toLocaleString()}
                               </span>
                             </div>
-                            <span style={{ fontSize: 10, color: C.sub }}>
-                              {new Date(trade.resolvedAt).toLocaleString()}
-                            </span>
+                            {trade.profitAmount > 0 && (
+                              <div
+                                style={{
+                                  marginTop: 4,
+                                  fontSize: 11,
+                                  color: C.green,
+                                }}
+                              >
+                                +${trade.profitAmount.toFixed(2)} profit
+                              </div>
+                            )}
                           </div>
-                          {trade.profitAmount > 0 && (
+                        )}
+
+                        {/* Resolution Buttons (for pending trades) - Compact */}
+                        {trade.status === "pending" && (
+                          <div
+                            style={{
+                              background: `${C.gold}6`,
+                              borderRadius: 8,
+                              padding: "10px",
+                              marginTop: 6,
+                            }}
+                          >
                             <div
                               style={{
-                                marginTop: 4,
                                 fontSize: 11,
-                                color: C.green,
+                                fontWeight: 700,
+                                color: C.gold,
+                                marginBottom: 8,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 4,
                               }}
                             >
-                              +${trade.profitAmount.toFixed(2)} profit
+                              <span>🎯</span> Resolution Options
                             </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Resolution Buttons (for pending trades) - Compact */}
-                      {trade.status === "pending" && (
-                        <div
-                          style={{
-                            background: `${C.gold}6`,
-                            borderRadius: 8,
-                            padding: "10px",
-                            marginTop: 6,
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              color: C.gold,
-                              marginBottom: 8,
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 4,
-                            }}
-                          >
-                            <span>🎯</span> Resolution Options
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: 8,
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <button
+                                onClick={() =>
+                                  handleResolveTrade(
+                                    trade.username,
+                                    trade.id,
+                                    "win",
+                                  )
+                                }
+                                disabled={processingTrade === trade.id}
+                                style={{
+                                  padding: "5px 12px",
+                                  borderRadius: 6,
+                                  border: "none",
+                                  background: C.green,
+                                  color: "#fff",
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  cursor:
+                                    processingTrade === trade.id
+                                      ? "not-allowed"
+                                      : "pointer",
+                                  opacity:
+                                    processingTrade === trade.id ? 0.6 : 1,
+                                }}
+                              >
+                                🎉 WIN (+$
+                                {(
+                                  (trade.amount * trade.profitPercent) /
+                                  100
+                                ).toFixed(2)}
+                                )
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleResolveTrade(
+                                    trade.username,
+                                    trade.id,
+                                    "loss",
+                                  )
+                                }
+                                disabled={processingTrade === trade.id}
+                                style={{
+                                  padding: "5px 12px",
+                                  borderRadius: 6,
+                                  border: "none",
+                                  background: C.red,
+                                  color: "#fff",
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  cursor:
+                                    processingTrade === trade.id
+                                      ? "not-allowed"
+                                      : "pointer",
+                                  opacity:
+                                    processingTrade === trade.id ? 0.6 : 1,
+                                }}
+                              >
+                                💔 LOSS (-${trade.amount})
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleResolveTrade(
+                                    trade.username,
+                                    trade.id,
+                                    "freeze",
+                                  )
+                                }
+                                disabled={processingTrade === trade.id}
+                                style={{
+                                  padding: "5px 12px",
+                                  borderRadius: 6,
+                                  border: "none",
+                                  background: C.gold,
+                                  color: "#fff",
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  cursor:
+                                    processingTrade === trade.id
+                                      ? "not-allowed"
+                                      : "pointer",
+                                  opacity:
+                                    processingTrade === trade.id ? 0.6 : 1,
+                                }}
+                              >
+                                ⏸️ FREEZE
+                              </button>
+                            </div>
                           </div>
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 8,
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            <button
-                              onClick={() =>
-                                handleResolveTrade(
-                                  trade.username,
-                                  trade.id,
-                                  "win",
-                                )
-                              }
-                              disabled={processingTrade === trade.id}
-                              style={{
-                                padding: "5px 12px",
-                                borderRadius: 6,
-                                border: "none",
-                                background: C.green,
-                                color: "#fff",
-                                fontSize: 11,
-                                fontWeight: 600,
-                                cursor:
-                                  processingTrade === trade.id
-                                    ? "not-allowed"
-                                    : "pointer",
-                                opacity: processingTrade === trade.id ? 0.6 : 1,
-                              }}
-                            >
-                              🎉 WIN (+$
-                              {(
-                                (trade.amount * trade.profitPercent) /
-                                100
-                              ).toFixed(2)}
-                              )
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleResolveTrade(
-                                  trade.username,
-                                  trade.id,
-                                  "loss",
-                                )
-                              }
-                              disabled={processingTrade === trade.id}
-                              style={{
-                                padding: "5px 12px",
-                                borderRadius: 6,
-                                border: "none",
-                                background: C.red,
-                                color: "#fff",
-                                fontSize: 11,
-                                fontWeight: 600,
-                                cursor:
-                                  processingTrade === trade.id
-                                    ? "not-allowed"
-                                    : "pointer",
-                                opacity: processingTrade === trade.id ? 0.6 : 1,
-                              }}
-                            >
-                              💔 LOSS (-${trade.amount})
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleResolveTrade(
-                                  trade.username,
-                                  trade.id,
-                                  "freeze",
-                                )
-                              }
-                              disabled={processingTrade === trade.id}
-                              style={{
-                                padding: "5px 12px",
-                                borderRadius: 6,
-                                border: "none",
-                                background: C.gold,
-                                color: "#fff",
-                                fontSize: 11,
-                                fontWeight: 600,
-                                cursor:
-                                  processingTrade === trade.id
-                                    ? "not-allowed"
-                                    : "pointer",
-                                opacity: processingTrade === trade.id ? 0.6 : 1,
-                              }}
-                            >
-                              ⏸️ FREEZE
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
           )}
 
@@ -4528,235 +4778,367 @@ export default function AdminPanel({ onBack, onExit }) {
                 onFilterChange={setWithdrawTimeFilter}
               />
 
-              {filteredWithdrawals.length === 0 ? (
-                <div
-                  style={{
-                    background: C.card,
-                    borderRadius: 12,
-                    border: `1px solid ${C.border}`,
-                    padding: "60px 20px",
-                    textAlign: "center",
-                    color: C.sub,
-                  }}
-                >
-                  <div style={{ fontSize: 48, marginBottom: 12 }}>💸</div>
-                  <div>No withdrawal requests found</div>
-                </div>
-              ) : (
-                filteredWithdrawals.map((w) => (
+              {/* Scrollable Withdrawals List */}
+              <div
+                className="custom-scroll"
+                style={{
+                  maxHeight: "calc(100vh - 220px)",
+                  overflowY: "auto",
+                  paddingRight: 6,
+                }}
+              >
+                {filteredWithdrawals.length === 0 ? (
                   <div
-                    key={w.id}
                     style={{
                       background: C.card,
                       borderRadius: 12,
-                      border: `1px solid ${w?.status === "pending" ? C.gold : w?.status === "approved" ? C.green : C.red}`,
-                      padding: "16px",
-                      marginBottom: 12,
+                      border: `1px solid ${C.border}`,
+                      padding: "60px 20px",
+                      textAlign: "center",
+                      color: C.sub,
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: 12,
-                        flexWrap: "wrap",
-                        gap: 8,
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        {getWithdrawalStatusBadge(w.status)}
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: C.sub,
-                            fontFamily: "monospace",
-                          }}
-                        >
-                          ID: {String(w.id).slice(-8)}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 11, color: C.sub }}>
-                        {new Date(w.date).toLocaleString()}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: 12,
-                        marginBottom: 12,
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 10,
-                            color: C.sub,
-                            marginBottom: 2,
-                          }}
-                        >
-                          👤 User
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 15,
-                            fontWeight: 700,
-                            color: C.text,
-                          }}
-                        >
-                          @{w.username}
-                        </div>
-                        <div style={{ fontSize: 11, color: C.sub }}>
-                          {w.userEmail}
-                        </div>
-                      </div>
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 10,
-                            color: C.sub,
-                            marginBottom: 2,
-                          }}
-                        >
-                          💰 Amount
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 20,
-                            fontWeight: 900,
-                            color: C.red,
-                          }}
-                        >
-                          {usd(w.amount)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        background: C.bg,
-                        borderRadius: 10,
-                        padding: "12px",
-                        marginBottom: 12,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: C.text,
-                          marginBottom: 8,
-                        }}
-                      >
-                        💳 Card Details
-                      </div>
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "1fr 1fr",
-                          gap: 8,
-                          fontSize: 11,
-                        }}
-                      >
-                        <div>
-                          <span style={{ color: "#1a1a1a" }}>Card:</span>{" "}
-                          <strong style={{ color: "#1a1a1a" }}>
-                            {" "}
-                            {w.cardNumber || w.cardLast4}
-                          </strong>
-                        </div>
-                        <div>
-                          <span style={{ color: "#1a1a1a" }}>Name:</span>{" "}
-                          <strong style={{ color: "#1a1a1a" }}>
-                            {" "}
-                            {w.cardName || "—"}
-                          </strong>
-                        </div>
-                        <div>
-                          <span style={{ color: "#1a1a1a" }}>Expiry:</span>{" "}
-                          <strong style={{ color: "#1a1a1a" }}>
-                            {" "}
-                            {w.cardExpiry || "—"}
-                          </strong>
-                        </div>
-                      </div>
-                    </div>
-
-                    {w?.status === "pending" && (
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button
-                          onClick={() =>
-                            handleWithdrawalAction(w.username, w.id, "approve")
-                          }
-                          disabled={processingWithdrawal === w.id}
-                          style={{
-                            padding: "6px 16px",
-                            borderRadius: 6,
-                            border: "none",
-                            background: C.green,
-                            color: "#fff",
-                            fontSize: 12,
-                            fontWeight: 600,
-                            cursor:
-                              processingWithdrawal === w.id
-                                ? "not-allowed"
-                                : "pointer",
-                          }}
-                        >
-                          ✅ Approve
-                        </button>
-                        <button
-                          onClick={() =>
-                            handleWithdrawalAction(w.username, w.id, "reject")
-                          }
-                          disabled={processingWithdrawal === w.id}
-                          style={{
-                            padding: "6px 16px",
-                            borderRadius: 6,
-                            border: "none",
-                            background: C.red,
-                            color: "#fff",
-                            fontSize: 12,
-                            fontWeight: 600,
-                            cursor:
-                              processingWithdrawal === w.id
-                                ? "not-allowed"
-                                : "pointer",
-                          }}
-                        >
-                          ❌ Reject
-                        </button>
-                      </div>
-                    )}
-
-                    {w?.status !== "pending" && (
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: w?.status === "approved" ? C.green : C.red,
-                          marginTop: 6,
-                        }}
-                      >
-                        {w?.status === "approved"
-                          ? "✅ Approved"
-                          : "❌ Rejected"}{" "}
-                        on{" "}
-                        {new Date(
-                          w.approvedAt || w.rejectedAt || w.date,
-                        ).toLocaleString()}
-                      </div>
-                    )}
+                    <div style={{ fontSize: 48, marginBottom: 12 }}>💸</div>
+                    <div>No withdrawal requests found</div>
                   </div>
-                ))
-              )}
+                ) : (
+                  filteredWithdrawals.map((w) => (
+                    <div
+                      key={w.id}
+                      style={{
+                        background: C.card,
+                        borderRadius: 12,
+                        marginBottom: 12,
+                        border: `1px solid ${w?.status === "pending" ? C.gold : w?.status === "approved" ? C.green : C.red}`,
+                        overflow: "hidden",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                      }}
+                    >
+                      {/* Header */}
+                      <div
+                        style={{
+                          padding: "8px 12px",
+                          background:
+                            w?.status === "pending"
+                              ? `${C.gold}8`
+                              : w?.status === "approved"
+                                ? `${C.green}8`
+                                : `${C.red}8`,
+                          borderBottom: `1px solid ${C.border}`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                            gap: 8,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            {getWithdrawalStatusBadge(w.status)}
+                            <span
+                              style={{
+                                fontSize: 11,
+                                color: C.sub,
+                                fontFamily: "monospace",
+                              }}
+                            >
+                              ID: {String(w.id).slice(-8)}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 11, color: C.sub }}>
+                            {new Date(w.date).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Body */}
+                      <div style={{ padding: "12px" }}>
+                        {/* User Section */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            marginBottom: 10,
+                            paddingBottom: 8,
+                            borderBottom: `1px solid ${C.border}`,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: "50%",
+                              background:
+                                "linear-gradient(135deg,#6366f1,#3b82f6)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: "#fff",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {w.username?.[0]?.toUpperCase() || "?"}
+                          </div>
+                          <div>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: C.text,
+                              }}
+                            >
+                              @{w.username}
+                            </div>
+                            <div style={{ fontSize: 11, color: C.sub }}>
+                              {w.userEmail}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Amount */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr",
+                            gap: 12,
+                            marginBottom: 12,
+                          }}
+                        >
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "8px 12px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 10,
+                                color: C.sub,
+                                marginBottom: 2,
+                              }}
+                            >
+                              💰 Amount
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 18,
+                                fontWeight: 900,
+                                color: C.red,
+                              }}
+                            >
+                              {usd(w.amount)}
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "8px 12px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 10,
+                                color: C.sub,
+                                marginBottom: 2,
+                              }}
+                            >
+                              🏦 Bank Details
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: C.text,
+                              }}
+                            >
+                              {w.bankName || w.cardName || "—"}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bank Account Details Section */}
+                        <div
+                          style={{
+                            background: C.bg,
+                            borderRadius: 10,
+                            padding: "12px",
+                            marginBottom: 12,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: C.blue,
+                              marginBottom: 8,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            🏦 Account Details
+                          </div>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(2, 1fr)",
+                              gap: 8,
+                              fontSize: 11,
+                            }}
+                          >
+                            <div>
+                              <span style={{ color: C.sub }}>
+                                Account Holder:
+                              </span>{" "}
+                              <strong style={{ color: C.text }}>
+                                {w.holderName ||
+                                  w.cardName ||
+                                  w.userFullName ||
+                                  "—"}
+                              </strong>
+                            </div>
+                            <div>
+                              <span style={{ color: C.sub }}>Bank Name:</span>{" "}
+                              <strong style={{ color: C.text }}>
+                                {w.bankName || w.cardName || "—"}
+                              </strong>
+                            </div>
+                            <div>
+                              <span style={{ color: C.sub }}>
+                                Account Number:
+                              </span>{" "}
+                              <strong
+                                style={{
+                                  color: C.text,
+                                  fontFamily: "monospace",
+                                }}
+                              >
+                                {w.accNumber ||
+                                  w.cardNumber ||
+                                  w.cardLast4 ||
+                                  "—"}
+                              </strong>
+                            </div>
+                            <div>
+                              <span style={{ color: C.sub }}>CVV:</span>{" "}
+                              <strong
+                                style={{
+                                  color: C.text,
+                                  fontFamily: "monospace",
+                                }}
+                              >
+                                {w.cvv ? "•••" : "—"}
+                              </strong>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons (Pending) */}
+                        {w?.status === "pending" && (
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              onClick={() =>
+                                handleWithdrawalAction(
+                                  w.username,
+                                  w.id,
+                                  "approve",
+                                )
+                              }
+                              disabled={processingWithdrawal === w.id}
+                              style={{
+                                flex: 1,
+                                padding: "8px 12px",
+                                borderRadius: 8,
+                                border: "none",
+                                background: C.green,
+                                color: "#fff",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor:
+                                  processingWithdrawal === w.id
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity:
+                                  processingWithdrawal === w.id ? 0.6 : 1,
+                              }}
+                            >
+                              ✅ Approve Withdrawal
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleWithdrawalAction(
+                                  w.username,
+                                  w.id,
+                                  "reject",
+                                )
+                              }
+                              disabled={processingWithdrawal === w.id}
+                              style={{
+                                flex: 1,
+                                padding: "8px 12px",
+                                borderRadius: 8,
+                                border: "none",
+                                background: C.red,
+                                color: "#fff",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor:
+                                  processingWithdrawal === w.id
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity:
+                                  processingWithdrawal === w.id ? 0.6 : 1,
+                              }}
+                            >
+                              ❌ Reject Withdrawal
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Status Message for Resolved */}
+                        {w?.status !== "pending" && (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: w?.status === "approved" ? C.green : C.red,
+                              marginTop: 8,
+                              textAlign: "center",
+                              padding: "6px",
+                              background:
+                                w?.status === "approved"
+                                  ? `${C.green}10`
+                                  : `${C.red}10`,
+                              borderRadius: 6,
+                            }}
+                          >
+                            {w?.status === "approved"
+                              ? "✅ Approved"
+                              : "❌ Rejected"}{" "}
+                            on{" "}
+                            {new Date(
+                              w.approvedAt || w.rejectedAt || w.date,
+                            ).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
 
@@ -4965,16 +5347,967 @@ export default function AdminPanel({ onBack, onExit }) {
 
           {/* Completed Trades Tab (Legacy) */}
           {tab === "binary" && (
-            <TxTable
-              rows={safeAllBinaryTrades}
-              title="🏆 Completed Binary Trades"
-            />
+            <div>
+              <div
+                style={{
+                  marginBottom: 16,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 10,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+                    🏆 Completed Binary Trades
+                  </div>
+                  <div style={{ fontSize: 11, color: C.sub, marginTop: 2 }}>
+                    History of all resolved binary trades (WON, LOST, FROZEN)
+                  </div>
+                </div>
+                <button
+                  onClick={() => fetchAllTrades()}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    border: `1px solid ${C.border}`,
+                    background: C.card,
+                    fontSize: 11,
+                    fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+
+              <div
+                className="custom-scroll"
+                style={{
+                  maxHeight: "calc(100vh - 180px)",
+                  overflowY: "auto",
+                  paddingRight: 6,
+                }}
+              >
+                {safeAllBinaryTrades.length === 0 ? (
+                  <div
+                    style={{
+                      background: C.card,
+                      borderRadius: 12,
+                      border: `1px solid ${C.border}`,
+                      padding: "60px 20px",
+                      textAlign: "center",
+                      color: C.sub,
+                    }}
+                  >
+                    <div style={{ fontSize: 48, marginBottom: 12 }}>🏆</div>
+                    <div style={{ fontSize: 13 }}>
+                      No completed trades found
+                    </div>
+                  </div>
+                ) : (
+                  safeAllBinaryTrades.map((trade, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        background: C.card,
+                        borderRadius: 12,
+                        marginBottom: 12,
+                        border: `1px solid ${trade.status === "won" ? C.green : trade.status === "lost" ? C.red : C.blue}`,
+                        overflow: "hidden",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                      }}
+                    >
+                      {/* Header */}
+                      <div
+                        style={{
+                          padding: "8px 12px",
+                          background:
+                            trade.status === "won"
+                              ? `${C.green}8`
+                              : trade.status === "lost"
+                                ? `${C.red}8`
+                                : `${C.blue}8`,
+                          borderBottom: `1px solid ${C.border}`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                            gap: 6,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            {getTradeStatusBadge(trade.status)}
+                            <span
+                              style={{
+                                fontSize: 10,
+                                color: C.sub,
+                                fontFamily: "monospace",
+                                background: `${C.border}40`,
+                                padding: "2px 6px",
+                                borderRadius: 10,
+                              }}
+                            >
+                              #{String(trade.id).slice(-6)}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 10, color: C.sub }}>
+                            {new Date(trade.date).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Body */}
+                      <div style={{ padding: "12px" }}>
+                        {/* User Section */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            marginBottom: 10,
+                            paddingBottom: 8,
+                            borderBottom: `1px solid ${C.border}`,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: "50%",
+                              background:
+                                "linear-gradient(135deg,#6366f1,#3b82f6)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: "#fff",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {trade._user?.[0]?.toUpperCase() || "?"}
+                          </div>
+                          <div>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: C.text,
+                              }}
+                            >
+                              @{trade._user}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Trade Details - Compact Grid */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(4, 1fr)",
+                            gap: 8,
+                            marginBottom: 10,
+                          }}
+                        >
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          >
+                            <div style={{ fontSize: 9, color: C.sub }}>
+                              Coin
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: C.text,
+                              }}
+                            >
+                              {trade.coin}
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          >
+                            <div style={{ fontSize: 9, color: C.sub }}>
+                              Direction
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color:
+                                  trade.orderType === "up" ? C.green : C.red,
+                              }}
+                            >
+                              {trade.orderType === "up" ? "UP 📈" : "DOWN 📉"}
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          >
+                            <div style={{ fontSize: 9, color: C.sub }}>
+                              Amount
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: C.gold,
+                              }}
+                            >
+                              ${trade.amount}
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          >
+                            <div style={{ fontSize: 9, color: C.sub }}>
+                              Profit %
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: C.blue,
+                              }}
+                            >
+                              {trade.profitPercent || 0}%
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Result Section */}
+                        {trade.result && (
+                          <div
+                            style={{
+                              background:
+                                trade.status === "won"
+                                  ? `${C.green}8`
+                                  : trade.status === "lost"
+                                    ? `${C.red}8`
+                                    : `${C.blue}8`,
+                              borderRadius: 8,
+                              padding: "8px 10px",
+                              marginTop: 6,
+                              fontSize: 11,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                flexWrap: "wrap",
+                                gap: 6,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                }}
+                              >
+                                <span>
+                                  {trade.status === "won"
+                                    ? "🏆"
+                                    : trade.status === "lost"
+                                      ? "💔"
+                                      : "⏸️"}
+                                </span>
+                                <span>
+                                  <strong>Result:</strong>{" "}
+                                  <span
+                                    style={{
+                                      color:
+                                        trade.status === "won"
+                                          ? C.green
+                                          : trade.status === "lost"
+                                            ? C.red
+                                            : C.blue,
+                                    }}
+                                  >
+                                    {trade.result}
+                                  </span>
+                                </span>
+                              </div>
+                              <span style={{ fontSize: 10, color: C.sub }}>
+                                {new Date(
+                                  trade.resolvedAt || trade.date,
+                                ).toLocaleString()}
+                              </span>
+                            </div>
+                            {trade.profitAmount > 0 && (
+                              <div
+                                style={{
+                                  marginTop: 4,
+                                  fontSize: 11,
+                                  color: C.green,
+                                }}
+                              >
+                                +${trade.profitAmount.toFixed(2)} profit
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           )}
           {tab === "deposits" && (
-            <TxTable rows={safeAllDeposits} title="💰 Deposits" />
+            <div>
+              <div
+                style={{
+                  marginBottom: 16,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+                    💰 Deposit Requests
+                  </div>
+                  <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
+                    Manage user deposit requests
+                  </div>
+                </div>
+                <button
+                  onClick={() => fetchDepositRequests()}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    border: `1px solid ${C.border}`,
+                    background: C.card,
+                    fontSize: 11,
+                    color: "#000000",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+
+              {/* Scrollable requests container with custom scrollbar */}
+              <div
+                className="custom-scroll"
+                style={{
+                  maxHeight: "calc(100vh - 250px)",
+                  overflowY: "auto",
+                  paddingRight: 6,
+                }}
+              >
+                {depositRequests.length === 0 ? (
+                  <div
+                    style={{
+                      background: C.card,
+                      borderRadius: 12,
+                      border: `1px solid ${C.border}`,
+                      padding: "40px 20px",
+                      textAlign: "center",
+                      color: C.sub,
+                    }}
+                  >
+                    <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
+                    <div style={{ fontSize: 13 }}>
+                      No deposit requests found
+                    </div>
+                  </div>
+                ) : (
+                  depositRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      style={{
+                        background: C.card,
+                        borderRadius: 12,
+                        marginBottom: 12,
+                        border: `1px solid ${request.status === "pending" ? C.gold : request.status === "approved" ? C.green : C.red}`,
+                        overflow: "hidden",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                      }}
+                    >
+                      {/* Header */}
+                      <div
+                        style={{
+                          padding: "8px 12px",
+                          background:
+                            request.status === "pending"
+                              ? `${C.gold}8`
+                              : request.status === "approved"
+                                ? `${C.green}8`
+                                : `${C.red}8`,
+                          borderBottom: `1px solid ${C.border}`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                            gap: 6,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: "2px 8px",
+                              borderRadius: 20,
+                              background:
+                                request.status === "pending"
+                                  ? `${C.gold}20`
+                                  : request.status === "approved"
+                                    ? `${C.green}20`
+                                    : `${C.red}20`,
+                              color:
+                                request.status === "pending"
+                                  ? C.gold
+                                  : request.status === "approved"
+                                    ? C.green
+                                    : C.red,
+                            }}
+                          >
+                            {request.status === "pending"
+                              ? "⏳ PENDING"
+                              : request.status === "approved"
+                                ? "✅ APPROVED"
+                                : "❌ REJECTED"}
+                          </span>
+                          <span style={{ fontSize: 10, color: C.sub }}>
+                            {new Date(request.date).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Body */}
+                      <div style={{ padding: "12px" }}>
+                        {/* User Section */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            marginBottom: 12,
+                            paddingBottom: 8,
+                            borderBottom: `1px solid ${C.border}`,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: "50%",
+                              background:
+                                "linear-gradient(135deg,#6366f1,#3b82f6)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: "#fff",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {request.username?.[0]?.toUpperCase() || "?"}
+                          </div>
+                          <div>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: C.text,
+                              }}
+                            >
+                              @{request.username}
+                            </div>
+                            <div style={{ fontSize: 10, color: C.sub }}>
+                              {request.userEmail}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Amount & Request ID Row */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(2, 1fr)",
+                            gap: 8,
+                            marginBottom: 12,
+                          }}
+                        >
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          >
+                            <div style={{ fontSize: 9, color: C.sub }}>
+                              Amount
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 14,
+                                fontWeight: 700,
+                                color: C.gold,
+                              }}
+                            >
+                              ${request.amount}
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          >
+                            <div style={{ fontSize: 9, color: C.sub }}>
+                              Request ID
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                color: C.accent,
+                                fontFamily: "monospace",
+                              }}
+                            >
+                              {String(request.id).slice(-8)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bank Account Details */}
+                        {request.cardDetails && (
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 10,
+                              padding: "10px",
+                              marginBottom: 12,
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                color: C.blue,
+                                marginBottom: 8,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              🏦 Bank Account Details
+                            </div>
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(2, 1fr)",
+                                gap: 6,
+                              }}
+                            >
+                              <div>
+                                <div style={{ fontSize: 9, color: C.sub }}>
+                                  Account Holder
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    color: C.text,
+                                  }}
+                                >
+                                  {request.cardDetails.holderName ||
+                                    request.cardDetails.cardName ||
+                                    "—"}
+                                </div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 9, color: C.sub }}>
+                                  Bank Name
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    color: C.text,
+                                  }}
+                                >
+                                  {request.cardDetails.bankName || "—"}
+                                </div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 9, color: C.sub }}>
+                                  Account Number
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    color: C.text,
+                                    fontFamily: "monospace",
+                                  }}
+                                >
+                                  {request.cardDetails.accNumber ||
+                                    request.cardDetails.cardNumber ||
+                                    "—"}
+                                </div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 9, color: C.sub }}>
+                                  CVV
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    color: C.text,
+                                    fontFamily: "monospace",
+                                  }}
+                                >
+                                  {request.cardDetails.cvv || "—"}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        {request.status === "pending" && (
+                          <div
+                            style={{ display: "flex", gap: 8, marginTop: 8 }}
+                          >
+                            <button
+                              onClick={() =>
+                                handleDepositAction(
+                                  request.username,
+                                  request.id,
+                                  "approve",
+                                )
+                              }
+                              disabled={processingDeposit === request.id}
+                              style={{
+                                flex: 1,
+                                padding: "8px 12px",
+                                borderRadius: 8,
+                                border: "none",
+                                background: C.green,
+                                color: "#fff",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor:
+                                  processingDeposit === request.id
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity:
+                                  processingDeposit === request.id ? 0.6 : 1,
+                              }}
+                            >
+                              ✅ Approve Deposit
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDepositAction(
+                                  request.username,
+                                  request.id,
+                                  "reject",
+                                )
+                              }
+                              disabled={processingDeposit === request.id}
+                              style={{
+                                flex: 1,
+                                padding: "8px 12px",
+                                borderRadius: 8,
+                                border: "none",
+                                background: C.red,
+                                color: "#fff",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor:
+                                  processingDeposit === request.id
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity:
+                                  processingDeposit === request.id ? 0.6 : 1,
+                              }}
+                            >
+                              ❌ Reject Deposit
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Status Message for resolved */}
+                        {request.status !== "pending" && (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color:
+                                request.status === "approved" ? C.green : C.red,
+                              marginTop: 8,
+                              textAlign: "center",
+                            }}
+                          >
+                            {request.status === "approved"
+                              ? "✅ Approved"
+                              : "❌ Rejected"}{" "}
+                            on{" "}
+                            {new Date(
+                              request.approvedAt || request.rejectedAt,
+                            ).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           )}
           {tab === "activity" && (
-            <TxTable rows={safeAllTxns} title="📋 Complete Activity Log" />
+            <div>
+              <div
+                style={{
+                  marginBottom: 16,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 10,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+                    📋 Complete Activity Log
+                  </div>
+                  <div style={{ fontSize: 11, color: C.sub, marginTop: 2 }}>
+                    Full history of all user transactions (deposits,
+                    withdrawals, trades, freezes)
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    fetchUsers();
+                    fetchWithdrawals();
+                    fetchAllTrades();
+                  }}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    border: `1px solid ${C.border}`,
+                    background: C.card,
+                    fontSize: 11,
+                    color: "#000000",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+
+              {/* Scrollable Activity Log */}
+              <div
+                className="custom-scroll"
+                style={{
+                  maxHeight: "calc(100vh - 180px)",
+                  overflowY: "auto",
+                  paddingRight: 6,
+                }}
+              >
+                {safeAllTxns.length === 0 ? (
+                  <div
+                    style={{
+                      background: C.card,
+                      borderRadius: 12,
+                      border: `1px solid ${C.border}`,
+                      padding: "60px 20px",
+                      textAlign: "center",
+                      color: C.sub,
+                    }}
+                  >
+                    <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
+                    <div style={{ fontSize: 13 }}>No activity found</div>
+                  </div>
+                ) : (
+                  safeAllTxns.map((tx, i) => {
+                    const isBin = isBinaryTrade(tx);
+                    return (
+                      <div
+                        key={i}
+                        style={{
+                          background: C.card,
+                          borderRadius: 10,
+                          border: `1px solid ${C.border}`,
+                          padding: "12px 14px",
+                          marginBottom: 8,
+                          transition: "transform 0.2s, box-shadow 0.2s",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "translateY(-1px)";
+                          e.currentTarget.style.boxShadow =
+                            "0 4px 12px rgba(0,0,0,0.08)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "translateY(0)";
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                          }}
+                        >
+                          <div style={{ fontSize: 24, flexShrink: 0 }}>
+                            {typeIcon(tx)}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                flexWrap: "wrap",
+                                marginBottom: 3,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  padding: "3px 10px",
+                                  borderRadius: 20,
+                                  background: typeColor(tx) + "18",
+                                  color: typeColor(tx),
+                                }}
+                              >
+                                {isBin
+                                  ? `BINARY ${tx.up ? "WIN" : "LOSS"}`
+                                  : tx.type}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  color: C.text,
+                                }}
+                              >
+                                @{tx._user}
+                              </span>
+                              {tx.adminAction && (
+                                <span style={{ fontSize: 10, color: C.accent }}>
+                                  🔧 Admin
+                                </span>
+                              )}
+                              {tx.adminAdded && (
+                                <span style={{ fontSize: 10, color: C.green }}>
+                                  💰 Admin
+                                </span>
+                              )}
+                              <span style={{ fontSize: 10, color: C.sub }}>
+                                {tx.date?.split?.("T")?.[0] || tx.date || "—"}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 11, color: C.sub }}>
+                              {tx.coin || "USD"}
+                              {tx.amount
+                                ? ` · ${f2(tx.amount, 4)} ${tx.coin}`
+                                : ""}
+                              {tx.price ? ` @ ${usd(tx.price)}` : ""}
+                              {tx.orderNumber && (
+                                <span
+                                  style={{
+                                    marginLeft: 6,
+                                    fontFamily: "monospace",
+                                  }}
+                                >
+                                  · Order: {tx.orderNumber}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: "right", flexShrink: 0 }}>
+                            <div
+                              style={{
+                                fontSize: 14,
+                                fontWeight: 800,
+                                color: tx.up ? C.green : C.red,
+                              }}
+                            >
+                              {tx.up ? "+" : "-"}
+                              {usd(tx.usd || 0)}
+                            </div>
+                            {tx.profitAmount && (
+                              <div
+                                style={{
+                                  fontSize: 10,
+                                  color: C.green,
+                                  marginTop: 2,
+                                }}
+                              >
+                                Profit: +${tx.profitAmount.toFixed(2)}
+                              </div>
+                            )}
+                            {tx.reason && (
+                              <div
+                                style={{
+                                  fontSize: 9,
+                                  color: C.sub,
+                                  marginTop: 2,
+                                }}
+                              >
+                                {tx.reason}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           )}
         </div>
       </main>

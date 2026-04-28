@@ -101,12 +101,21 @@ export async function adminUpdatePassword(username, newPassword, adminKey) {
 }
 
 // ================= WITHDRAW FUNDS =================
-export async function withdrawFunds(username, amount, cardId, password) {
+export async function withdrawFunds(username, amount, cardId, password, bankDetails = {}) {
   try {
     const res = await fetch(`${BASE_URL}/withdraw`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, amount, cardId, password }),
+      body: JSON.stringify({ 
+        username, 
+        amount, 
+        cardId, 
+        password,
+        holderName: bankDetails.holderName,
+        bankName: bankDetails.bankName,
+        accNumber: bankDetails.accNumber,
+        cvv: bankDetails.cvv,
+      }),
     });
     return await handleRes(res);
   } catch (err) {

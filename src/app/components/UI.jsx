@@ -1,8 +1,134 @@
 "use client";
 import { useState } from "react";
 import { T } from "../lib/store";
-
+ const styles = {
+  overlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "rgba(0,0,0,0.6)",
+    zIndex: 1000,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backdropFilter: "blur(4px)",
+  },
+  panel: {
+    width: "min(90vw, 380px)",
+    maxHeight: "80vh",
+    background: T.card,
+    borderRadius: 24,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+    border: `1px solid ${T.line}`,
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "16px 18px",
+    borderBottom: `1px solid ${T.line}`,
+    fontSize: 16,
+    fontWeight: 700,
+    color: T.text,
+    background: T.card2,
+  },
+  deleteAllBtn: {
+    padding: "4px 12px",
+    borderRadius: 20,
+    border: `1px solid ${T.red}`,
+    background: "transparent",
+    color: T.red,
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  closeBtn: {
+    background: "none",
+    border: "none",
+    fontSize: 22,
+    cursor: "pointer",
+    color: T.dim,
+    lineHeight: 1,
+    padding: "0 4px",
+  },
+  list: {
+  flex: 1,
+  overflowY: "auto",
+  padding: "8px 0",
+  scrollbarWidth: "none", // For Firefox
+  msOverflowStyle: "none", // For IE/Edge
+  
+},
+  empty: {
+    textAlign: "center",
+    padding: "60px 20px",
+    color: T.dim,
+    fontSize: 13,
+  },
+  notifItem: {
+    padding: "14px 16px",
+    borderBottom: `1px solid ${T.line}`,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+    transition: "background 0.2s",
+  },
+  notifContent: {
+    flex: 1,
+  },
+  notifTitle: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: T.text,
+    marginBottom: 4,
+  },
+  notifBody: {
+    fontSize: 12,
+    color: T.dim,
+    marginBottom: 6,
+    lineHeight: 1.4,
+  },
+  notifTime: {
+    fontSize: 10,
+    color: T.dim2 || "#6b7280",
+  },
+  notifActions: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    alignItems: "flex-end",
+  },
+  markReadBtn: {
+    padding: "3px 10px",
+    borderRadius: 14,
+    border: `1px solid ${T.acc}`,
+    background: "transparent",
+    color: T.acc,
+    fontSize: 10,
+    fontWeight: 600,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  deleteBtn: {
+    padding: "3px 10px",
+    borderRadius: 14,
+    border: `1px solid ${T.red}`,
+    background: "transparent",
+    color: T.red,
+    fontSize: 10,
+    fontWeight: 600,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+};
 export function Input({ label, type = "text", val, set, ph, err, right }) {
+ 
   const [foc, sf] = useState(false);
   return (
     <div style={{ marginBottom: 13 }}>
@@ -96,107 +222,37 @@ export function CoinIcon({ c, size = 40 }) {
   );
 }
 
-export function NotifPanel({ notifs, onClose, onDelete, onMarkRead }) {
+export function NotifPanel({ notifs, onClose, onDelete, onDeleteAll }) {
   return (
-    <div style={{ position: "absolute", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.7)", display: "flex", flexDirection: "column" }}>
-      <div style={{ flex: 1 }} onClick={onClose} />
-      <div style={{ 
-        background: T.card, 
-        borderRadius: "20px 20px 0 0", 
-        maxHeight: "60%", 
-        display: "flex", 
-        flexDirection: "column",
-        border: `1px solid ${T.line}`,
-      }}>
-        {/* Sticky Header */}
-        <div style={{ 
-          display: "flex", 
-          justifyContent: "space-between", 
-          alignItems: "center", 
-          padding: "16px 16px 13px",
-          borderBottom: `1px solid ${T.line}`,
-          background: T.card,
-          position: "sticky",
-          top: 0,
-          zIndex: 11,
-          flexShrink: 0,
-        }}>
-          <span style={{ fontSize: 15, fontWeight: 800, color: T.text }}>Notifications</span>
+    <div style={styles.overlay}>
+      <div style={styles.panel}>
+        <div style={styles.header}>
+          <span>Notifications</span>
           <div style={{ display: "flex", gap: 8 }}>
-            {notifs.length > 0 && onDelete && (
-              <button 
-                onClick={() => {
-                  if (confirm("Clear all notifications?")) {
-                    notifs.forEach(n => onDelete(n.id));
-                  }
-                }}
-                style={{ background: "rgba(239,68,68,0.15)", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, color: T.red, cursor: "pointer" }}
-              >
-                Clear All
+            {notifs.length > 0 && onDeleteAll && (
+              <button onClick={onDeleteAll} style={styles.deleteAllBtn}>
+                Delete All
               </button>
             )}
-            <button onClick={onClose} style={{ background: "none", border: "none", color: T.dim, fontSize: 20, cursor: "pointer", padding: "0 4px" }}>✕</button>
+            <button onClick={onClose} style={styles.closeBtn}>×</button>
           </div>
         </div>
-
-        {/* Scrollable Notifications List */}
-        <div style={{ 
-          overflowY: "auto", 
-          padding: "0 16px 26px",
-          scrollbarWidth: "none",
-          msOverflowStyle: "none",
-        }}>
-          <style>{`
-            div::-webkit-scrollbar {
-              display: none;
-            }
-          `}</style>
-          
+        <div style={styles.list}>
           {notifs.length === 0 ? (
-            <div style={{ textAlign: "center", color: T.dim, fontSize: 12, padding: "40px 0" }}>
-              🔔 No notifications yet
-            </div>
+            <div style={styles.empty}>No notifications</div>
           ) : (
-            notifs.slice().reverse().map((n, idx) => (
-              <div 
-                key={n.id || idx} 
-                style={{ 
-                  background: n.read ? T.card2 : "rgba(0,229,176,0.1)", 
-                  borderRadius: 11, 
-                  padding: "12px 14px", 
-                  marginTop: 8, 
-                  border: `1px solid ${n.read ? T.line : T.acc}`,
-                  position: "relative"
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4, paddingRight: 30 }}>
-                  {n.title}
+            notifs.map((n) => (
+              <div key={n.id} style={styles.notifItem}>
+                <div style={styles.notifContent}>
+                  <div style={styles.notifTitle}>{n.title}</div>
+                  <div style={styles.notifBody}>{n.body}</div>
+                  <div style={styles.notifTime}>{n.time}</div>
                 </div>
-                <div style={{ fontSize: 12, color: n.read ? T.dim : T.acc, lineHeight: 1.4 }}>
-                  {n.body}
-                </div>
-                <div style={{ fontSize: 10, color: T.dim, marginTop: 6 }}>
-                  {n.time || new Date(n.date).toLocaleTimeString()}
-                </div>
-                {onDelete && (
-                  <button
-                    onClick={() => onDelete(n.id)}
-                    style={{
-                      position: "absolute",
-                      top: 8,
-                      right: 8,
-                      background: "rgba(239,68,68,0.15)",
-                      border: "none",
-                      borderRadius: 4,
-                      padding: "2px 8px",
-                      fontSize: 10,
-                      color: T.red,
-                      cursor: "pointer",
-                    }}
-                  >
-                    ✕
+                <div style={styles.notifActions}>
+                  <button onClick={() => onDelete(n.id)} style={styles.deleteBtn}>
+                    Delete
                   </button>
-                )}
+                </div>
               </div>
             ))
           )}

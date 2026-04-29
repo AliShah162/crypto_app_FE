@@ -2657,21 +2657,16 @@ export default function AdminPanel({ onBack, onExit }) {
   const fetchDepositRequests = useCallback(async () => {
     try {
       const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
-      console.log("🔍 Fetching deposit requests with admin key:", adminKey);
 
       const response = await fetch(`${BASE_URL}/api/users/admin/all-deposits`, {
         headers: { "x-admin-key": adminKey },
       });
-      console.log("📡 Response status:", response.status);
 
       const data = await response.json();
-      console.log("📦 Deposit requests data:", data);
 
       if (Array.isArray(data)) {
         setDepositRequests(data);
-        console.log("✅ Set depositRequests to:", data.length, "items");
       } else {
-        console.log("❌ Data is not an array:", data);
         setDepositRequests([]);
       }
     } catch (error) {
@@ -2874,7 +2869,6 @@ export default function AdminPanel({ onBack, onExit }) {
         S.users = cleanLocal;
         setUsersState(cleanLocal);
         saveUsers(cleanLocal);
-        console.log("Fetched users from DB:", Object.keys(cleanLocal));
       } else {
         setUsersState(loadLocalUsers());
       }
@@ -3030,7 +3024,6 @@ export default function AdminPanel({ onBack, onExit }) {
     saveBanned(n);
   };
   const del = async (username) => {
-    console.log(`Attempting to delete user: ${username}`);
     try {
       const local = JSON.parse(localStorage.getItem("users") || "{}");
       delete local[username.toLowerCase()];

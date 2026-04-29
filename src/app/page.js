@@ -87,26 +87,23 @@ export default function App() {
 
   // Fetch notifications from MongoDB
   const fetchNotificationsFromDB = useCallback(async () => {
-  const sessionUser = localStorage.getItem("session");
-  // ✅ Skip for admin user
-  if (!sessionUser || sessionUser === "admin") return [];
-  
-  try {
-    const response = await fetch(`${API_URL}/api/users/${sessionUser}/notifications`);
-    const data = await response.json();
-    if (Array.isArray(data)) {
-      sn(data);
-      // Update localStorage cache
-      const allNotifs = JSON.parse(localStorage.getItem("user_notifications") || "{}");
-      allNotifs[sessionUser] = data;
-      localStorage.setItem("user_notifications", JSON.stringify(allNotifs));
-      return data;
+    const sessionUser = localStorage.getItem("session");
+    if (!sessionUser || sessionUser === "admin") return [];
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/users/${sessionUser}/notifications`,
+      );
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        sn(data);
+        return data;
+      }
+    } catch (err) {
+      console.error("Failed to fetch notifications from DB:", err);
     }
-  } catch (err) {
-    console.error("Failed to fetch notifications from DB:", err);
-  }
-  return [];
-}, []);
+    return [];
+  }, []);
 
   useEffect(() => {
     initLocalStorage();
@@ -192,7 +189,6 @@ export default function App() {
           const freshUser = await getUser(sessionUser, true);
 
           if (freshUser && freshUser.error === "User not found") {
-            console.log("User not found in DB, logging out");
             localStorage.removeItem("session");
             localStorage.removeItem("tabRole");
             startTransition(() => {
@@ -222,7 +218,7 @@ export default function App() {
             cache[sessionUser] = { ...updatedUser, _cachedAt: Date.now() };
             localStorage.setItem("users_cache", JSON.stringify(cache));
             setUser(updatedUser);
-            
+
             // Refresh notifications
             fetchNotificationsFromDB();
           }
@@ -266,13 +262,11 @@ export default function App() {
 
     const username = u.username.toLowerCase().trim();
 
-    console.log("🔐 Auth function called for:", username);
-
     try {
       const dbUser = await getUser(username, true);
 
       if (dbUser && !dbUser.error) {
-        console.log("📡 User found in database, using DB data");
+    
 
         const userObj = {
           username: dbUser.username,
@@ -297,16 +291,15 @@ export default function App() {
         }
 
         setUser(userObj);
-        
+
         // Load notifications from MongoDB
-        const notifResponse = await fetch(`${API_URL}/api/users/${username}/notifications`);
+        // Load notifications from MongoDB
+        const notifResponse = await fetch(
+          `${API_URL}/api/users/${username}/notifications`,
+        );
         const notifData = await notifResponse.json();
         if (Array.isArray(notifData)) {
           sn(notifData);
-          const allNotifs = JSON.parse(localStorage.getItem("user_notifications") || "{}");
-          allNotifs[username] = notifData;
-          localStorage.setItem("user_notifications", JSON.stringify(allNotifs));
-          localStorage.setItem("lastNotifUser", username);
         } else {
           sn([]);
         }
@@ -376,30 +369,32 @@ export default function App() {
     }
   };
 
-  const addN = (title, body) => {
-    const newNotif = {
-      title,
-      body,
-      time: new Date().toLocaleTimeString(),
-      id: Date.now() + Math.random(),
-      read: false,
-    };
+  const addN = async (title, body) => {
+    if (!user?.username) return;
 
-    if (user?.username) {
-      try {
-        const allNotifs = JSON.parse(
-          localStorage.getItem("user_notifications") || "{}",
-        );
-        const userNotifs = allNotifs[user.username] || [];
-        const updated = [newNotif, ...userNotifs].slice(0, 50);
-        allNotifs[user.username] = updated;
-        localStorage.setItem("user_notifications", JSON.stringify(allNotifs));
-      } catch (e) {
-        console.error("Failed to save notification:", e);
+    try {
+      const response = await fetch(
+        `${API_URL}/api/users/${user.username}/notifications`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: title,
+            body: body,
+            type: "general",
+          }),
+        },
+      );
+
+      if (response.ok) {
+        // Refresh notifications from database
+        await fetchNotificationsFromDB();
+      } else {
+        console.error("Failed to save notification to DB");
       }
+    } catch (e) {
+      console.error("Failed to save notification:", e);
     }
-
-    sn((prev) => [newNotif, ...prev]);
   };
 
   const onDep = (amt) => {
@@ -490,7 +485,7 @@ export default function App() {
   const u = user;
 
   // Calculate unread count for notification bell
-  const unreadCount = notifs.filter(n => !n.read).length;
+  const unreadCount = notifs.filter((n) => !n.read).length;
 
   const renderContent = () => {
     if (page === "profile" && sub) {
@@ -518,7 +513,13 @@ export default function App() {
             />
           );
         case "notif":
-          return <NotifSub back={bk} userNotifs={notifs} onMarkRead={() => fetchNotificationsFromDB()} />;
+          return (
+            <NotifSub
+              back={bk}
+              userNotifs={notifs}
+              onMarkRead={() => fetchNotificationsFromDB()}
+            />
+          );
         case "lang":
           return <LangSub back={bk} />;
         case "terms":
@@ -680,7 +681,7 @@ export default function App() {
                     >
                       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
                     </svg>
-                    
+
                     {/* Number badge instead of red dot */}
                     {unreadCount > 0 && (
                       <div
@@ -882,6 +883,7 @@ export default function App() {
               </div>
             )}
 
+            {/* In the NotifPanel component call, update onDelete and add onDeleteAll */}
             {nPanel && (
               <NotifPanel
                 notifs={notifs}
@@ -889,41 +891,39 @@ export default function App() {
                 onDelete={async (notifId) => {
                   if (user?.username) {
                     try {
-                      // Delete from MongoDB
-                      await fetch(`${API_URL}/api/users/${user.username}/notifications/${notifId}`, {
-                        method: "DELETE",
-                      });
-                      // Refresh notifications
-                      const updated = await fetch(`${API_URL}/api/users/${user.username}/notifications`).then(r => r.json());
-                      if (Array.isArray(updated)) {
-                        sn(updated);
-                        const allNotifs = JSON.parse(localStorage.getItem("user_notifications") || "{}");
-                        allNotifs[user.username] = updated;
-                        localStorage.setItem("user_notifications", JSON.stringify(allNotifs));
-                      }
+                      await fetch(
+                        `${API_URL}/api/users/${user.username}/notifications/${notifId}`,
+                        {
+                          method: "DELETE",
+                        },
+                      );
+                      // Refresh from database
+                      await fetchNotificationsFromDB();
                     } catch (e) {
                       console.error("Failed to delete notification:", e);
                     }
                   }
                 }}
-                onMarkRead={async (notifId) => {
+                onDeleteAll={async () => {
                   if (user?.username) {
                     try {
-                      await fetch(`${API_URL}/api/users/${user.username}/notifications/read`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ notificationId: notifId }),
-                      });
-                      // Refresh notifications
-                      const updated = await fetch(`${API_URL}/api/users/${user.username}/notifications`).then(r => r.json());
-                      if (Array.isArray(updated)) {
-                        sn(updated);
-                        const allNotifs = JSON.parse(localStorage.getItem("user_notifications") || "{}");
-                        allNotifs[user.username] = updated;
-                        localStorage.setItem("user_notifications", JSON.stringify(allNotifs));
+                      const response = await fetch(
+                        `${API_URL}/api/users/${user.username}/notifications/all`,
+                        {
+                          method: "DELETE",
+                        },
+                      );
+
+                      const data = await response.json();
+
+                      if (data.success) {
+                        // ✅ Clear local state immediately
+                        sn([]);
+                        // ✅ Also clear the notification panel if open
+                        // The user will see empty notifications
                       }
                     } catch (e) {
-                      console.error("Failed to mark notification read:", e);
+                      console.error("Failed to delete all notifications:", e);
                     }
                   }
                 }}

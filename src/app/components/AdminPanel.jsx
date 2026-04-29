@@ -2996,83 +2996,88 @@ export default function AdminPanel({ onBack, onExit }) {
     S.banned = banned;
   }, [banned]);
 
+  // ========== SESSION VALIDITY CHECK - ONLY DETECT WHEN EXPLICITLY REVOKED ==========
+  // ========== REVOCATION CHECK ==========
+  useEffect(() => {
+    if (showMasterPanel) return;
 
-// ========== SESSION VALIDITY CHECK - ONLY DETECT WHEN EXPLICITLY REVOKED ==========
-// ========== REVOCATION CHECK ==========
-useEffect(() => {
-  if (showMasterPanel) return;
-  
-  let revocationInterval = null;
-  
-  const checkForRevocation = async () => {
-    const sessionId = localStorage.getItem("admin_session_id");
-    const adminKey = localStorage.getItem("adminApiKey");
-    
-    if (!sessionId || !adminKey) return;
-    
-    try {
-      const response = await fetch(`${BASE_URL}/api/users/admin/sessions`, {
-        headers: {
-          "x-admin-key": adminKey,
-          "x-session-id": sessionId,
-        },
-      });
-      const data = await response.json();
-      
-      if (data.sessions && Array.isArray(data.sessions)) {
-        const currentSession = data.sessions.find(s => s.sessionId === sessionId);
-        
-        if (currentSession && currentSession.isActive === false) {
-          alert("⚠️ Your admin session has been revoked by the master admin!");
-          localStorage.removeItem("adminApiKey");
-          localStorage.removeItem("admin_session_id");
-          window.location.href = "/";
+    let revocationInterval = null;
+
+    const checkForRevocation = async () => {
+      const sessionId = localStorage.getItem("admin_session_id");
+      const adminKey = localStorage.getItem("adminApiKey");
+
+      if (!sessionId || !adminKey) return;
+
+      try {
+        const response = await fetch(`${BASE_URL}/api/users/admin/sessions`, {
+          headers: {
+            "x-admin-key": adminKey,
+            "x-session-id": sessionId,
+          },
+        });
+        const data = await response.json();
+
+        if (data.sessions && Array.isArray(data.sessions)) {
+          const currentSession = data.sessions.find(
+            (s) => s.sessionId === sessionId,
+          );
+
+          if (currentSession && currentSession.isActive === false) {
+            alert(
+              "⚠️ Your admin session has been revoked by the master admin!",
+            );
+            localStorage.removeItem("adminApiKey");
+            localStorage.removeItem("admin_session_id");
+            window.location.href = "/";
+          }
         }
+      } catch (err) {
+        // Silent fail
       }
-    } catch (err) {
-      // Silent fail
-    }
-  };
-  
-  checkForRevocation();
-  revocationInterval = setInterval(checkForRevocation, 5000);
-  
-  return () => {
-    if (revocationInterval) clearInterval(revocationInterval);
-  };
-}, [showMasterPanel]);
-  
+    };
 
-// Register admin session when panel loads (for revoke functionality)
-// ========== FORCE SESSION REGISTRATION (Fixes incognito) ==========
-useEffect(() => {
-  const registerSession = async () => {
-    const adminKey = localStorage.getItem("adminApiKey");
-    if (!adminKey) return;
-    
-    try {
-      const response = await fetch(`${BASE_URL}/api/users/admin/register-session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          adminKey: adminKey,
-          userAgent: navigator.userAgent,
-          adminUsername: localStorage.getItem("session") || "admin",
-        }),
-      });
-      const data = await response.json();
-      if (data.sessionId) {
-        // Always use backend session ID
-        localStorage.setItem("admin_session_id", data.sessionId);
-        console.log("✅ Session registered:", data.sessionId);
+    checkForRevocation();
+    revocationInterval = setInterval(checkForRevocation, 5000);
+
+    return () => {
+      if (revocationInterval) clearInterval(revocationInterval);
+    };
+  }, [showMasterPanel]);
+
+  // Register admin session when panel loads (for revoke functionality)
+  // ========== FORCE SESSION REGISTRATION (Fixes incognito) ==========
+  useEffect(() => {
+    const registerSession = async () => {
+      const adminKey = localStorage.getItem("adminApiKey");
+      if (!adminKey) return;
+
+      try {
+        const response = await fetch(
+          `${BASE_URL}/api/users/admin/register-session`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              adminKey: adminKey,
+              userAgent: navigator.userAgent,
+              adminUsername: localStorage.getItem("session") || "admin",
+            }),
+          },
+        );
+        const data = await response.json();
+        if (data.sessionId) {
+          // Always use backend session ID
+          localStorage.setItem("admin_session_id", data.sessionId);
+          console.log("✅ Session registered:", data.sessionId);
+        }
+      } catch (err) {
+        console.error("Session registration failed:", err);
       }
-    } catch (err) {
-      console.error("Session registration failed:", err);
-    }
-  };
-  
-  registerSession();
-}, []);
+    };
+
+    registerSession();
+  }, []);
 
   const users = Object.values(usersState);
   const totalBalance = users.reduce((a, u) => a + (u?.balance || 0), 0);
@@ -3698,7 +3703,7 @@ useEffect(() => {
         className="ap-sidebar"
       >
         <div>
-          <div
+          <button
             onClick={handleSecretClick}
             style={{
               display: "flex",
@@ -3706,6 +3711,14 @@ useEffect(() => {
               gap: 10,
               padding: "0 4px",
               marginBottom: 28,
+              cursor: "pointer",
+              background: "transparent", // ← No background
+              border: "none", // ← No border
+              width: "100%",
+              touchAction: "manipulation",
+              // These remove default button styles
+              outline: "none",
+              boxShadow: "none",
             }}
           >
             <div
@@ -3721,6 +3734,7 @@ useEffect(() => {
                 fontSize: 18,
                 color: "#fff",
                 flexShrink: 0,
+                pointerEvents: "none",
               }}
             >
               A
@@ -3739,7 +3753,7 @@ useEffect(() => {
                 BINARY TRACKER
               </div>
             </div>
-          </div>
+          </button>
           <nav style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             {navItems.map((n) => (
               <NavBtn

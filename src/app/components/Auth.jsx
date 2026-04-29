@@ -387,6 +387,13 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
         return;
       }
 
+      // ✅ CHECK IF ADMIN HAS BEEN BANNED
+      if (data.role === "admin" && data.isAdminBanned === true) {
+        const banReason = data.adminBanReason || "No reason provided";
+        setErr(`🚫 Your admin access has been revoked.\nReason: ${banReason}\nContact the master admin.`);
+        return;
+      }
+
       // Login successful - call onAuth with user data
       await onAuth({
         username: data.username,

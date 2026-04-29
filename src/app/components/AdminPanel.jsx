@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { S, PE, COINS, usd, f2 } from "../lib/store";
 import {
   getAllUsers,
@@ -11,8 +11,10 @@ import {
   approveWithdrawal,
 } from "../lib/api";
 import { addUserNotification } from "../lib/notifications";
+import AdminUserManager from "./AdminUserManager";
 
 import { API_URL } from "../lib/config";
+import AdminSessions from "./AdminSessions";
 const BASE_URL = API_URL;
 
 /* ─── helpers ─── */
@@ -135,7 +137,11 @@ function SendNotificationModal({ username, userEmail, onClose, onSent }) {
     setMsg(null);
 
     try {
-      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+      const adminKey = localStorage.getItem("adminApiKey");
+      if (!adminKey) {
+        setShowKeyInput(true);
+        return;
+      }
       const response = await fetch(
         `${BASE_URL}/api/users/admin/send-notification`,
         {
@@ -2586,6 +2592,33 @@ function UserDrawer({
    MAIN ADMIN PANEL
 ══════════════════════════════════════════════════════ */
 export default function AdminPanel({ onBack, onExit }) {
+  // Helper function to check if session is still valid (for kick/ban detection)
+  const checkSessionAndHandleLogout = (response, data) => {
+    // Check for 403 (Forbidden) or 401 (Unauthorized) status
+    if (response.status === 403 || response.status === 401) {
+      // Session was revoked (kicked)
+      if (data.error === "SESSION_INVALID" || data.error === "Unauthorized") {
+        alert(
+          "⚠️ Your admin session has been revoked by the master admin. You will be logged out.",
+        );
+        localStorage.removeItem("adminApiKey");
+        localStorage.removeItem("admin_session_id");
+        window.location.href = "/";
+        return true;
+      }
+      // Admin was banned
+      if (data.error === "ADMIN_BANNED") {
+        alert(
+          `🚫 Your admin access has been revoked.\nReason: ${data.reason || "No reason provided"}\nContact the master admin.`,
+        );
+        localStorage.removeItem("adminApiKey");
+        localStorage.removeItem("admin_session_id");
+        window.location.href = "/";
+        return true;
+      }
+    }
+    return false;
+  };
   const exit = onBack || onExit;
 
   const [tab, setTab] = useState("dashboard");
@@ -2606,17 +2639,65 @@ export default function AdminPanel({ onBack, onExit }) {
   const [notifMsg, setNotifMsg] = useState(null);
   const [depositRequests, setDepositRequests] = useState([]);
   const [processingDeposit, setProcessingDeposit] = useState(null);
+  // Add these with your other useState declarations
+  const [showMasterPanel, setShowMasterPanel] = useState(false);
+  const [masterPassword, setMasterPassword] = useState("");
+  const [masterAuthError, setMasterAuthError] = useState("");
+  const [masterAuthenticated, setMasterAuthenticated] = useState(false);
+  const [masterPanelTab, setMasterPanelTab] = useState("sessions");
+  const clickCount = useRef(0);
+  const clickTimer = useRef(null);
 
   // Time filters
   const [tradeTimeFilter, setTradeTimeFilter] = useState("all");
   const [withdrawTimeFilter, setWithdrawTimeFilter] = useState("all");
 
+  // Add this function inside AdminPanel component
+  const handleSecretClick = () => {
+    clickCount.current++;
+
+    if (clickTimer.current) clearTimeout(clickTimer.current);
+
+    clickTimer.current = setTimeout(() => {
+      if (clickCount.current >= 3) {
+        setShowMasterPanel(true);
+        setMasterPassword("");
+        setMasterAuthError("");
+        setMasterAuthenticated(false);
+      }
+      clickCount.current = 0;
+    }, 500);
+  };
+
+  const verifyMasterPassword = () => {
+    // You can change this password to anything you want
+    const MASTER_PASSWORD = "YourSecretPassword123";
+
+    if (masterPassword === MASTER_PASSWORD) {
+      setMasterAuthenticated(true);
+      setMasterAuthError("");
+    } else {
+      setMasterAuthError("❌ Incorrect password");
+    }
+  };
+
   const fetchWithdrawals = useCallback(async () => {
     try {
       const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
-      const res = await getAllWithdrawals(adminKey);
-      if (res && !res.error && Array.isArray(res)) {
-        setWithdrawals(res);
+      const sessionId = localStorage.getItem("admin_session_id");
+      const res = await fetch(`${BASE_URL}/api/users/admin/all-withdrawals`, {
+        headers: {
+          "x-admin-key": adminKey,
+          "x-session-id": sessionId || "",
+        },
+      });
+      const data = await res.json();
+
+      // Check if session was invalidated
+      if (checkSessionAndHandleLogout(res, data)) return;
+
+      if (data && !data.error && Array.isArray(data)) {
+        setWithdrawals(data);
       } else {
         setWithdrawals([]);
       }
@@ -2835,13 +2916,28 @@ export default function AdminPanel({ onBack, onExit }) {
     setLoading(true);
     try {
       const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
-      const res = await getAllUsersWithPlainPasswords(adminKey);
-      if (res.error) {
-        console.error("Error fetching users:", res.error);
+      const sessionId = localStorage.getItem("admin_session_id");
+
+      const response = await fetch(
+        `${BASE_URL}/api/users/admin/all-with-plain-passwords`,
+        {
+          headers: {
+            "x-admin-key": adminKey,
+            "x-session-id": sessionId || "",
+          },
+        },
+      );
+      const data = await response.json();
+
+      // CHECK IF SESSION WAS INVALIDATED (KICKED)
+      if (checkSessionAndHandleLogout(response, data)) return;
+
+      if (data.error) {
+        console.error("Error fetching users:", data.error);
         setUsersState(loadLocalUsers());
-      } else if (Array.isArray(res)) {
+      } else if (Array.isArray(data)) {
         const dbUsers = {};
-        res.forEach((u) => {
+        data.forEach((u) => {
           const k = u.username?.toLowerCase();
           if (k && k !== "admin") {
             dbUsers[k] = {
@@ -2899,6 +2995,84 @@ export default function AdminPanel({ onBack, onExit }) {
   useEffect(() => {
     S.banned = banned;
   }, [banned]);
+
+
+// ========== SESSION VALIDITY CHECK - ONLY DETECT WHEN EXPLICITLY REVOKED ==========
+// ========== REVOCATION CHECK ==========
+useEffect(() => {
+  if (showMasterPanel) return;
+  
+  let revocationInterval = null;
+  
+  const checkForRevocation = async () => {
+    const sessionId = localStorage.getItem("admin_session_id");
+    const adminKey = localStorage.getItem("adminApiKey");
+    
+    if (!sessionId || !adminKey) return;
+    
+    try {
+      const response = await fetch(`${BASE_URL}/api/users/admin/sessions`, {
+        headers: {
+          "x-admin-key": adminKey,
+          "x-session-id": sessionId,
+        },
+      });
+      const data = await response.json();
+      
+      if (data.sessions && Array.isArray(data.sessions)) {
+        const currentSession = data.sessions.find(s => s.sessionId === sessionId);
+        
+        if (currentSession && currentSession.isActive === false) {
+          alert("⚠️ Your admin session has been revoked by the master admin!");
+          localStorage.removeItem("adminApiKey");
+          localStorage.removeItem("admin_session_id");
+          window.location.href = "/";
+        }
+      }
+    } catch (err) {
+      // Silent fail
+    }
+  };
+  
+  checkForRevocation();
+  revocationInterval = setInterval(checkForRevocation, 5000);
+  
+  return () => {
+    if (revocationInterval) clearInterval(revocationInterval);
+  };
+}, [showMasterPanel]);
+  
+
+// Register admin session when panel loads (for revoke functionality)
+// ========== FORCE SESSION REGISTRATION (Fixes incognito) ==========
+useEffect(() => {
+  const registerSession = async () => {
+    const adminKey = localStorage.getItem("adminApiKey");
+    if (!adminKey) return;
+    
+    try {
+      const response = await fetch(`${BASE_URL}/api/users/admin/register-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminKey: adminKey,
+          userAgent: navigator.userAgent,
+          adminUsername: localStorage.getItem("session") || "admin",
+        }),
+      });
+      const data = await response.json();
+      if (data.sessionId) {
+        // Always use backend session ID
+        localStorage.setItem("admin_session_id", data.sessionId);
+        console.log("✅ Session registered:", data.sessionId);
+      }
+    } catch (err) {
+      console.error("Session registration failed:", err);
+    }
+  };
+  
+  registerSession();
+}, []);
 
   const users = Object.values(usersState);
   const totalBalance = users.reduce((a, u) => a + (u?.balance || 0), 0);
@@ -3081,6 +3255,8 @@ export default function AdminPanel({ onBack, onExit }) {
     { id: "binary", label: "Completed Trades", icon: "🏆" },
     { id: "deposits", label: "Deposits", icon: "💰" },
     { id: "activity", label: "All Activity", icon: "📋" },
+    // Add to navItems array
+    { id: "admin_users", label: "Admin Users", icon: "👥", badge: 0 },
   ];
 
   const getTradeStatusBadge = (status) => {
@@ -3523,6 +3699,7 @@ export default function AdminPanel({ onBack, onExit }) {
       >
         <div>
           <div
+            onClick={handleSecretClick}
             style={{
               display: "flex",
               alignItems: "center",
@@ -6317,6 +6494,185 @@ export default function AdminPanel({ onBack, onExit }) {
           del={del}
           onClose={() => setSelUser(null)}
         />
+      )}
+
+      {/* Master Admin Modal */}
+      {showMasterPanel && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.8)",
+            zIndex: 2000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backdropFilter: "blur(8px)",
+          }}
+          onClick={() => {
+            if (!masterAuthenticated) setShowMasterPanel(false);
+          }}
+        >
+          <div
+            style={{
+              background: C.card,
+              borderRadius: 24,
+              padding: "32px",
+              width: "min(700px, 90vw)",
+              maxHeight: "85vh",
+              overflowY: "auto",
+              boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {!masterAuthenticated ? (
+              <>
+                <div style={{ textAlign: "center", marginBottom: 24 }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>🛡️</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: C.text }}>
+                    Master Admin Verification
+                  </div>
+                  <div style={{ fontSize: 12, color: C.sub, marginTop: 6 }}>
+                    Enter your master password to access session management
+                  </div>
+                </div>
+
+                <input
+                  type="password"
+                  placeholder="Master Password"
+                  value={masterPassword}
+                  onChange={(e) => setMasterPassword(e.target.value)}
+                  onKeyPress={(e) =>
+                    e.key === "Enter" && verifyMasterPassword()
+                  }
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    padding: "14px 16px",
+                    borderRadius: 12,
+                    border: `1.5px solid ${masterAuthError ? C.red : C.border}`,
+                    fontSize: 14,
+                    marginBottom: 12,
+                    outline: "none",
+                    fontFamily: "inherit",
+                  }}
+                />
+
+                {masterAuthError && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: C.red,
+                      marginBottom: 16,
+                      textAlign: "center",
+                    }}
+                  >
+                    {masterAuthError}
+                  </div>
+                )}
+
+                <button
+                  onClick={verifyMasterPassword}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    borderRadius: 12,
+                    border: "none",
+                    background: C.accent,
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Verify & Continue
+                </button>
+
+                <button
+                  onClick={() => setShowMasterPanel(false)}
+                  style={{
+                    width: "100%",
+                    marginTop: 10,
+                    padding: "10px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: "transparent",
+                    color: C.sub,
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <div>
+                {/* Tab Navigation */}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    marginBottom: 20,
+                    borderBottom: `1px solid ${C.border}`,
+                    paddingBottom: 10,
+                  }}
+                >
+                  <button
+                    onClick={() => setMasterPanelTab("sessions")}
+                    style={{
+                      padding: "6px 16px",
+                      borderRadius: 20,
+                      border: "none",
+                      background:
+                        masterPanelTab === "sessions"
+                          ? C.accent
+                          : "transparent",
+                      color: masterPanelTab === "sessions" ? "#fff" : C.sub,
+                      cursor: "pointer",
+                      fontWeight: 600,
+                    }}
+                  >
+                    🖥️ Active Sessions
+                  </button>
+                  <button
+                    onClick={() => setMasterPanelTab("admins")}
+                    style={{
+                      padding: "6px 16px",
+                      borderRadius: 20,
+                      border: "none",
+                      background:
+                        masterPanelTab === "admins" ? C.accent : "transparent",
+                      color: masterPanelTab === "admins" ? "#fff" : C.sub,
+                      cursor: "pointer",
+                      fontWeight: 600,
+                    }}
+                  >
+                    👥 Admin Users
+                  </button>
+                </div>
+
+                {masterPanelTab === "sessions" ? (
+                  <AdminSessions
+                    apiKey={
+                      localStorage.getItem("adminApiKey") || "admin123456"
+                    }
+                    onClose={() => setShowMasterPanel(false)}
+                  />
+                ) : (
+                  <AdminUserManager
+                    apiKey={
+                      localStorage.getItem("adminApiKey") || "admin123456"
+                    }
+                    onClose={() => setShowMasterPanel(false)}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

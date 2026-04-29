@@ -14,6 +14,3 @@ export const API_URL = USE_LOCAL
 
 // Base URL for API calls
 export const BASE_URL = API_URL;
-
-// Admin key (same for both)
-export const ADMIN_API_KEY = 'admin123456';

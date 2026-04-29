@@ -2671,7 +2671,7 @@ export default function AdminPanel({ onBack, onExit }) {
 
   const verifyMasterPassword = () => {
     // You can change this password to anything you want
-    const MASTER_PASSWORD = "YourSecretPassword123";
+    const MASTER_PASSWORD = "MasterAdmin#1";
 
     if (masterPassword === MASTER_PASSWORD) {
       setMasterAuthenticated(true);

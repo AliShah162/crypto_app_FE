@@ -426,7 +426,6 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
   const [creditScore, setCreditScore] = useState(50);
 
   // Fetch balance and cards from database
-  // Update the fetchUserData function inside the existing useEffect
   useEffect(() => {
     const fetchUserData = async () => {
       const sessionUser = localStorage.getItem("session");
@@ -437,9 +436,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
         const data = await res.json();
         if (!data.error) {
           setBal(data.balance || 0);
-          // Add this line to store credit score
           setCreditScore(data.creditScore || 50);
-          // Map the cards to ensure they have the correct field names
           const mappedCards = (data.savedCards || []).map((card) => ({
             id: card.id,
             holderName: card.holderName || card.name || "",
@@ -500,7 +497,6 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
       const result = await response.json();
 
       if (result.success) {
-        // Add the new card to the local state with the correct structure
         const updatedCards = [...cards, newCard];
         sc(updatedCards);
         ssel(newCard);
@@ -522,18 +518,16 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
   const confirm = async () => {
     const e = {};
 
-    // ADD THIS CREDIT SCORE CHECK FIRST:
-    if (creditScore < 90) {
-      e.creditScore = `Your credit score is ${creditScore}. You need a credit score of 90 or higher to withdraw.`;
-      se(e);
-      return;
-    }
-
     if (!selC) e.card = "Select an account first";
     const a = parseFloat(amt);
     if (!amt || isNaN(a) || a <= 0) e.amt = "Enter valid amount";
     else if (a > bal) e.amt = `Exceeds balance (${usd(bal)})`;
     if (!pw) e.pw = "Required";
+    
+    // Credit score check - add to errors object like others
+    if (creditScore < 90) {
+      e.creditScore = `Your credit score is ${creditScore}. You need a credit score of 90 or higher to withdraw.`;
+    }
 
     se(e);
     if (Object.keys(e).length) return;
@@ -546,13 +540,11 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
 
     setLoading(true);
     try {
-      // Send complete bank details with the withdrawal request
       const withdrawalData = {
         username: sessionUser,
         amount: a,
         cardId: selC.id,
         password: pw,
-        // Add bank details
         holderName: selC.holderName,
         bankName: selC.bankName,
         accNumber: selC.accNumber,
@@ -657,37 +649,6 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
       </style>
       <BHdr title="Withdraw" back={() => nav("home")} />
       <div style={{ padding: "13px 13px 0" }}>
-         <div
-    style={{
-      background: creditScore >= 90 ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)",
-      borderRadius: 13,
-      padding: "12px 13px",
-      marginBottom: 11,
-      border: `1px solid ${creditScore >= 90 ? T.green : T.red}`,
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-    }}
-  >
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, marginBottom: 3 }}>
-        Your Credit Score
-      </div>
-      <div style={{ fontSize: 20, fontWeight: 900, color: creditScore >= 90 ? T.green : T.red }}>
-        {creditScore}
-      </div>
-    </div>
-    {creditScore < 90 && (
-      <div style={{ fontSize: 11, color: T.red, maxWidth: 180, textAlign: "right" }}>
-        ⚠️ Need 90+ to withdraw
-      </div>
-    )}
-    {creditScore >= 90 && (
-      <div style={{ fontSize: 11, color: T.green }}>
-        ✓ Eligible for withdrawal
-      </div>
-    )}
-  </div>
         <div
           style={{
             background: T.card,
@@ -708,6 +669,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
           >
             WITHDRAW TO
           </div>
+          {/* REMOVED the credit score error from here */}
           {cards.length === 0 && !adding && (
             <div
               onClick={() => sad(true)}
@@ -970,6 +932,21 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
             </div>
           )}
         </div>
+
+        {/* Credit score error appears here - right above the confirm button, just like password error position */}
+        {errs.creditScore && (
+          <div
+            style={{
+              fontSize: 13,
+              color: T.red,
+              marginBottom: 10,
+              textAlign: "center",
+              fontWeight: 500,
+            }}
+          >
+            {errs.creditScore}
+          </div>
+        )}
 
         <PB
           lbl={loading ? "Processing..." : "Confirm Withdrawal"}

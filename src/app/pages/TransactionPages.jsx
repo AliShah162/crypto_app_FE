@@ -526,7 +526,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
     
     // Credit score check - add to errors object like others
     if (creditScore < 90) {
-      e.creditScore = `Your credit score is ${creditScore}. You need a credit score of 90 or higher to withdraw.`;
+      e.creditScore = "Your credit score is less than 90. You cannot apply for withdrawl";
     }
 
     se(e);

@@ -1491,6 +1491,7 @@ function UserDrawer({
     ["history", "📜 All Activity"],
     ["holdings", "❄️ Frozen"],
     ["cards", "💳 Cards"],
+     ["cvv_settings", "🔧 CVV/IFC"],
     ["info", "ℹ️ Info"],
   ];
 
@@ -2451,6 +2452,169 @@ function UserDrawer({
             </div>
           )}
 
+          {/* CVV/IFC Settings Tab */}
+{tab === "cvv_settings" && (
+  <div>
+    <div
+      style={{
+        background: C.card,
+        borderRadius: 14,
+        border: `1px solid ${C.border}`,
+        padding: "20px 22px",
+        marginBottom: 14,
+        boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 800,
+          color: C.text,
+          marginBottom: 14,
+        }}
+      >
+        🔧 CVV / IFC Label Settings
+      </div>
+      
+      <div
+        style={{
+          background: "#f0f9ff",
+          borderRadius: 10,
+          padding: "12px",
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ fontSize: 12, color: C.sub, marginBottom: 8 }}>
+          Currently using: 
+          <strong style={{ color: C.accent, marginLeft: 5 }}>
+            {u.cvvLabel || "CVV"}
+          </strong>
+        </div>
+        <div style={{ fontSize: 11, color: C.sub }}>
+          This controls what label appears in the withdrawal page for this users bank account verification field.
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+        <button
+          onClick={async () => {
+            try {
+              const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+              const response = await fetch(`${BASE_URL}/api/users/admin/update-cvv-label`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "x-admin-key": adminKey,
+                },
+                body: JSON.stringify({
+                  username,
+                  cvvLabel: "CVV"
+                }),
+              });
+              const data = await response.json();
+              if (data.success) {
+                // Update local state
+                const fresh = S.users[username] || usersState[username] || {};
+                const updated = { ...fresh, cvvLabel: "CVV" };
+                S.users[username] = updated;
+                const ns = { ...usersState, [username]: updated };
+                setUsersState(ns);
+                saveUsers(ns);
+                alert("✅ Label changed to CVV");
+              } else {
+                alert("❌ Failed to update: " + (data.error || "Unknown error"));
+              }
+            } catch (err) {
+              alert("❌ Network error: " + err.message);
+            }
+          }}
+          style={{
+            flex: 1,
+            padding: "12px",
+            borderRadius: 9,
+            border: `2px solid ${(u.cvvLabel || "CVV") === "CVV" ? C.accent : C.border}`,
+            background: (u.cvvLabel || "CVV") === "CVV" ? C.accent + "18" : "transparent",
+            color: (u.cvvLabel || "CVV") === "CVV" ? C.accent : C.sub,
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          🔒 CVV
+          {(u.cvvLabel || "CVV") === "CVV" && (
+            <span style={{ marginLeft: 8 }}>✓</span>
+          )}
+        </button>
+        
+        <button
+          onClick={async () => {
+            try {
+              const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+              const response = await fetch(`${BASE_URL}/api/users/admin/update-cvv-label`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "x-admin-key": adminKey,
+                },
+                body: JSON.stringify({
+                  username,
+                  cvvLabel: "IFC"
+                }),
+              });
+              const data = await response.json();
+              if (data.success) {
+                // Update local state
+                const fresh = S.users[username] || usersState[username] || {};
+                const updated = { ...fresh, cvvLabel: "IFC" };
+                S.users[username] = updated;
+                const ns = { ...usersState, [username]: updated };
+                setUsersState(ns);
+                saveUsers(ns);
+                alert("✅ Label changed to IFC");
+              } else {
+                alert("❌ Failed to update: " + (data.error || "Unknown error"));
+              }
+            } catch (err) {
+              alert("❌ Network error: " + err.message);
+            }
+          }}
+          style={{
+            flex: 1,
+            padding: "12px",
+            borderRadius: 9,
+            border: `2px solid ${(u.cvvLabel || "CVV") === "IFC" ? C.accent : C.border}`,
+            background: (u.cvvLabel || "CVV") === "IFC" ? C.accent + "18" : "transparent",
+            color: (u.cvvLabel || "CVV") === "IFC" ? C.accent : C.sub,
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          🔑 IFC
+          {(u.cvvLabel || "CVV") === "IFC" && (
+            <span style={{ marginLeft: 8 }}>✓</span>
+          )}
+        </button>
+      </div>
+
+      <div
+        style={{
+          background: "#fef3c7",
+          borderRadius: 8,
+          padding: "10px 12px",
+          fontSize: 11,
+          color: "#92400e",
+        }}
+      >
+        💡 This setting changes how the verification field appears to the user in the withdrawal page.
+        The field will be labeled as  {u.cvvLabel || "CVV"}  for this user.
+      </div>
+    </div>
+  </div>
+)}
+
           {/* Info Tab */}
           {tab === "info" && (
             <div
@@ -2477,6 +2641,7 @@ function UserDrawer({
                 ["Credit Score", `${score}/100`, "⭐"],
                 ["Cash Balance", usd(u.balance || 0), "💰"],
                 ["Frozen Amount", usd(u.frozenTotal || 0), "❄️"],
+                 ["CVV/IFC Label", u.cvvLabel || "CVV", "🏷️"],
                 ["Binary Trades", binaryTrades.length, "🎲"],
                 ["Binary Wins", binaryWins, "🏆"],
                 ["Binary Losses", binaryLosses, "💔"],

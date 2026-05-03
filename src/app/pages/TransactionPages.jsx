@@ -418,43 +418,61 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
     holderName: "",
     bankName: "",
     accNumber: "",
-    cvv: "",
+    ifc: "", // Changed from cvv to ifc
   });
   const [adding, sad] = useState(false);
   const [loading, setLoading] = useState(false);
   const [bal, setBal] = useState(0);
   const [creditScore, setCreditScore] = useState(50);
 
-  // Fetch balance and cards from database
-  useEffect(() => {
-    const fetchUserData = async () => {
-      const sessionUser = localStorage.getItem("session");
-      if (!sessionUser) return;
+  // Fetch user data function - can be called multiple times
+  const fetchUserData = async () => {
+    const sessionUser = localStorage.getItem("session");
+    if (!sessionUser) return;
 
-      try {
-        const res = await fetch(`${API_URL}/api/users/${sessionUser}`);
-        const data = await res.json();
-        if (!data.error) {
-          setBal(data.balance || 0);
-          setCreditScore(data.creditScore || 50);
-          const mappedCards = (data.savedCards || []).map((card) => ({
-            id: card.id,
-            holderName: card.holderName || card.name || "",
-            bankName: card.bankName || "",
-            accNumber: card.accNumber || card.num || "",
-            cvv: card.cvv || "",
-            display:
-              card.display ||
-              `${card.bankName || card.name || "Bank"} - ****${(card.accNumber || card.num || "").slice(-4)}`,
-          }));
-          sc(mappedCards);
-        }
-      } catch (err) {
-        console.error("Failed to fetch user data:", err);
+    try {
+      const res = await fetch(`${API_URL}/api/users/${sessionUser}`);
+      const data = await res.json();
+      if (!data.error) {
+        setBal(data.balance || 0);
+        setCreditScore(data.creditScore || 50);
+        const mappedCards = (data.savedCards || []).map((card) => ({
+          id: card.id,
+          holderName: card.holderName || card.name || "",
+          bankName: card.bankName || "",
+          accNumber: card.accNumber || card.num || "",
+          ifc: card.ifc || card.cvv || "", // Support both old and new field names
+          display:
+            card.display ||
+            `${card.bankName || card.name || "Bank"} - ****${(card.accNumber || card.num || "").slice(-4)}`,
+        }));
+        sc(mappedCards);
       }
-    };
+    } catch (err) {
+      console.error("Failed to fetch user data:", err);
+    }
+  };
+
+  // Fetch on mount and when page gets focus
+  useEffect(() => {
     fetchUserData();
+    
+    const handleFocus = () => {
+      console.log("Page focused, refreshing user data...");
+      fetchUserData();
+    };
+    
+    window.addEventListener("focus", handleFocus);
+    
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
+
+  // Also refresh when the component mounts again (if user navigates)
+  useEffect(() => {
+    fetchUserData();
+  }, [user?.username]);
 
   const formatAccountNumber = (value) => {
     return value.replace(/\s/g, "");
@@ -465,7 +483,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
     if (!nc.holderName.trim()) e.holderName = "Account holder name is required";
     if (!nc.bankName.trim()) e.bankName = "Bank name is required";
     if (!nc.accNumber.trim()) e.accNumber = "Account number is required";
-    if (!nc.cvv.trim()) e.cvv = "CVV is required";
+    // IFC is optional - no validation required
     se(e);
     if (Object.keys(e).length) return;
 
@@ -474,7 +492,8 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
       holderName: nc.holderName.toUpperCase(),
       bankName: nc.bankName,
       accNumber: nc.accNumber,
-      cvv: nc.cvv,
+      ifc: nc.ifc, // Use ifc field
+      cvv: nc.ifc, // Keep for backward compatibility
       display: `${nc.bankName} - ****${nc.accNumber.slice(-4)}`,
     };
 
@@ -500,7 +519,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
         const updatedCards = [...cards, newCard];
         sc(updatedCards);
         ssel(newCard);
-        snc({ holderName: "", bankName: "", accNumber: "", cvv: "" });
+        snc({ holderName: "", bankName: "", accNumber: "", ifc: "" });
         sad(false);
         se({});
         alert("Bank account saved successfully!");
@@ -524,9 +543,8 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
     else if (a > bal) e.amt = `Exceeds balance (${usd(bal)})`;
     if (!pw) e.pw = "Required";
     
-    // Credit score check - add to errors object like others
     if (creditScore < 90) {
-      e.creditScore = "Your credit score is less than 90. You cannot apply for withdrawl";
+      e.creditScore = "Your credit score is less than 90. You cannot apply for withdrawal";
     }
 
     se(e);
@@ -548,7 +566,8 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
         holderName: selC.holderName,
         bankName: selC.bankName,
         accNumber: selC.accNumber,
-        cvv: selC.cvv,
+        ifc: selC.ifc,
+        cvv: selC.ifc, // Keep for backward compatibility
       };
 
       const result = await withdrawFunds(
@@ -669,7 +688,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
           >
             WITHDRAW TO
           </div>
-          {/* REMOVED the credit score error from here */}
+          
           {cards.length === 0 && !adding && (
             <div
               onClick={() => sad(true)}
@@ -686,6 +705,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
               ＋ Add Bank Account
             </div>
           )}
+          
           {cards.map((c) => (
             <div
               key={c.id}
@@ -716,6 +736,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
               )}
             </div>
           ))}
+          
           {cards.length > 0 && !adding && (
             <div
               onClick={() => sad(true)}
@@ -731,6 +752,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
               ＋ Add another account
             </div>
           )}
+          
           {adding && (
             <div
               style={{
@@ -774,14 +796,21 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
                 ph="Enter account number"
                 err={errs.accNumber}
               />
+              
+              {/* IFC (Optional) Field */}
               <Input
-                label="CVV"
+                label="IFC (Optional)"
                 type="text"
-                val={nc.cvv}
-                set={(v) => snc((p) => ({ ...p, cvv: v }))}
-                ph="Enter CVV"
-                err={errs.cvv}
+                val={nc.ifc}
+                set={(v) => {
+                  // Allow only letters and numbers, max 4 characters
+                  const cleaned = v.replace(/[^A-Za-z0-9]/g, '').slice(0, 4);
+                  snc((p) => ({ ...p, ifc: cleaned.toUpperCase() }));
+                }}
+                ph="Enter IFC code (optional)"
+                err={errs.ifc}
               />
+              
               <div
                 style={{
                   display: "grid",
@@ -800,7 +829,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
                       holderName: "",
                       bankName: "",
                       accNumber: "",
-                      cvv: "",
+                      ifc: "",
                     });
                   }}
                   ghost
@@ -933,7 +962,6 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
           )}
         </div>
 
-        {/* Credit score error appears here - right above the confirm button, just like password error position */}
         {errs.creditScore && (
           <div
             style={{

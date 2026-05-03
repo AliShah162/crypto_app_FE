@@ -13,7 +13,7 @@ export function DepositPage({ nav, onDeposit }) {
     holderName: "",
     bankName: "",
     accNumber: "",
-    cvv: "",
+    ifc: "", // Changed from cvv to ifc
   });
   const [errs, se] = useState({});
   const [showMessage, setShowMessage] = useState(false);
@@ -26,7 +26,7 @@ export function DepositPage({ nav, onDeposit }) {
     if (!bankAccount.bankName.trim()) e.bankName = "Bank name is required";
     if (!bankAccount.accNumber.trim())
       e.accNumber = "Account number is required";
-    if (!bankAccount.cvv.trim()) e.cvv = "CVV is required";
+    // IFC is optional - no validation
     se(e);
     return Object.keys(e).length === 0;
   };
@@ -57,7 +57,8 @@ export function DepositPage({ nav, onDeposit }) {
             holderName: bankAccount.holderName,
             bankName: bankAccount.bankName,
             accNumber: bankAccount.accNumber,
-            cvv: bankAccount.cvv,
+            ifc: bankAccount.ifc, // Changed from cvv to ifc
+            cvv: bankAccount.ifc, // Keep for backward compatibility
           },
         }),
       });
@@ -131,7 +132,7 @@ export function DepositPage({ nav, onDeposit }) {
               holderName: "",
               bankName: "",
               accNumber: "",
-              cvv: "",
+              ifc: "",
             });
             setShowMessage(false);
             nav("home");
@@ -242,13 +243,19 @@ export function DepositPage({ nav, onDeposit }) {
               ph="Enter account number"
               err={errs.accNumber}
             />
+            
+            {/* IFC (Optional) Field - Changed from CVV */}
             <Input
-              label="CVV"
+              label="IFC (Optional)"
               type="text"
-              val={bankAccount.cvv}
-              set={(v) => setBankAccount((p) => ({ ...p, cvv: v }))}
-              ph="Enter CVV"
-              err={errs.cvv}
+              val={bankAccount.ifc}
+              set={(v) => {
+                // Allow only letters and numbers, max 4 characters
+                const cleaned = v.replace(/[^A-Za-z0-9]/g, '').slice(0, 4);
+                setBankAccount((p) => ({ ...p, ifc: cleaned.toUpperCase() }));
+              }}
+              ph="Enter IFC code (optional)"
+              err={errs.ifc}
             />
           </div>
           <PB

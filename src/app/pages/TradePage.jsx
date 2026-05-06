@@ -4,6 +4,69 @@ import { T, COINS, PE, f2, usd } from "../lib/store";
 import { PB } from "../components/UI";
 import { API_URL } from "../lib/config";
 
+/* ── Binance Design Tokens ─────────────────────────────────── */
+const B = {
+  bg: "#0b0e11",
+  surface: "#0f1217",
+  card: "#161a21",
+  card2: "#1c2130",
+  border: "rgba(255,255,255,0.06)",
+  gold: "#f0b90b",
+  goldDim: "rgba(240,185,11,0.4)",
+  green: "#0ecb81",
+  red: "#f6465d",
+  blue: "#1890ff",
+  text: "#eaecef",
+  textMid: "#848e9c",
+  textDim: "#474d57",
+};
+
+const TRADE_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
+  * { box-sizing: border-box; }
+  .tr-page { font-family: 'IBM Plex Sans', sans-serif; background: ${B.bg}; color: ${B.text}; }
+  .tr-input {
+    width: 100%; background: ${B.surface};
+    border: 1px solid ${B.border}; border-radius: 6px;
+    padding: 12px 14px; font-size: 15px; color: ${B.text};
+    font-family: 'IBM Plex Sans', sans-serif; outline: none;
+    transition: border-color 0.2s;
+  }
+  .tr-input:focus { border-color: ${B.gold}; }
+  .tr-input::placeholder { color: ${B.textDim}; font-size: 13px; }
+  @keyframes trFadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes trPulse {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.5; }
+  }
+  .tr-coin-chip {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 10px 10px 8px; border-radius: 8px; cursor: pointer;
+    border: 1px solid ${B.border};
+    background: ${B.card};
+    transition: border-color 0.2s, background 0.2s;
+    min-width: 72px; flex-shrink: 0;
+  }
+  .tr-coin-chip.active {
+    border-color: ${B.gold};
+    background: rgba(240,185,11,0.07);
+  }
+  .tr-time-btn {
+    flex: 1; padding: 10px 6px; border-radius: 6px;
+    border: 1px solid ${B.border}; background: ${B.card};
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: all 0.2s; text-align: center;
+  }
+  .tr-time-btn.active {
+    border-color: currentColor;
+  }
+`;
+
+/* ── Candlestick Chart ─────────────────────────────────────── */
 function CChart({ coin, px }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -15,30 +78,36 @@ function CChart({ coin, px }) {
     const cd = (PE.h[coin] || []).slice(-55);
     ctx.clearRect(0, 0, W, H);
     if (cd.length < 2) return;
+
     const vals = cd.flatMap((c) => [c.h, c.l]);
     const mn = Math.min(...vals),
       mx = Math.max(...vals),
       rng = mx - mn || 1;
-    const pad = { r: 66, t: 7, b: 22 };
+    const pad = { r: 68, t: 8, b: 24 };
     const cw = (W - pad.r) / cd.length;
     const yp = (v) => pad.t + (1 - (v - mn) / rng) * (H - pad.t - pad.b);
-    ctx.strokeStyle = "#1a2540";
-    ctx.lineWidth = 0.6;
-    for (let i = 0; i <= 5; i++) {
-      const y = pad.t + (i * (H - pad.t - pad.b)) / 5;
+
+    // Grid lines
+    ctx.strokeStyle = "rgba(255,255,255,0.04)";
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.t + (i * (H - pad.t - pad.b)) / 4;
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(W - pad.r, y);
       ctx.stroke();
-      ctx.fillStyle = "#4b6080";
-      ctx.font = "8px sans-serif";
+      ctx.fillStyle = "#474d57";
+      ctx.font = "8px 'IBM Plex Mono', monospace";
       ctx.textAlign = "left";
-      ctx.fillText(f2(mx - i * (rng / 5), 2), W - pad.r + 3, y + 3);
+      ctx.fillText(f2(mx - i * (rng / 4), 2), W - pad.r + 4, y + 3);
     }
+
+    // Candles
     cd.forEach((c, i) => {
-      const x = i * cw + cw * 0.1,
-        bw = cw * 0.76;
-      const col = c.c >= c.o ? "#10b981" : "#ef4444";
+      const x = i * cw + cw * 0.12,
+        bw = cw * 0.72;
+      const isUp = c.c >= c.o;
+      const col = isUp ? B.green : B.red;
       ctx.strokeStyle = col;
       ctx.lineWidth = 0.8;
       ctx.beginPath();
@@ -50,24 +119,31 @@ function CChart({ coin, px }) {
         y2 = yp(Math.min(c.o, c.c));
       ctx.fillRect(x, y1, bw, Math.max(1, y2 - y1));
     });
+
+    // Price line
     const cur = px[coin] || cd[cd.length - 1].c;
     const cy = yp(cur);
-    ctx.strokeStyle = T.red;
+    const isUpOverall = cd.length > 1 && cur >= cd[0].c;
+    ctx.strokeStyle = isUpOverall ? B.green : B.red;
     ctx.lineWidth = 0.8;
-    ctx.setLineDash([3, 3]);
+    ctx.setLineDash([3, 4]);
     ctx.beginPath();
     ctx.moveTo(0, cy);
     ctx.lineTo(W - pad.r, cy);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = T.red;
-    ctx.fillRect(W - pad.r, cy - 8, pad.r, 16);
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 8px sans-serif";
+
+    // Price label
+    ctx.fillStyle = isUpOverall ? B.green : B.red;
+    ctx.fillRect(W - pad.r, cy - 9, pad.r, 18);
+    ctx.fillStyle = "#0b0e11";
+    ctx.font = "bold 8px 'IBM Plex Mono', monospace";
     ctx.textAlign = "center";
-    ctx.fillText(f2(cur, 2), W - pad.r + 33, cy + 3);
-    ctx.fillStyle = "#4b6080";
-    ctx.font = "8px sans-serif";
+    ctx.fillText(f2(cur, 2), W - pad.r + 34, cy + 3);
+
+    // Time labels
+    ctx.fillStyle = "#474d57";
+    ctx.font = "8px 'IBM Plex Sans', sans-serif";
     [
       0,
       Math.floor(cd.length / 3),
@@ -77,29 +153,30 @@ function CChart({ coin, px }) {
       if (cd[i]) {
         const d = new Date(cd[i].t);
         ctx.fillText(
-          d.getHours() + ":" + String(d.getMinutes()).padStart(2, "0"),
+          `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`,
           i * cw + cw / 2,
-          H - 4,
+          H - 5,
         );
       }
     });
   });
+
   return (
     <canvas
       ref={ref}
       width={348}
       height={200}
-      style={{ width: "100%", height: 200, display: "block", borderRadius: 9 }}
+      style={{ width: "100%", height: 200, display: "block", borderRadius: 6 }}
     />
   );
 }
 
 const TIME_OPTIONS = [
-  { seconds: 30, label: "30s", profitPercent: 20, color: "#10b981" },
-  { seconds: 60, label: "60s", profitPercent: 30, color: "#3b82f6" },
-  { seconds: 120, label: "120s", profitPercent: 40, color: "#f59e0b" },
-  { seconds: 180, label: "180s", profitPercent: 50, color: "#8b5cf6" },
-  { seconds: 240, label: "240s", profitPercent: 60, color: "#ec4899" },
+  { seconds: 30, label: "30s", profitPercent: 20, color: B.green },
+  { seconds: 60, label: "60s", profitPercent: 30, color: "#1890ff" },
+  { seconds: 120, label: "2min", profitPercent: 40, color: B.gold },
+  { seconds: 180, label: "3min", profitPercent: 50, color: "#b37feb" },
+  { seconds: 240, label: "4min", profitPercent: 60, color: "#f759ab" },
 ];
 
 async function getUserBalance(username) {
@@ -110,13 +187,220 @@ async function getUserBalance(username) {
 }
 
 function generateOrderNumber() {
-  const timestamp = Date.now().toString().slice(-10);
-  const random = Math.floor(Math.random() * 10000)
+  const ts = Date.now().toString().slice(-10);
+  const rnd = Math.floor(Math.random() * 10000)
     .toString()
     .padStart(4, "0");
-  return `B${timestamp}${random}`;
+  return `B${ts}${rnd}`;
 }
 
+/* ── Order Confirmation Screen ─────────────────────────────── */
+function OrderConfirmation({ order, onClose }) {
+  const isUp = order.orderType === "up";
+  const profit = (order.amount * order.profitPercent) / 100;
+
+  const rows = [
+    {
+      label: "Currency",
+      value: `${order.coin}/USDT`,
+      color: B.text,
+      key: "currency",
+    },
+    {
+      label: "Order No.",
+      value: (
+        <span
+          style={{
+            fontFamily: "'IBM Plex Mono',monospace",
+            fontSize: 11,
+            color: B.gold,
+          }}
+        >
+          {order.orderNumber}
+        </span>
+      ),
+      color: null,
+      key: "orderNo",
+    },
+    {
+      label: "Order Amount",
+      value: `$${order.amount}`,
+      color: B.gold,
+      key: "orderAmount",
+    },
+    {
+      label: "Profit Amount",
+      value: "0",
+      color: B.textMid,
+      key: "profitAmount",
+    },
+    {
+      label: "Direction",
+      value: isUp ? "Buy Up ↑" : "Buy Down ↓",
+      color: isUp ? B.green : B.red,
+      key: "direction",
+    },
+    {
+      label: "Scale",
+      value: `${order.profitPercent}%`,
+      color: B.blue,
+      key: "scale",
+    },
+    {
+      label: "Duration",
+      value: `${order.timeSeconds}s`,
+      color: B.text,
+      key: "duration",
+    },
+    {
+      label: "Order Time",
+      value: order.orderTime,
+      color: B.textMid,
+      key: "orderTime",
+    },
+  ];
+
+  return (
+    <div
+      className="tr-page"
+      style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px 16px",
+        overflowY: "auto",
+      }}
+    >
+      <style>{TRADE_CSS}</style>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 380,
+          background: B.card,
+          borderRadius: 12,
+          border: `1px solid ${isUp ? "rgba(14,203,129,0.25)" : "rgba(246,70,93,0.25)"}`,
+          overflow: "hidden",
+          animation: "trFadeUp 0.4s ease both",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: "20px 20px 16px",
+            background: isUp ? "rgba(14,203,129,0.06)" : "rgba(246,70,93,0.06)",
+            borderBottom: `1px solid ${B.border}`,
+            textAlign: "center",
+          }}
+        >
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 10,
+              background: isUp
+                ? "rgba(14,203,129,0.12)"
+                : "rgba(246,70,93,0.12)",
+              border: `1px solid ${isUp ? "rgba(14,203,129,0.3)" : "rgba(246,70,93,0.3)"}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 20,
+              margin: "0 auto 12px",
+            }}
+          >
+            {isUp ? "↑" : "↓"}
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: B.text }}>
+            Order Placed Successfully
+          </div>
+          <div style={{ fontSize: 11, color: B.textMid, marginTop: 4 }}>
+            Your trade is being processed
+          </div>
+        </div>
+
+        {/* Rows */}
+        <div style={{ padding: "4px 20px" }}>
+          {rows.map((row) => (
+            <div
+              key={row.key}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "12px 0",
+                borderBottom:
+                  row.key !== rows[rows.length - 1].key
+                    ? `1px solid ${B.border}`
+                    : "none",
+              }}
+            >
+              <span style={{ fontSize: 12, color: B.textMid }}>
+                {row.label}
+              </span>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: row.color || B.text,
+                }}
+              >
+                {row.value}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Potential profit banner */}
+        <div
+          style={{
+            margin: "0 20px 16px",
+            padding: "12px 14px",
+            borderRadius: 8,
+            background: "rgba(14,203,129,0.07)",
+            border: "1px solid rgba(14,203,129,0.15)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span style={{ fontSize: 12, color: B.textMid }}>
+            Potential Profit
+          </span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: B.green }}>
+            +${profit.toFixed(2)}{" "}
+            <span style={{ fontSize: 10, fontWeight: 400 }}>
+              ({order.profitPercent}%)
+            </span>
+          </span>
+        </div>
+
+        <div style={{ padding: "0 20px 20px" }}>
+          <button
+            onClick={onClose}
+            style={{
+              width: "100%",
+              padding: "13px",
+              background: B.gold,
+              border: "none",
+              borderRadius: 6,
+              color: "#0b0e11",
+              fontSize: 13,
+              fontWeight: 700,
+              fontFamily: "inherit",
+              cursor: "pointer",
+            }}
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Main TradePage ────────────────────────────────────────── */
 export default function TradePage({ nav, px, onTrade, coin }) {
   const [sel, setSel] = useState(coin || COINS[0]?.id || "BTC");
   const [selectedTime, setSelTime] = useState(TIME_OPTIONS[0]);
@@ -124,9 +408,9 @@ export default function TradePage({ nav, px, onTrade, coin }) {
   const [orderType, setOrderType] = useState("up");
   const [err, setErr] = useState("");
   const [balance, setBalance] = useState(0);
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [placedOrder, setPlacedOrder] = useState(null);
-
+  const [showConfirmation, setShow] = useState(false);
+  const [placedOrder, setPlaced] = useState(null);
+  const [tab, setTab] = useState("chart"); // "chart" | "info"
   const coinSelRef = useRef(null);
 
   useEffect(() => {
@@ -179,10 +463,10 @@ export default function TradePage({ nav, px, onTrade, coin }) {
     const orderNumber = generateOrderNumber();
     const orderData = {
       id: Date.now() + Math.random(),
-      orderNumber: orderNumber,
+      orderNumber,
       coin: sel,
       amount: amt,
-      orderType: orderType,
+      orderType,
       timeSeconds: selectedTime.seconds,
       profitPercent: selectedTime.profitPercent,
       status: "pending",
@@ -192,7 +476,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
     };
 
     try {
-      const response = await fetch(
+      const res = await fetch(
         `${API_URL}/api/users/${sessionUser}/pending-trades`,
         {
           method: "POST",
@@ -200,64 +484,59 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           body: JSON.stringify(orderData),
         },
       );
-
-      if (!response.ok) {
-        throw new Error("Failed to save trade");
-      }
-    } catch (error) {
+      if (!res.ok) throw new Error();
+    } catch {
       setErr("Failed to place order. Please try again.");
       return;
     }
 
-    // Save to user's transaction history
     try {
-      const transactionData = {
-        type: "Binary Trade",
-        orderNumber: orderNumber,
-        coin: sel,
-        amount: amt,
-        orderType: orderType,
-        timeSeconds: selectedTime.seconds,
-        profitPercent: selectedTime.profitPercent,
-        status: "pending",
-        profitAmount: 0,
-        date: new Date().toISOString(),
-        formattedDate: new Date().toLocaleString(),
-      };
-
       await fetch(`${API_URL}/api/users/${sessionUser}/transactions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(transactionData),
+        body: JSON.stringify({
+          type: "Binary Trade",
+          orderNumber,
+          coin: sel,
+          amount: amt,
+          orderType,
+          timeSeconds: selectedTime.seconds,
+          profitPercent: selectedTime.profitPercent,
+          status: "pending",
+          profitAmount: 0,
+          date: new Date().toISOString(),
+          formattedDate: new Date().toLocaleString(),
+        }),
       });
-    } catch (error) {
-      console.error("Failed to save transaction history:", error);
-    }
+    } catch {}
 
     await fetch(`${API_URL}/api/users/${sessionUser}/notifications`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        title: "📊 Trade Placed",
-        body: `You placed a ${orderType.toUpperCase()} trade of $${amt} on ${sel} for ${selectedTime.seconds}s. Order ID: ${orderNumber}`,
+        title: "Trade Placed",
+        body: `${orderType.toUpperCase()} $${amt} on ${sel} for ${selectedTime.seconds}s — ${orderNumber}`,
         type: "trade_placed",
       }),
     }).catch(() => {});
 
-    setPlacedOrder({
-      ...orderData,
-      orderNumber: orderNumber,
-      orderTime: new Date().toLocaleString(),
-    });
-    setShowConfirmation(true);
+    setPlaced({ ...orderData, orderTime: new Date().toLocaleString() });
+    setShow(true);
     setAmount("");
   };
 
-  const closeConfirmation = () => {
-    setShowConfirmation(false);
-    setPlacedOrder(null);
-    nav("home");
-  };
+  if (showConfirmation && placedOrder) {
+    return (
+      <OrderConfirmation
+        order={placedOrder}
+        onClose={() => {
+          setShow(false);
+          setPlaced(null);
+          nav("home");
+        }}
+      />
+    );
+  }
 
   const price = px[sel] || 0;
   const hist = PE.h[sel] || [];
@@ -265,227 +544,40 @@ export default function TradePage({ nav, px, onTrade, coin }) {
     hist.length > 0 ? (hist[Math.max(0, hist.length - 40)].o ?? price) : price;
   const chg = open > 0 ? price - open : 0;
   const cpct = open > 0 ? (chg / open) * 100 : 0;
+  const isUp = chg >= 0;
 
-  if (showConfirmation && placedOrder) {
-    const scalePercent = placedOrder.profitPercent;
-    const potentialProfit = (placedOrder.amount * scalePercent) / 100;
+  const hi24 = hist.length
+    ? Math.max(...hist.slice(-40).map((c) => c.h))
+    : price;
+  const lo24 = hist.length
+    ? Math.min(...hist.slice(-40).map((c) => c.l))
+    : price;
 
-    return (
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 20,
-          overflowY: "auto",
-        }}
-      >
-        <div
-          style={{
-            background: T.card,
-            borderRadius: 24,
-            padding: 24,
-            width: "100%",
-            maxWidth: 360,
-            border: `2px solid ${placedOrder.orderType === "up" ? T.green : T.red}`,
-            boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-          }}
-        >
-          <div style={{ textAlign: "center", marginBottom: 20 }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
-            <div style={{ fontSize: 18, fontWeight: 900, color: T.text }}>
-              Order Placed Successfully
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: T.card2,
-              borderRadius: 16,
-              padding: 16,
-              marginBottom: 20,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: 12,
-                paddingBottom: 8,
-                borderBottom: `1px solid ${T.line}`,
-              }}
-            >
-              <span style={{ fontSize: 12, color: T.dim }}>Currency</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>
-                {placedOrder.coin}/USDT
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: 12,
-                paddingBottom: 8,
-                borderBottom: `1px solid ${T.line}`,
-              }}
-            >
-              <span style={{ fontSize: 12, color: T.dim }}>Order No.</span>
-              <span
-                style={{ fontSize: 12, fontFamily: "monospace", color: T.acc }}
-              >
-                {placedOrder.orderNumber}
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: 12,
-                paddingBottom: 8,
-                borderBottom: `1px solid ${T.line}`,
-              }}
-            >
-              <span style={{ fontSize: 12, color: T.dim }}>Order Amount</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>
-                {usd(placedOrder.amount)}
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: 12,
-                paddingBottom: 8,
-                borderBottom: `1px solid ${T.line}`,
-              }}
-            >
-              <span style={{ fontSize: 12, color: T.dim }}>Profit Amount</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: T.dim }}>
-                0
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: 12,
-                paddingBottom: 8,
-                borderBottom: `1px solid ${T.line}`,
-              }}
-            >
-              <span style={{ fontSize: 12, color: T.dim }}>Buy Direction</span>
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: placedOrder.orderType === "up" ? T.green : T.red,
-                }}
-              >
-                {placedOrder.orderType === "up" ? "Buy Up 📈" : "Buy Down 📉"}
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: 12,
-                paddingBottom: 8,
-                borderBottom: `1px solid ${T.line}`,
-              }}
-            >
-              <span style={{ fontSize: 12, color: T.dim }}>Scale</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: T.blue }}>
-                {placedOrder.profitPercent}%
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: 12,
-                paddingBottom: 8,
-                borderBottom: `1px solid ${T.line}`,
-              }}
-            >
-              <span style={{ fontSize: 12, color: T.dim }}>Billing Time</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>
-                {placedOrder.timeSeconds}s
-              </span>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, color: T.dim }}>Order Time</span>
-              <span style={{ fontSize: 11, color: T.dim }}>
-                {placedOrder.orderTime}
-              </span>
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: "rgba(0,229,176,0.08)",
-              borderRadius: 12,
-              padding: "10px 14px",
-              marginBottom: 20,
-              textAlign: "center",
-            }}
-          >
-            <span style={{ fontSize: 11, color: T.dim }}>
-              Potential Profit:{" "}
-            </span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: T.green }}>
-              +{usd(potentialProfit)} ({scalePercent}%)
-            </span>
-          </div>
-
-          <button
-            onClick={closeConfirmation}
-            style={{
-              width: "100%",
-              padding: "12px 0",
-              borderRadius: 12,
-              border: "none",
-              background: "linear-gradient(135deg,#6366f1,#3b82f6)",
-              color: "#fff",
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            Back to Home
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const amt = parseFloat(amount);
+  const potProfit =
+    !isNaN(amt) && amt > 0 ? (amt * selectedTime.profitPercent) / 100 : 0;
 
   return (
     <div
+      className="tr-page"
       style={{
         flex: 1,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        background: T.bg,
       }}
     >
+      <style>{TRADE_CSS}</style>
+
+      {/* ── Top Header ── */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "15px 15px 9px",
-          borderBottom: `1px solid ${T.line}`,
-          background: T.bg,
+          padding: "13px 16px 11px",
+          borderBottom: `1px solid ${B.border}`,
+          background: B.bg,
           position: "sticky",
           top: 0,
           zIndex: 10,
@@ -495,216 +587,193 @@ export default function TradePage({ nav, px, onTrade, coin }) {
         <button
           onClick={() => nav("home")}
           style={{
-            background: "none",
-            border: "none",
+            width: 34,
+            height: 34,
+            borderRadius: 6,
+            border: `1px solid ${B.border}`,
+            background: B.card,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             cursor: "pointer",
-            color: T.text,
-            fontSize: 20,
-            lineHeight: 1,
-            padding: 0,
+            color: B.textMid,
+            fontSize: 15,
           }}
         >
           ←
         </button>
-        <span style={{ fontSize: 15, fontWeight: 800, color: T.text }}>
-          {sel}
-        </span>
-        <div style={{ width: 20 }} />
+
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: B.text }}>
+            {sel}/USDT
+          </div>
+          <div style={{ fontSize: 10, color: B.textMid }}>Binary Options</div>
+        </div>
+
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 10, color: B.textMid }}>Balance</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: B.green }}>
+            {usd(balance)}
+          </div>
+        </div>
       </div>
 
+      {/* ── Scrollable body ── */}
       <div
         style={{
           flex: 1,
           overflowY: "auto",
-          paddingBottom: 14,
-          scrollbarWidth: "none",
-          msOverflowStyle: "none",
+          scrollbarWidth: "thin",
+          paddingBottom: 16,
         }}
       >
-        <style>{`
-          div::-webkit-scrollbar {
-            display: none;
-          }
-        `}</style>
-
-        <div style={{ padding: "11px 13px 0" }}>
+        {/* Price row */}
+        <div
+          style={{
+            padding: "12px 16px 10px",
+            borderBottom: `1px solid ${B.border}`,
+          }}
+        >
           <div
             style={{
               display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: 9,
+              alignItems: "flex-end",
+              gap: 10,
+              marginBottom: 8,
             }}
           >
-            <div>
-              <div style={{ fontSize: 24, fontWeight: 900, color: T.text }}>
-                {f2(price, 4)}
-              </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: chg >= 0 ? T.green : T.red,
-                }}
-              >
-                {chg >= 0 ? "+" : ""}
-                {f2(chg, 4)} ({cpct >= 0 ? "+" : ""}
-                {f2(cpct, 2)}%)
-              </div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 11, color: T.dim }}>
-                Balance:{" "}
-                <span style={{ color: T.green, fontWeight: 700 }}>
-                  {usd(balance)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: T.card,
-              borderRadius: 11,
-              padding: "7px 5px",
-              marginBottom: 9,
-              border: `1px solid ${T.line}`,
-            }}
-          >
-            <CChart coin={sel} px={px} />
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 9,
-              marginBottom: 15,
-            }}
-          >
-            <button
-              onClick={() => setOrderType("up")}
-              style={{
-                padding: "13px 0",
-                borderRadius: 12,
-                border: `2px solid ${orderType === "up" ? T.green : T.line}`,
-                background:
-                  orderType === "up" ? "rgba(16,185,129,0.15)" : T.card,
-                color: T.green,
-                fontSize: 14,
-                fontWeight: 800,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              Buy Up 📈
-            </button>
-            <button
-              onClick={() => setOrderType("down")}
-              style={{
-                padding: "13px 0",
-                borderRadius: 12,
-                border: `2px solid ${orderType === "down" ? T.red : T.line}`,
-                background:
-                  orderType === "down" ? "rgba(239,68,68,0.15)" : T.card,
-                color: T.red,
-                fontSize: 14,
-                fontWeight: 800,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              Buy Down 📉
-            </button>
-          </div>
-
-          <div style={{ marginBottom: 15 }}>
             <div
               style={{
-                fontSize: 11,
-                color: T.dim,
+                fontFamily: "'IBM Plex Mono',monospace",
+                fontSize: 26,
                 fontWeight: 600,
-                marginBottom: 8,
+                color: isUp ? B.green : B.red,
+                lineHeight: 1,
               }}
             >
-              Select order period
+              {f2(price, 4)}
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {TIME_OPTIONS.map((opt) => (
-                <button
-                  key={opt.seconds}
-                  onClick={() => setSelTime(opt)}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: 10,
-                    border: `2px solid ${selectedTime.seconds === opt.seconds ? opt.color : T.line}`,
-                    background:
-                      selectedTime.seconds === opt.seconds
-                        ? `${opt.color}20`
-                        : T.card,
-                    color:
-                      selectedTime.seconds === opt.seconds ? opt.color : T.text,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              {TIME_OPTIONS.map((opt) => (
-                <div
-                  key={opt.profitPercent}
-                  style={{
-                    flex: 1,
-                    textAlign: "center",
-                    padding: "4px",
-                    background:
-                      selectedTime.seconds === opt.seconds
-                        ? `${opt.color}15`
-                        : "transparent",
-                    borderRadius: 6,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: opt.color,
-                  }}
-                >
-                  {opt.profitPercent}%
-                </div>
-              ))}
+            <div style={{ marginBottom: 2 }}>
+              <span
+                style={{
+                  padding: "3px 8px",
+                  borderRadius: 4,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  background: isUp
+                    ? "rgba(14,203,129,0.1)"
+                    : "rgba(246,70,93,0.1)",
+                  color: isUp ? B.green : B.red,
+                }}
+              >
+                {isUp ? "+" : ""}
+                {f2(cpct, 2)}%
+              </span>
             </div>
           </div>
+          <div style={{ display: "flex", gap: 16 }}>
+            {[
+              ["24h High", f2(hi24, 4), B.green],
+              ["24h Low", f2(lo24, 4), B.red],
+              [
+                "Change",
+                `${isUp ? "+" : ""}${f2(chg, 4)}`,
+                isUp ? B.green : B.red,
+              ],
+            ].map(([label, val, color]) => (
+              <div key={label}>
+                <div
+                  style={{
+                    fontSize: 9,
+                    color: B.textDim,
+                    letterSpacing: 0.3,
+                    marginBottom: 2,
+                  }}
+                >
+                  {label}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color,
+                    fontFamily: "'IBM Plex Mono',monospace",
+                  }}
+                >
+                  {val}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
+        {/* Chart */}
+        <div
+          style={{
+            padding: "0 12px 12px",
+            background: B.surface,
+            borderBottom: `1px solid ${B.border}`,
+          }}
+        >
+          {/* Chart tab bar */}
           <div
             style={{
-              background: T.card,
-              borderRadius: 11,
-              padding: "9px 8px",
-              marginBottom: 9,
-              border: `1px solid ${T.line}`,
+              display: "flex",
+              gap: 2,
+              paddingTop: 10,
+              paddingBottom: 8,
             }}
           >
+            {["1m", "5m", "15m", "1h", "4h"].map((tf) => (
+              <button
+                key={tf}
+                onClick={() => {}}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 4,
+                  border: "none",
+                  background: tf === "1m" ? B.card : "transparent",
+                  color: tf === "1m" ? B.text : B.textMid,
+                  fontSize: 11,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
+          <CChart coin={sel} px={px} />
+        </div>
+
+        <div
+          style={{
+            padding: "12px 14px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          {/* ── Coin Selector ── */}
+          <div>
             <div
               style={{
                 fontSize: 10,
-                color: T.acc,
-                fontWeight: 700,
-                marginBottom: 7,
-                paddingLeft: 2,
+                color: B.textMid,
+                fontWeight: 600,
+                letterSpacing: 0.8,
+                marginBottom: 9,
               }}
             >
-              Currency
+              CURRENCY
             </div>
             <div
               ref={coinSelRef}
               style={{
                 display: "flex",
-                gap: 6,
+                gap: 8,
                 overflowX: "auto",
-                WebkitOverflowScrolling: "touch",
                 scrollbarWidth: "none",
                 paddingBottom: 4,
               }}
@@ -714,28 +783,20 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                   key={c.id}
                   data-coin={c.id}
                   onClick={() => setSel(c.id)}
-                  style={{
-                    minWidth: 74,
-                    padding: "8px 5px",
-                    borderRadius: 10,
-                    border: `2px solid ${sel === c.id ? T.acc : T.line}`,
-                    background: sel === c.id ? "rgba(0,229,176,0.07)" : T.card2,
-                    cursor: "pointer",
-                    textAlign: "center",
-                  }}
+                  className={`tr-coin-chip${sel === c.id ? " active" : ""}`}
                 >
                   <div
                     style={{
-                      width: 32,
-                      height: 32,
+                      width: 30,
+                      height: 30,
                       borderRadius: "50%",
                       background: c.bg,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: 14,
+                      fontSize: 13,
                       color: c.cl,
-                      margin: "0 auto 4px",
+                      marginBottom: 5,
                     }}
                   >
                     {c.sym}
@@ -744,12 +805,19 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                     style={{
                       fontSize: 10,
                       fontWeight: 700,
-                      color: sel === c.id ? T.acc : T.text,
+                      color: sel === c.id ? B.gold : B.text,
                     }}
                   >
                     {c.id}
                   </div>
-                  <div style={{ fontSize: 8, color: T.dim, marginTop: 1 }}>
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: B.textDim,
+                      fontFamily: "'IBM Plex Mono',monospace",
+                      marginTop: 1,
+                    }}
+                  >
                     {f2(px[c.id] || 0, 2)}
                   </div>
                 </div>
@@ -757,163 +825,268 @@ export default function TradePage({ nav, px, onTrade, coin }) {
             </div>
           </div>
 
-          <div
-            style={{
-              background: T.card,
-              borderRadius: 11,
-              padding: "11px",
-              marginBottom: 9,
-              border: `1px solid ${T.line}`,
-            }}
-          >
+          {/* ── Time Period ── */}
+          <div>
+            <div
+              style={{
+                fontSize: 10,
+                color: B.textMid,
+                fontWeight: 600,
+                letterSpacing: 0.8,
+                marginBottom: 9,
+              }}
+            >
+              ORDER PERIOD
+            </div>
+            <div style={{ display: "flex", gap: 7 }}>
+              {TIME_OPTIONS.map((opt) => (
+                <button
+                  key={opt.seconds}
+                  onClick={() => setSelTime(opt)}
+                  className="tr-time-btn"
+                  style={{
+                    color:
+                      selectedTime.seconds === opt.seconds
+                        ? opt.color
+                        : B.textMid,
+                    borderColor:
+                      selectedTime.seconds === opt.seconds
+                        ? opt.color
+                        : B.border,
+                    background:
+                      selectedTime.seconds === opt.seconds
+                        ? `${opt.color}12`
+                        : B.card,
+                  }}
+                >
+                  <div>{opt.label}</div>
+                  <div style={{ fontSize: 10, marginTop: 2, opacity: 0.8 }}>
+                    {opt.profitPercent}%
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Direction Buttons ── */}
+          <div>
+            <div
+              style={{
+                fontSize: 10,
+                color: B.textMid,
+                fontWeight: 600,
+                letterSpacing: 0.8,
+                marginBottom: 9,
+              }}
+            >
+              DIRECTION
+            </div>
             <div
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
-                gap: 10,
-                marginBottom: 12,
+                gap: 9,
               }}
             >
-              <div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: T.dim,
-                    fontWeight: 600,
-                    marginBottom: 4,
-                  }}
-                >
-                  Currency
-                </div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>
-                  {sel}
-                </div>
-              </div>
-              <div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: T.dim,
-                    fontWeight: 600,
-                    marginBottom: 4,
-                  }}
-                >
-                  Price
-                </div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: T.acc }}>
-                  {usd(price)}
-                </div>
-              </div>
-            </div>
-            <div>
-              <div
+              <button
+                onClick={() => setOrderType("up")}
                 style={{
-                  fontSize: 10,
-                  color: T.dim,
-                  fontWeight: 600,
-                  marginBottom: 4,
+                  padding: "14px 0",
+                  borderRadius: 6,
+                  fontFamily: "inherit",
+                  border: `1.5px solid ${orderType === "up" ? B.green : B.border}`,
+                  background:
+                    orderType === "up" ? "rgba(14,203,129,0.1)" : B.card,
+                  color: B.green,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
                 }}
               >
-                Amount (USD)
-              </div>
+                ↑ Buy Up
+              </button>
+              <button
+                onClick={() => setOrderType("down")}
+                style={{
+                  padding: "14px 0",
+                  borderRadius: 6,
+                  fontFamily: "inherit",
+                  border: `1.5px solid ${orderType === "down" ? B.red : B.border}`,
+                  background:
+                    orderType === "down" ? "rgba(246,70,93,0.1)" : B.card,
+                  color: B.red,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                ↓ Buy Down
+              </button>
+            </div>
+          </div>
+
+          {/* ── Amount Input ── */}
+          <div>
+            <div
+              style={{
+                fontSize: 10,
+                color: B.textMid,
+                fontWeight: 600,
+                letterSpacing: 0.8,
+                marginBottom: 9,
+              }}
+            >
+              AMOUNT (USD)
+            </div>
+            <div style={{ position: "relative" }}>
+              <span
+                style={{
+                  position: "absolute",
+                  left: 14,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  fontSize: 14,
+                  color: B.textMid,
+                  fontWeight: 500,
+                }}
+              >
+                $
+              </span>
               <input
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder="Enter amount in USD"
-                style={{
-                  width: "100%",
-                  background: T.card2,
-                  border: `1px solid ${T.line}`,
-                  borderRadius: 9,
-                  padding: "10px 12px",
-                  fontSize: 14,
-                  color: T.text,
-                  outline: "none",
-                  fontFamily: "inherit",
-                }}
+                placeholder="0.00"
+                className="tr-input"
+                style={{ paddingLeft: 28 }}
               />
-              {amount && !isNaN(parseFloat(amount)) && (
-                <div
+            </div>
+
+            {/* Quick presets */}
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              {[10, 50, 100, 500].map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setAmount(String(p))}
                   style={{
+                    flex: 1,
+                    padding: "6px 0",
+                    borderRadius: 5,
+                    border: `1px solid ${amount === String(p) ? B.gold : B.border}`,
+                    background:
+                      amount === String(p) ? "rgba(240,185,11,0.08)" : B.card,
+                    color: amount === String(p) ? B.gold : B.textMid,
                     fontSize: 11,
-                    background: "rgba(0,229,176,0.08)",
-                    borderRadius: 8,
-                    padding: "8px 10px",
-                    marginTop: 8,
-                    border: `1px solid ${T.acc}30`,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
                   }}
                 >
-                  <div style={{ color: T.dim, marginBottom: 4 }}>
-                    📊 Trade Breakdown:
-                  </div>
-                  <div style={{ color: T.text }}>
-                    💰 Wager:{" "}
-                    <span style={{ color: T.gold, fontWeight: 700 }}>
-                      {usd(parseFloat(amount))}
-                    </span>
-                  </div>
-                  <div style={{ color: T.text }}>
-                    🎯 Potential Profit:{" "}
-                    <span style={{ color: T.green, fontWeight: 700 }}>
-                      +
-                      {usd(
-                        (parseFloat(amount) * selectedTime.profitPercent) / 100,
-                      )}
-                    </span>{" "}
-                    <span style={{ color: T.dim, fontSize: 10 }}>
-                      ({selectedTime.profitPercent}%)
-                    </span>
-                  </div>
-                  <div style={{ color: T.text, marginTop: 4 }}>
-                    💰 Total Return if Win:{" "}
-                    <span style={{ color: T.acc, fontWeight: 700 }}>
-                      {usd(
-                        parseFloat(amount) *
-                          (1 + selectedTime.profitPercent / 100),
-                      )}
-                    </span>
-                  </div>
-                </div>
-              )}
+                  ${p}
+                </button>
+              ))}
             </div>
           </div>
 
+          {/* ── Trade Breakdown ── */}
+          {!isNaN(amt) && amt > 0 && (
+            <div
+              style={{
+                background: B.card2,
+                borderRadius: 8,
+                padding: "13px 14px",
+                border: `1px solid ${B.border}`,
+                animation: "trFadeUp 0.3s ease both",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  color: B.textMid,
+                  fontWeight: 600,
+                  letterSpacing: 0.8,
+                  marginBottom: 10,
+                }}
+              >
+                TRADE BREAKDOWN
+              </div>
+              {[
+                ["Wager", `$${amt.toFixed(2)}`, B.text],
+                ["Potential Profit", `+$${potProfit.toFixed(2)}`, B.green],
+                ["Total if Win", `$${(amt + potProfit).toFixed(2)}`, B.gold],
+                ["Scale", `${selectedTime.profitPercent}%`, B.blue],
+              ].map(([label, val, color]) => (
+                <div
+                  key={label}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: 7,
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: B.textMid }}>
+                    {label}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color }}>
+                    {val}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Error */}
           {err && (
             <div
               style={{
-                color: T.red,
-                fontSize: 11,
-                marginBottom: 8,
+                padding: "10px 13px",
+                borderRadius: 6,
+                background: "rgba(246,70,93,0.08)",
+                border: "1px solid rgba(246,70,93,0.2)",
+                fontSize: 12,
+                color: B.red,
                 textAlign: "center",
-                padding: "7px",
-                background: "rgba(239,68,68,0.09)",
-                borderRadius: 8,
               }}
             >
               {err}
             </div>
           )}
 
-          <button
-            onClick={submitOrder}
-            style={{
-              width: "100%",
-              padding: "14px 0",
-              borderRadius: 12,
-              border: "none",
-              background: "linear-gradient(135deg,#6366f1,#3b82f6)",
-              color: "#fff",
-              fontSize: 14,
-              fontWeight: 800,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              marginBottom: 15,
-              boxShadow: "0 4px 13px rgba(99,102,241,0.3)",
-            }}
-          >
-            Place Order
-          </button>
+          {/* ── Place Order Button ── */}
+          {/* CHANGED: Centered with max-width 260px, so it's less wide */}
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <button
+              onClick={submitOrder}
+              style={{
+                width: "100%",
+                maxWidth: 260,
+                padding: "15px 0",
+                borderRadius: 6,
+                border: "none",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: 14,
+                fontWeight: 700,
+                letterSpacing: 0.3,
+                background:
+                  orderType === "up"
+                    ? "linear-gradient(90deg, #0ecb81, #07a86a)"
+                    : "linear-gradient(90deg, #f6465d, #d63651)",
+                color: "#fff",
+                boxShadow:
+                  orderType === "up"
+                    ? "0 4px 16px rgba(14,203,129,0.25)"
+                    : "0 4px 16px rgba(246,70,93,0.25)",
+                transition: "opacity 0.2s, transform 0.1s",
+              }}
+            >
+              {orderType === "up"
+                ? "↑ Place Buy Up Order"
+                : "↓ Place Buy Down Order"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

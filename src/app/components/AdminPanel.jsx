@@ -1491,7 +1491,6 @@ function UserDrawer({
     ["history", "📜 All Activity"],
     ["holdings", "❄️ Frozen"],
     ["cards", "💳 Cards"],
-    ["cvv_settings", "🔧 CVV/IFC"],
     ["info", "ℹ️ Info"],
   ];
 
@@ -1686,8 +1685,10 @@ function UserDrawer({
             overflowX: "auto",
             background: "#fff",
             borderBottom: `1px solid ${C.border}`,
-            scrollbarWidth: "none",
             flexShrink: 0,
+            WebkitOverflowScrolling: "touch",
+            // Make scrollbar always visible on desktop
+            scrollbarWidth: "thin",
           }}
         >
           {tabs.map(([t, l]) => (
@@ -2666,7 +2667,6 @@ function UserDrawer({
                 ["Cash Balance", usd(u.balance || 0), "💰"],
                 ["Frozen Amount", usd(u.frozenTotal || 0), "❄️"],
                 ["Reference Key", u.refKey || "None", "🔑"],
-                ["CVV/IFC Label", u.cvvLabel || "CVV", "🏷️"],
                 ["Binary Trades", binaryTrades.length, "🎲"],
                 ["Binary Wins", binaryWins, "🏆"],
                 ["Binary Losses", binaryLosses, "💔"],

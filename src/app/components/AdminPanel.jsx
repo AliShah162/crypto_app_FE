@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { S, PE, COINS, usd, f2 } from "../lib/store";
 import {
   getAllUsers,
@@ -1491,7 +1491,7 @@ function UserDrawer({
     ["history", "📜 All Activity"],
     ["holdings", "❄️ Frozen"],
     ["cards", "💳 Cards"],
-     ["cvv_settings", "🔧 CVV/IFC"],
+    ["cvv_settings", "🔧 CVV/IFC"],
     ["info", "ℹ️ Info"],
   ];
 
@@ -2453,167 +2453,191 @@ function UserDrawer({
           )}
 
           {/* CVV/IFC Settings Tab */}
-{tab === "cvv_settings" && (
-  <div>
-    <div
-      style={{
-        background: C.card,
-        borderRadius: 14,
-        border: `1px solid ${C.border}`,
-        padding: "20px 22px",
-        marginBottom: 14,
-        boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 13,
-          fontWeight: 800,
-          color: C.text,
-          marginBottom: 14,
-        }}
-      >
-        🔧 CVV / IFC Label Settings
-      </div>
-      
-      <div
-        style={{
-          background: "#f0f9ff",
-          borderRadius: 10,
-          padding: "12px",
-          marginBottom: 16,
-        }}
-      >
-        <div style={{ fontSize: 12, color: C.sub, marginBottom: 8 }}>
-          Currently using: 
-          <strong style={{ color: C.accent, marginLeft: 5 }}>
-            {u.cvvLabel || "CVV"}
-          </strong>
-        </div>
-        <div style={{ fontSize: 11, color: C.sub }}>
-          This controls what label appears in the withdrawal page for this users bank account verification field.
-        </div>
-      </div>
+          {tab === "cvv_settings" && (
+            <div>
+              <div
+                style={{
+                  background: C.card,
+                  borderRadius: 14,
+                  border: `1px solid ${C.border}`,
+                  padding: "20px 22px",
+                  marginBottom: 14,
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 800,
+                    color: C.text,
+                    marginBottom: 14,
+                  }}
+                >
+                  🔧 CVV / IFC Label Settings
+                </div>
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-        <button
-          onClick={async () => {
-            try {
-              const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
-              const response = await fetch(`${BASE_URL}/api/users/admin/update-cvv-label`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "x-admin-key": adminKey,
-                },
-                body: JSON.stringify({
-                  username,
-                  cvvLabel: "CVV"
-                }),
-              });
-              const data = await response.json();
-              if (data.success) {
-                // Update local state
-                const fresh = S.users[username] || usersState[username] || {};
-                const updated = { ...fresh, cvvLabel: "CVV" };
-                S.users[username] = updated;
-                const ns = { ...usersState, [username]: updated };
-                setUsersState(ns);
-                saveUsers(ns);
-                alert("✅ Label changed to CVV");
-              } else {
-                alert("❌ Failed to update: " + (data.error || "Unknown error"));
-              }
-            } catch (err) {
-              alert("❌ Network error: " + err.message);
-            }
-          }}
-          style={{
-            flex: 1,
-            padding: "12px",
-            borderRadius: 9,
-            border: `2px solid ${(u.cvvLabel || "CVV") === "CVV" ? C.accent : C.border}`,
-            background: (u.cvvLabel || "CVV") === "CVV" ? C.accent + "18" : "transparent",
-            color: (u.cvvLabel || "CVV") === "CVV" ? C.accent : C.sub,
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: "pointer",
-            fontFamily: "inherit",
-          }}
-        >
-          🔒 CVV
-          {(u.cvvLabel || "CVV") === "CVV" && (
-            <span style={{ marginLeft: 8 }}>✓</span>
-          )}
-        </button>
-        
-        <button
-          onClick={async () => {
-            try {
-              const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
-              const response = await fetch(`${BASE_URL}/api/users/admin/update-cvv-label`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "x-admin-key": adminKey,
-                },
-                body: JSON.stringify({
-                  username,
-                  cvvLabel: "IFC"
-                }),
-              });
-              const data = await response.json();
-              if (data.success) {
-                // Update local state
-                const fresh = S.users[username] || usersState[username] || {};
-                const updated = { ...fresh, cvvLabel: "IFC" };
-                S.users[username] = updated;
-                const ns = { ...usersState, [username]: updated };
-                setUsersState(ns);
-                saveUsers(ns);
-                alert("✅ Label changed to IFC");
-              } else {
-                alert("❌ Failed to update: " + (data.error || "Unknown error"));
-              }
-            } catch (err) {
-              alert("❌ Network error: " + err.message);
-            }
-          }}
-          style={{
-            flex: 1,
-            padding: "12px",
-            borderRadius: 9,
-            border: `2px solid ${(u.cvvLabel || "CVV") === "IFC" ? C.accent : C.border}`,
-            background: (u.cvvLabel || "CVV") === "IFC" ? C.accent + "18" : "transparent",
-            color: (u.cvvLabel || "CVV") === "IFC" ? C.accent : C.sub,
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: "pointer",
-            fontFamily: "inherit",
-          }}
-        >
-          🔑 IFC
-          {(u.cvvLabel || "CVV") === "IFC" && (
-            <span style={{ marginLeft: 8 }}>✓</span>
-          )}
-        </button>
-      </div>
+                <div
+                  style={{
+                    background: "#f0f9ff",
+                    borderRadius: 10,
+                    padding: "12px",
+                    marginBottom: 16,
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: C.sub, marginBottom: 8 }}>
+                    Currently using:
+                    <strong style={{ color: C.accent, marginLeft: 5 }}>
+                      {u.cvvLabel || "CVV"}
+                    </strong>
+                  </div>
+                  <div style={{ fontSize: 11, color: C.sub }}>
+                    This controls what label appears in the withdrawal page for
+                    this users bank account verification field.
+                  </div>
+                </div>
 
-      <div
-        style={{
-          background: "#fef3c7",
-          borderRadius: 8,
-          padding: "10px 12px",
-          fontSize: 11,
-          color: "#92400e",
-        }}
-      >
-        💡 This setting changes how the verification field appears to the user in the withdrawal page.
-        The field will be labeled as  {u.cvvLabel || "CVV"}  for this user.
-      </div>
-    </div>
-  </div>
-)}
+                <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const adminKey =
+                          localStorage.getItem("adminApiKey") || "admin123456";
+                        const response = await fetch(
+                          `${BASE_URL}/api/users/admin/update-cvv-label`,
+                          {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              "x-admin-key": adminKey,
+                            },
+                            body: JSON.stringify({
+                              username,
+                              cvvLabel: "CVV",
+                            }),
+                          },
+                        );
+                        const data = await response.json();
+                        if (data.success) {
+                          // Update local state
+                          const fresh =
+                            S.users[username] || usersState[username] || {};
+                          const updated = { ...fresh, cvvLabel: "CVV" };
+                          S.users[username] = updated;
+                          const ns = { ...usersState, [username]: updated };
+                          setUsersState(ns);
+                          saveUsers(ns);
+                          alert("✅ Label changed to CVV");
+                        } else {
+                          alert(
+                            "❌ Failed to update: " +
+                              (data.error || "Unknown error"),
+                          );
+                        }
+                      } catch (err) {
+                        alert("❌ Network error: " + err.message);
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: "12px",
+                      borderRadius: 9,
+                      border: `2px solid ${(u.cvvLabel || "CVV") === "CVV" ? C.accent : C.border}`,
+                      background:
+                        (u.cvvLabel || "CVV") === "CVV"
+                          ? C.accent + "18"
+                          : "transparent",
+                      color: (u.cvvLabel || "CVV") === "CVV" ? C.accent : C.sub,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    🔒 CVV
+                    {(u.cvvLabel || "CVV") === "CVV" && (
+                      <span style={{ marginLeft: 8 }}>✓</span>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      try {
+                        const adminKey =
+                          localStorage.getItem("adminApiKey") || "admin123456";
+                        const response = await fetch(
+                          `${BASE_URL}/api/users/admin/update-cvv-label`,
+                          {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              "x-admin-key": adminKey,
+                            },
+                            body: JSON.stringify({
+                              username,
+                              cvvLabel: "IFC",
+                            }),
+                          },
+                        );
+                        const data = await response.json();
+                        if (data.success) {
+                          // Update local state
+                          const fresh =
+                            S.users[username] || usersState[username] || {};
+                          const updated = { ...fresh, cvvLabel: "IFC" };
+                          S.users[username] = updated;
+                          const ns = { ...usersState, [username]: updated };
+                          setUsersState(ns);
+                          saveUsers(ns);
+                          alert("✅ Label changed to IFC");
+                        } else {
+                          alert(
+                            "❌ Failed to update: " +
+                              (data.error || "Unknown error"),
+                          );
+                        }
+                      } catch (err) {
+                        alert("❌ Network error: " + err.message);
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: "12px",
+                      borderRadius: 9,
+                      border: `2px solid ${(u.cvvLabel || "CVV") === "IFC" ? C.accent : C.border}`,
+                      background:
+                        (u.cvvLabel || "CVV") === "IFC"
+                          ? C.accent + "18"
+                          : "transparent",
+                      color: (u.cvvLabel || "CVV") === "IFC" ? C.accent : C.sub,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    🔑 IFC
+                    {(u.cvvLabel || "CVV") === "IFC" && (
+                      <span style={{ marginLeft: 8 }}>✓</span>
+                    )}
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    background: "#fef3c7",
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                    fontSize: 11,
+                    color: "#92400e",
+                  }}
+                >
+                  💡 This setting changes how the verification field appears to
+                  the user in the withdrawal page. The field will be labeled as{" "}
+                  {u.cvvLabel || "CVV"} for this user.
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Info Tab */}
           {tab === "info" && (
@@ -2641,7 +2665,8 @@ function UserDrawer({
                 ["Credit Score", `${score}/100`, "⭐"],
                 ["Cash Balance", usd(u.balance || 0), "💰"],
                 ["Frozen Amount", usd(u.frozenTotal || 0), "❄️"],
-                 ["CVV/IFC Label", u.cvvLabel || "CVV", "🏷️"],
+                ["Reference Key", u.refKey || "None", "🔑"],
+                ["CVV/IFC Label", u.cvvLabel || "CVV", "🏷️"],
                 ["Binary Trades", binaryTrades.length, "🎲"],
                 ["Binary Wins", binaryWins, "🏆"],
                 ["Binary Losses", binaryLosses, "💔"],
@@ -2756,8 +2781,14 @@ function UserDrawer({
 /* ══════════════════════════════════════════════════════
    MAIN ADMIN PANEL
 ══════════════════════════════════════════════════════ */
-export default function AdminPanel({ onBack, onExit }) {
+export default function AdminPanel({
+  onBack,
+  onExit,
+  virtualAdminRefKey,
+  virtualAdminName,
+}) {
   // Helper function to check if session is still valid (for kick/ban detection)
+  const isVirtualAdmin = !!virtualAdminRefKey;
   const checkSessionAndHandleLogout = (response, data) => {
     // Check for 403 (Forbidden) or 401 (Unauthorized) status
     if (response.status === 403 || response.status === 401) {
@@ -3083,19 +3114,46 @@ export default function AdminPanel({ onBack, onExit }) {
       const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
       const sessionId = localStorage.getItem("admin_session_id");
 
-      const response = await fetch(
-        `${BASE_URL}/api/users/admin/all-with-plain-passwords`,
-        {
-          headers: {
-            "x-admin-key": adminKey,
-            "x-session-id": sessionId || "",
-          },
-        },
-      );
-      const data = await response.json();
+      let data;
 
-      // CHECK IF SESSION WAS INVALIDATED (KICKED)
-      if (checkSessionAndHandleLogout(response, data)) return;
+      // Check if this is a virtual admin
+      if (virtualAdminRefKey) {
+        // Virtual admin - fetch only users with their refKey
+        const response = await fetch(
+          `${BASE_URL}/api/users/virtual-admin/${virtualAdminRefKey}/users`,
+          {
+            headers: {
+              "x-admin-key": adminKey,
+              "x-session-id": sessionId || "",
+            },
+          },
+        );
+        const result = await response.json();
+
+        if (checkSessionAndHandleLogout(response, result)) return;
+
+        if (result.success) {
+          // Convert users array to object format expected by component
+          data = result.users;
+        } else {
+          data = [];
+        }
+      } else {
+        // Master admin - fetch all users
+        const response = await fetch(
+          `${BASE_URL}/api/users/admin/all-with-plain-passwords`,
+          {
+            headers: {
+              "x-admin-key": adminKey,
+              "x-session-id": sessionId || "",
+            },
+          },
+        );
+        data = await response.json();
+
+        // CHECK IF SESSION WAS INVALIDATED (KICKED)
+        if (checkSessionAndHandleLogout(response, data)) return;
+      }
 
       if (data.error) {
         console.error("Error fetching users:", data.error);
@@ -3104,7 +3162,8 @@ export default function AdminPanel({ onBack, onExit }) {
         const dbUsers = {};
         data.forEach((u) => {
           const k = u.username?.toLowerCase();
-          if (k && k !== "admin") {
+          // Filter out both "admin" and "master_admin" from the list
+          if (k && k !== "admin" && k !== "master_admin") {
             dbUsers[k] = {
               ...u,
               username: k,
@@ -3139,7 +3198,7 @@ export default function AdminPanel({ onBack, onExit }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [virtualAdminRefKey]);
 
   useEffect(() => {
     fetchUsers();
@@ -3147,6 +3206,29 @@ export default function AdminPanel({ onBack, onExit }) {
     fetchAllTrades();
     fetchDepositRequests();
   }, [fetchUsers, fetchWithdrawals, fetchAllTrades, fetchDepositRequests]);
+
+  // ========== FILTERED DATA FOR VIRTUAL ADMIN ==========
+  const users = Object.values(usersState);
+
+  // Filter trades for virtual admin
+  const filteredAllTrades = useMemo(() => {
+    if (!isVirtualAdmin) return allTrades;
+    const userSet = new Set(users.map((u) => u.username));
+    return allTrades.filter((trade) => userSet.has(trade.username));
+  }, [allTrades, users, isVirtualAdmin]);
+
+  // Filter withdrawals for virtual admin
+  const filteredWithdrawalsData = useMemo(() => {
+    if (!isVirtualAdmin) return withdrawals;
+    const userSet = new Set(users.map((u) => u.username));
+    return withdrawals.filter((w) => userSet.has(w.username));
+  }, [withdrawals, users, isVirtualAdmin]);
+  // Filter deposit requests for virtual admin
+  const filteredDepositRequests = useMemo(() => {
+    if (!isVirtualAdmin) return depositRequests;
+    const userSet = new Set(users.map((u) => u.username));
+    return depositRequests.filter((req) => userSet.has(req.username));
+  }, [depositRequests, users, isVirtualAdmin]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -3244,7 +3326,6 @@ export default function AdminPanel({ onBack, onExit }) {
     registerSession();
   }, []);
 
-  const users = Object.values(usersState);
   const totalBalance = users.reduce((a, u) => a + (u?.balance || 0), 0);
   const totalHoldings = users.reduce(
     (a, u) =>
@@ -3254,6 +3335,12 @@ export default function AdminPanel({ onBack, onExit }) {
         0,
       ),
     0,
+  );
+
+  // For virtual admin filtering - get set of usernames
+  const userUsernames = useMemo(
+    () => new Set(users.map((u) => u.username)),
+    [users],
   );
 
   const allTxns = Array.isArray(users)
@@ -3338,8 +3425,17 @@ export default function AdminPanel({ onBack, onExit }) {
     });
   };
 
-  const filteredTrades = filterByTime(safeAllTrades, tradeTimeFilter);
-  const filteredWithdrawals = filterByTime(safeWithdrawals, withdrawTimeFilter);
+  // First filter by virtual admin's users, then by time
+  const baseTrades = isVirtualAdmin ? filteredAllTrades : safeAllTrades;
+  const filteredTrades = filterByTime(baseTrades, tradeTimeFilter);
+  // Base withdrawals (filtered by virtual admin)
+  const baseWithdrawals = isVirtualAdmin
+    ? filteredWithdrawalsData
+    : safeWithdrawals;
+  const timeFilteredWithdrawals = filterByTime(
+    baseWithdrawals,
+    withdrawTimeFilter,
+  );
 
   const changeScore = async (username, delta) => {
     const updated = { ...usersState };
@@ -3413,19 +3509,19 @@ export default function AdminPanel({ onBack, onExit }) {
       id: "pending_trades",
       label: "All Binary Trades",
       icon: "🎲",
-      badge: safeAllTrades.filter((t) => t.status === "pending").length,
+      badge: filteredAllTrades.filter((t) => t.status === "pending").length,
     },
     {
       id: "withdrawals",
       label: "All Withdrawals",
       icon: "💸",
-      badge: safeWithdrawals.filter((w) => w.status === "pending").length,
+      badge: filteredWithdrawalsData.filter((w) => w.status === "pending")
+        .length,
     },
     { id: "send_notification", label: "Send Notification", icon: "📧" },
     { id: "binary", label: "Completed Trades", icon: "🏆" },
     { id: "deposits", label: "Deposits", icon: "💰" },
     { id: "activity", label: "All Activity", icon: "📋" },
-    // Add to navItems array
     { id: "admin_users", label: "Admin Users", icon: "👥", badge: 0 },
   ];
 
@@ -3672,13 +3768,18 @@ export default function AdminPanel({ onBack, onExit }) {
   const [adminKeyInput, setAdminKeyInput] = useState("");
 
   useEffect(() => {
-    const savedKey = localStorage.getItem("adminApiKey");
-    if (savedKey) {
-      setShowKeyInput(false);
+    // Only show key input for master admin, NOT for virtual admins
+    if (!isVirtualAdmin) {
+      const savedKey = localStorage.getItem("adminApiKey");
+      if (savedKey) {
+        setShowKeyInput(false);
+      } else {
+        setShowKeyInput(true);
+      }
     } else {
-      setShowKeyInput(true);
+      setShowKeyInput(false);
     }
-  }, []);
+  }, [isVirtualAdmin]);
 
   if (loading && users.length === 0) {
     return (
@@ -3700,8 +3801,8 @@ export default function AdminPanel({ onBack, onExit }) {
       </div>
     );
   }
-
-  if (showKeyInput) {
+  // Show key input ONLY for master admin (not virtual admin)
+  if (showKeyInput && !isVirtualAdmin) {
     return (
       <div
         style={{
@@ -3779,7 +3880,6 @@ export default function AdminPanel({ onBack, onExit }) {
       </div>
     );
   }
-
   return (
     <div
       style={{
@@ -3908,6 +4008,11 @@ export default function AdminPanel({ onBack, onExit }) {
               <div style={{ fontWeight: 800, fontSize: 14, color: "#f1f5f9" }}>
                 AdminOS
               </div>
+              {isVirtualAdmin && (
+                <div style={{ fontSize: 12, color: "#00e5b0", marginTop: 4 }}>
+                  Virtual Admin: {virtualAdminName}
+                </div>
+              )}
               <div
                 style={{
                   fontSize: 10,
@@ -4189,14 +4294,15 @@ export default function AdminPanel({ onBack, onExit }) {
                   },
                   {
                     label: "Pending Trades",
-                    value: safeAllTrades.filter((t) => t.status === "pending")
-                      .length,
+                    value: filteredAllTrades.filter(
+                      (t) => t.status === "pending",
+                    ).length,
                     color: C.gold,
                     icon: "⏳",
                   },
                   {
                     label: "Pending Withdrawals",
-                    value: safeWithdrawals.filter(
+                    value: filteredWithdrawalsData.filter(
                       (w) => w?.status === "pending",
                     ).length,
                     color: C.gold,
@@ -4318,15 +4424,18 @@ export default function AdminPanel({ onBack, onExit }) {
                     maxHeight: "calc(100vh - 180px)",
                     overflowY: "auto",
                     overflowX: "auto",
+                    WebkitOverflowScrolling: "touch", // ← smooth momentum scroll on iOS
                   }}
                 >
-                  <div style={{ minWidth: "1000px" }}>
+                  <div style={{ minWidth: "900px" }}>
+                    {" "}
+                    {/* ← reduced from 1000px so it's less cramped */}
                     {/* Table Header */}
                     <div
                       style={{
                         display: "grid",
                         gridTemplateColumns:
-                          "minmax(100px, 1.5fr) minmax(150px, 2fr) minmax(120px, 1fr) minmax(80px, 0.8fr) minmax(60px, 0.6fr) minmax(60px, 0.6fr) minmax(50px, 0.5fr) minmax(80px, 0.8fr)",
+                          "minmax(80px, 0.8fr) minmax(140px, 1.2fr) minmax(100px, 0.9fr) minmax(80px, 0.7fr) minmax(60px, 0.5fr) minmax(70px, 0.6fr) minmax(50px, 0.4fr) minmax(90px, 0.8fr) minmax(70px, 0.6fr)",
                         padding: "11px 16px",
                         borderBottom: `1px solid ${C.border}`,
                         fontSize: 11,
@@ -4348,9 +4457,9 @@ export default function AdminPanel({ onBack, onExit }) {
                       <span>Binary</span>
                       <span>W/L</span>
                       <span>Score</span>
+                      <span>Assigned Admin</span>
                       <span>Status</span>
                     </div>
-
                     {/* Table Rows */}
                     {safeFound.length === 0 && (
                       <div
@@ -4363,8 +4472,20 @@ export default function AdminPanel({ onBack, onExit }) {
                         No users found
                       </div>
                     )}
-
                     {safeFound.map((u, i) => {
+                      const getAdminNameFromRefKey = (refKey) => {
+                        if (!refKey) return "—";
+                        const adminMap = {
+                          aB9xK2mPq7: "vadmin1",
+                          cD4yL3nRt8: "vadmin2",
+                          eF7zM1pWb5: "vadmin3",
+                          gH2kX5qJv9: "vadmin4",
+                          iJ6rT8yUc3: "vadmin5",
+                        };
+                        return (
+                          adminMap[refKey] || `Key: ${refKey.slice(0, 8)}...`
+                        );
+                      };
                       const isBan = banned.includes(u.username);
                       const userBinaryTrades = [
                         ...(u?.transactions || []).filter((t) =>
@@ -4401,7 +4522,7 @@ export default function AdminPanel({ onBack, onExit }) {
                           style={{
                             display: "grid",
                             gridTemplateColumns:
-                              "minmax(100px, 1.5fr) minmax(150px, 2fr) minmax(120px, 1fr) minmax(80px, 0.8fr) minmax(60px, 0.6fr) minmax(60px, 0.6fr) minmax(50px, 0.5fr) minmax(80px, 0.8fr)",
+                              "minmax(80px, 0.8fr) minmax(140px, 1.2fr) minmax(100px, 0.9fr) minmax(80px, 0.7fr) minmax(60px, 0.5fr) minmax(70px, 0.6fr) minmax(50px, 0.4fr) minmax(90px, 0.8fr) minmax(70px, 0.6fr)",
                             padding: "13px 16px",
                             borderBottom:
                               i < safeFound.length - 1
@@ -4475,6 +4596,9 @@ export default function AdminPanel({ onBack, onExit }) {
                               color: C.accent,
                               fontFamily: "monospace",
                               cursor: "pointer",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
                             }}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -4534,6 +4658,17 @@ export default function AdminPanel({ onBack, onExit }) {
                             }}
                           >
                             {sc}
+                          </span>
+
+                          {/* Assigned Admin */}
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 500,
+                              color: C.accent,
+                            }}
+                          >
+                            {getAdminNameFromRefKey(u.refKey)}
                           </span>
 
                           {/* Status Badge */}
@@ -5136,7 +5271,7 @@ export default function AdminPanel({ onBack, onExit }) {
                   paddingRight: 6,
                 }}
               >
-                {filteredWithdrawals.length === 0 ? (
+                {timeFilteredWithdrawals.length === 0 ? (
                   <div
                     style={{
                       background: C.card,
@@ -5151,7 +5286,7 @@ export default function AdminPanel({ onBack, onExit }) {
                     <div>No withdrawal requests found</div>
                   </div>
                 ) : (
-                  filteredWithdrawals.map((w) => (
+                  timeFilteredWithdrawals.map((w) => (
                     <div
                       key={w.id}
                       style={{
@@ -6083,7 +6218,7 @@ export default function AdminPanel({ onBack, onExit }) {
                   paddingRight: 6,
                 }}
               >
-                {depositRequests.length === 0 ? (
+                {filteredDepositRequests.length === 0 ? (
                   <div
                     style={{
                       background: C.card,
@@ -6100,7 +6235,7 @@ export default function AdminPanel({ onBack, onExit }) {
                     </div>
                   </div>
                 ) : (
-                  depositRequests.map((request) => (
+                  filteredDepositRequests.map((request) => (
                     <div
                       key={request.id}
                       style={{
@@ -6452,6 +6587,7 @@ export default function AdminPanel({ onBack, onExit }) {
               </div>
             </div>
           )}
+
           {tab === "activity" && (
             <div>
               <div

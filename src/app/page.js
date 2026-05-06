@@ -31,6 +31,8 @@ import {
   BinaryHistorySub,
 } from "./pages/ProfileSubs";
 import { API_URL } from "./lib/config";
+import VirtualAdminLogin from "./components/VirtualAdminLogin";
+// import VirtualAdminLogin from "./components/VirtualAdminLogin";
 
 function initLocalStorage() {
   if (typeof window === "undefined") return;
@@ -84,6 +86,7 @@ export default function App() {
   const [notifs, sn] = useState([]);
   const [, tick] = useState(0);
   const px = usePX();
+  const [virtualAdmin, setVirtualAdmin] = useState(null);
 
   // Fetch notifications from MongoDB
   const fetchNotificationsFromDB = useCallback(async () => {
@@ -104,6 +107,7 @@ export default function App() {
     }
     return [];
   }, []);
+
 
   useEffect(() => {
     initLocalStorage();
@@ -256,6 +260,25 @@ export default function App() {
     }
     tick((n) => n + 1);
   }, []);
+    // ========== VIRTUAL ADMIN SESSION LISTENER ==========
+  useEffect(() => {
+    // Check if already logged in as virtual admin
+    const savedVA = localStorage.getItem("virtualAdmin");
+    if (savedVA) {
+      setVirtualAdmin(JSON.parse(savedVA));
+    }
+
+    // Listen for virtual admin login event
+    const handleVALogin = (e) => {
+      setVirtualAdmin(e.detail);
+    };
+    
+    window.addEventListener("virtualAdminLogin", handleVALogin);
+    
+    return () => {
+      window.removeEventListener("virtualAdminLogin", handleVALogin);
+    };
+  }, []);
 
   const auth = async (u) => {
     if (!u) return;
@@ -266,8 +289,6 @@ export default function App() {
       const dbUser = await getUser(username, true);
 
       if (dbUser && !dbUser.error) {
-    
-
         const userObj = {
           username: dbUser.username,
           email: dbUser.email || u.email || "",
@@ -581,6 +602,24 @@ export default function App() {
     );
   }
 
+// ✅ VIRTUAL ADMIN CHECK - ADD THIS HERE (BEFORE scr === "admin")
+if (virtualAdmin) {
+  return (
+    <AdminPanel 
+      virtualAdminRefKey={virtualAdmin.refKey}
+      virtualAdminName={virtualAdmin.adminName}
+      onBack={() => {
+        localStorage.removeItem("virtualAdmin");
+        localStorage.removeItem("tabRole");
+        setVirtualAdmin(null);
+        ss("welcome");
+        setUser(null);
+      }}
+    />
+  );
+}
+
+
   if (scr === "admin") {
     return (
       <div
@@ -599,6 +638,8 @@ export default function App() {
       </div>
     );
   }
+
+  
 
   return (
     <div
@@ -626,7 +667,11 @@ export default function App() {
           position: "relative",
         }}
       >
-        {scr === "welcome" && <WelcomeScreen go={ss} />}
+        {scr === "welcome" && (
+          <WelcomeScreen
+            go={ss}
+          />
+        )}
         {scr === "signup" && <SignupScreen go={ss} onAuth={auth} />}
         {scr === "login" && <LoginScreen go={ss} onAuth={auth} onAdmin={adm} />}
 

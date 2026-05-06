@@ -445,7 +445,7 @@ export function WelcomeScreen({ go }) {
           ))}
         </div>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12,  marginBottom: 60 }}>
         <PB lbl="Create Account" onClick={() => go("signup")} />
         <PB lbl="Sign In" onClick={() => go("login")} ghost />
       </div>

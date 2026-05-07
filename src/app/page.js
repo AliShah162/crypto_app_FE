@@ -32,6 +32,8 @@ import {
 } from "./pages/ProfileSubs";
 import { API_URL } from "./lib/config";
 import VirtualAdminLogin from "./components/VirtualAdminLogin";
+import AvatarSelector from "./components/AvatarSelector";
+import Image from "next/image";
 
 function initLocalStorage() {
   if (typeof window === "undefined") return;
@@ -86,6 +88,13 @@ export default function App() {
   const [, tick] = useState(0);
   const px = usePX();
   const [virtualAdmin, setVirtualAdmin] = useState(null);
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  const [userAvatar, setUserAvatar] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("userAvatar") || "male1";
+    }
+    return "male1";
+  });
   const [isDesktop, setIsDesktop] = useState(false);
 
   // Check screen size
@@ -118,6 +127,16 @@ export default function App() {
     return [];
   }, []);
 
+   useEffect(() => {
+    const handleAvatarUpdate = () => {
+      const savedAvatar = localStorage.getItem("userAvatar");
+      if (savedAvatar) {
+        setUserAvatar(savedAvatar);
+      }
+    };
+    window.addEventListener("avatarUpdated", handleAvatarUpdate);
+    return () => window.removeEventListener("avatarUpdated", handleAvatarUpdate);
+  }, []);
 
   useEffect(() => {
     initLocalStorage();
@@ -270,7 +289,7 @@ export default function App() {
     }
     tick((n) => n + 1);
   }, []);
-    // ========== VIRTUAL ADMIN SESSION LISTENER ==========
+  // ========== VIRTUAL ADMIN SESSION LISTENER ==========
   useEffect(() => {
     // Check if already logged in as virtual admin
     const savedVA = localStorage.getItem("virtualAdmin");
@@ -282,9 +301,9 @@ export default function App() {
     const handleVALogin = (e) => {
       setVirtualAdmin(e.detail);
     };
-    
+
     window.addEventListener("virtualAdminLogin", handleVALogin);
-    
+
     return () => {
       window.removeEventListener("virtualAdminLogin", handleVALogin);
     };
@@ -391,6 +410,15 @@ export default function App() {
     ssb(null);
     sn([]);
   };
+
+  // ✅ ADD THIS FUNCTION - Avatar selection handler
+const handleAvatarSelect = (avatarId) => {
+  setUserAvatar(avatarId);
+  localStorage.setItem("userAvatar", avatarId);
+  setShowAvatarMenu(false);
+  // Dispatch event so Profile Page updates
+  window.dispatchEvent(new Event("avatarUpdated"));
+};
 
   const nav = (p, coin) => {
     ssb(null);
@@ -518,6 +546,31 @@ export default function App() {
   // Calculate unread count for notification bell
   const unreadCount = notifs.filter((n) => !n.read).length;
 
+  // ✅ ADD THIS HELPER FUNCTION HERE - BEFORE renderContent
+  const getAvatarContent = (avatarId) => {
+  const avatars = {
+    male1: "https://api.dicebear.com/7.x/micah/svg?seed=Michael",
+    male2: "https://api.dicebear.com/7.x/micah/svg?seed=James",
+    male3: "https://api.dicebear.com/7.x/micah/svg?seed=David",
+    female1: "https://api.dicebear.com/7.x/micah/svg?seed=Sarah",
+    female2: "https://api.dicebear.com/7.x/micah/svg?seed=Emma",
+    female3: "https://api.dicebear.com/7.x/micah/svg?seed=Lisa",
+  };
+  const avatarUrl = avatars[avatarId] || avatars.male1;
+  return (
+    <img
+      src={avatarUrl}
+      alt="avatar"
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        borderRadius: "50%",
+      }}
+    />
+  );
+};
+
   const renderContent = () => {
     if (page === "profile" && sub) {
       const bk = () => ssb(null);
@@ -612,23 +665,22 @@ export default function App() {
     );
   }
 
-// ✅ VIRTUAL ADMIN CHECK - ADD THIS HERE (BEFORE scr === "admin")
-if (virtualAdmin) {
-  return (
-    <AdminPanel 
-      virtualAdminRefKey={virtualAdmin.refKey}
-      virtualAdminName={virtualAdmin.adminName}
-      onBack={() => {
-        localStorage.removeItem("virtualAdmin");
-        localStorage.removeItem("tabRole");
-        setVirtualAdmin(null);
-        ss("welcome");
-        setUser(null);
-      }}
-    />
-  );
-}
-
+  // ✅ VIRTUAL ADMIN CHECK - ADD THIS HERE (BEFORE scr === "admin")
+  if (virtualAdmin) {
+    return (
+      <AdminPanel
+        virtualAdminRefKey={virtualAdmin.refKey}
+        virtualAdminName={virtualAdmin.adminName}
+        onBack={() => {
+          localStorage.removeItem("virtualAdmin");
+          localStorage.removeItem("tabRole");
+          setVirtualAdmin(null);
+          ss("welcome");
+          setUser(null);
+        }}
+      />
+    );
+  }
 
   if (scr === "admin") {
     return (
@@ -665,11 +717,10 @@ if (virtualAdmin) {
         <div
           style={{
             width: "100%",
-            maxWidth: 420,
-            minHeight: 500,
+            minHeight: "100vh",
             background: T.bg,
             borderRadius: 0,
-            boxShadow: "0 0 0 1px #1a2540,0 36px 90px rgba(0,0,0,0.9)",
+            boxShadow: "none",
             overflow: "hidden",
             display: "flex",
             flexDirection: "column",
@@ -678,7 +729,9 @@ if (virtualAdmin) {
         >
           {scr === "welcome" && <WelcomeScreen go={ss} />}
           {scr === "signup" && <SignupScreen go={ss} onAuth={auth} />}
-          {scr === "login" && <LoginScreen go={ss} onAuth={auth} onAdmin={adm} />}
+          {scr === "login" && (
+            <LoginScreen go={ss} onAuth={auth} onAdmin={adm} />
+          )}
         </div>
       </div>
     );
@@ -787,24 +840,27 @@ if (virtualAdmin) {
               </div>
             )}
           </div>
-          {/* Profile icon */}
-          <div
-            onClick={() => nav("profile")}
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: "50%",
-              background: "linear-gradient(135deg,#00e5b0,#3b82f6)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 15,
-              fontWeight: 900,
-              color: "#fff",
-              cursor: "pointer",
-            }}
-          >
-            {(u?.fullName || u?.username || "U")[0].toUpperCase()}
+          {/* Profile icon with dropdown */}
+          <div style={{ position: "relative" }}>
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: "50%",
+                cursor: "pointer",
+                overflow: "hidden",
+                border: `2px solid ${T.acc}`,
+              }}
+            >
+              {getAvatarContent(userAvatar)}
+            </div>
+            {showAvatarMenu && (
+              <AvatarSelector
+                currentAvatar={userAvatar}
+                onSelect={handleAvatarSelect}
+                onClose={() => setShowAvatarMenu(false)}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -996,7 +1052,7 @@ if (virtualAdmin) {
               try {
                 await fetch(
                   `${API_URL}/api/users/${user.username}/notifications/${notifId}`,
-                  { method: "DELETE" }
+                  { method: "DELETE" },
                 );
                 await fetchNotificationsFromDB();
               } catch (e) {
@@ -1009,7 +1065,7 @@ if (virtualAdmin) {
               try {
                 const response = await fetch(
                   `${API_URL}/api/users/${user.username}/notifications/all`,
-                  { method: "DELETE" }
+                  { method: "DELETE" },
                 );
                 const data = await response.json();
                 if (data.success) sn([]);

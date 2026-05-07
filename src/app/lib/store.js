@@ -224,7 +224,17 @@ export const S = {
 const BASES = {
   BTC: 71320, ETH: 2251, LINK: 9.19, SOL: 148,
   XMR: 0.004, MATIC: 0.89, BNB: 612,
-  XRP: 0.62, ADA: 0.45, DOGE: 0.18, BTG: 455.7,
+  XRP: 0.62, ADA: 0.45, DOGE: 0.18,
+  // NEW COINS - add these
+  TRX: 0.12,
+  LTC: 82.5,
+  DOT: 7.85,
+  AVAX: 36.40,
+  SHIB: 0.000023,
+  XLM: 0.11,
+   BTG: 455.7,
+  ATOM: 9.23,
+  TON: 5.67,
 };
 
 export const PE = {
@@ -291,7 +301,15 @@ export const COINS = [
   { id: "XRP", name: "XRP", sym: "✕", cl: "#94a3b8", bg: "#1e293b" },
   { id: "ADA", name: "Cardano", sym: "₳", cl: "#3b82f6", bg: "#172554" },
   { id: "DOGE", name: "Dogecoin", sym: "Ð", cl: "#eab308", bg: "#422006" },
-  { id: "BTG", name: "Bitcoin Gold", sym: "Ƀ", cl: "#f59e0b", bg: "#451a03" },
+  { id: "TRX", name: "TRON", sym: "T", cl: "#ff6b6b", bg: "#4a0e0e", tron: true },
+  { id: "LTC", name: "Litecoin", sym: "Ł", cl: "#a8e6cf", bg: "#1a3a2a" },
+  { id: "DOT", name: "Polkadot", sym: "●", cl: "#e84393", bg: "#3a1040" },
+  { id: "AVAX", name: "Avalanche", sym: "A", cl: "#e84142", bg: "#4a1010" },
+  { id: "SHIB", name: "Shiba Inu", sym: "🐕", cl: "#f39c12", bg: "#4a2a00" },
+  { id: "XLM", name: "Stellar", sym: "★", cl: "#48cae4", bg: "#0a3a4a" },
+   { id: "BTG", name: "Bitcoin Gold", sym: "Ƀ", cl: "#f59e0b", bg: "#451a03" },
+  { id: "ATOM", name: "Cosmos", sym: "⚛", cl: "#8b5cf6", bg: "#2e1065" },
+  { id: "TON", name: "Toncoin", sym: "◈", cl: "#34d399", bg: "#064e3b" },
 ];
 
 export const NEWS = [

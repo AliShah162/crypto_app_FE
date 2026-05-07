@@ -1521,7 +1521,7 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
     },
     {
       id: "female1",
-      name: "Sarah",
+      name: "Boyd",
       image: "https://api.dicebear.com/7.x/micah/svg?seed=Sarah",
     },
     {

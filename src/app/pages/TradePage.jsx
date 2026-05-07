@@ -4,68 +4,6 @@ import { T, COINS, PE, f2, usd } from "../lib/store";
 import { PB } from "../components/UI";
 import { API_URL } from "../lib/config";
 
-/* ── Binance Design Tokens ─────────────────────────────────── */
-const B = {
-  bg: "#0b0e11",
-  surface: "#0f1217",
-  card: "#161a21",
-  card2: "#1c2130",
-  border: "rgba(255,255,255,0.06)",
-  gold: "#f0b90b",
-  goldDim: "rgba(240,185,11,0.4)",
-  green: "#0ecb81",
-  red: "#f6465d",
-  blue: "#1890ff",
-  text: "#eaecef",
-  textMid: "#848e9c",
-  textDim: "#474d57",
-};
-
-const TRADE_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
-  * { box-sizing: border-box; }
-  .tr-page { font-family: 'IBM Plex Sans', sans-serif; background: ${B.bg}; color: ${B.text}; }
-  .tr-input {
-    width: 100%; background: ${B.surface};
-    border: 1px solid ${B.border}; border-radius: 6px;
-    padding: 12px 14px; font-size: 15px; color: ${B.text};
-    font-family: 'IBM Plex Sans', sans-serif; outline: none;
-    transition: border-color 0.2s;
-  }
-  .tr-input:focus { border-color: ${B.gold}; }
-  .tr-input::placeholder { color: ${B.textDim}; font-size: 13px; }
-  @keyframes trFadeUp {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes trPulse {
-    0%,100% { opacity: 1; }
-    50%      { opacity: 0.5; }
-  }
-  .tr-coin-chip {
-    display: flex; flex-direction: column; align-items: center;
-    padding: 10px 10px 8px; border-radius: 8px; cursor: pointer;
-    border: 1px solid ${B.border};
-    background: ${B.card};
-    transition: border-color 0.2s, background 0.2s;
-    min-width: 72px; flex-shrink: 0;
-  }
-  .tr-coin-chip.active {
-    border-color: ${B.gold};
-    background: rgba(240,185,11,0.07);
-  }
-  .tr-time-btn {
-    flex: 1; padding: 10px 6px; border-radius: 6px;
-    border: 1px solid ${B.border}; background: ${B.card};
-    font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 12px; font-weight: 600; cursor: pointer;
-    transition: all 0.2s; text-align: center;
-  }
-  .tr-time-btn.active {
-    border-color: currentColor;
-  }
-`;
-
 /* ── Candlestick Chart ─────────────────────────────────────── */
 function CChart({ coin, px }) {
   const ref = useRef(null);
@@ -83,31 +21,31 @@ function CChart({ coin, px }) {
     const mn = Math.min(...vals),
       mx = Math.max(...vals),
       rng = mx - mn || 1;
-    const pad = { r: 68, t: 8, b: 24 };
+    const pad = { r: 66, t: 7, b: 22 };
     const cw = (W - pad.r) / cd.length;
     const yp = (v) => pad.t + (1 - (v - mn) / rng) * (H - pad.t - pad.b);
 
     // Grid lines
-    ctx.strokeStyle = "rgba(255,255,255,0.04)";
-    ctx.lineWidth = 0.5;
-    for (let i = 0; i <= 4; i++) {
-      const y = pad.t + (i * (H - pad.t - pad.b)) / 4;
+    ctx.strokeStyle = "#1a2540";
+    ctx.lineWidth = 0.6;
+    for (let i = 0; i <= 5; i++) {
+      const y = pad.t + (i * (H - pad.t - pad.b)) / 5;
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(W - pad.r, y);
       ctx.stroke();
-      ctx.fillStyle = "#474d57";
-      ctx.font = "8px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = "#4b6080";
+      ctx.font = "8px 'Sora', sans-serif";
       ctx.textAlign = "left";
-      ctx.fillText(f2(mx - i * (rng / 4), 2), W - pad.r + 4, y + 3);
+      ctx.fillText(f2(mx - i * (rng / 5), 2), W - pad.r + 3, y + 3);
     }
 
     // Candles
     cd.forEach((c, i) => {
-      const x = i * cw + cw * 0.12,
-        bw = cw * 0.72;
+      const x = i * cw + cw * 0.1,
+        bw = cw * 0.76;
       const isUp = c.c >= c.o;
-      const col = isUp ? B.green : B.red;
+      const col = isUp ? T.green : T.red;
       ctx.strokeStyle = col;
       ctx.lineWidth = 0.8;
       ctx.beginPath();
@@ -123,27 +61,22 @@ function CChart({ coin, px }) {
     // Price line
     const cur = px[coin] || cd[cd.length - 1].c;
     const cy = yp(cur);
-    const isUpOverall = cd.length > 1 && cur >= cd[0].c;
-    ctx.strokeStyle = isUpOverall ? B.green : B.red;
+    ctx.strokeStyle = T.red;
     ctx.lineWidth = 0.8;
-    ctx.setLineDash([3, 4]);
+    ctx.setLineDash([3, 3]);
     ctx.beginPath();
     ctx.moveTo(0, cy);
     ctx.lineTo(W - pad.r, cy);
     ctx.stroke();
     ctx.setLineDash([]);
-
-    // Price label
-    ctx.fillStyle = isUpOverall ? B.green : B.red;
-    ctx.fillRect(W - pad.r, cy - 9, pad.r, 18);
-    ctx.fillStyle = "#0b0e11";
-    ctx.font = "bold 8px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = T.red;
+    ctx.fillRect(W - pad.r, cy - 8, pad.r, 16);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 8px 'Sora', sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(f2(cur, 2), W - pad.r + 34, cy + 3);
-
-    // Time labels
-    ctx.fillStyle = "#474d57";
-    ctx.font = "8px 'IBM Plex Sans', sans-serif";
+    ctx.fillText(f2(cur, 2), W - pad.r + 33, cy + 3);
+    ctx.fillStyle = "#4b6080";
+    ctx.font = "8px 'Sora', sans-serif";
     [
       0,
       Math.floor(cd.length / 3),
@@ -153,9 +86,9 @@ function CChart({ coin, px }) {
       if (cd[i]) {
         const d = new Date(cd[i].t);
         ctx.fillText(
-          `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`,
+          d.getHours() + ":" + String(d.getMinutes()).padStart(2, "0"),
           i * cw + cw / 2,
-          H - 5,
+          H - 4,
         );
       }
     });
@@ -166,17 +99,17 @@ function CChart({ coin, px }) {
       ref={ref}
       width={348}
       height={200}
-      style={{ width: "100%", height: 200, display: "block", borderRadius: 6 }}
+      style={{ width: "100%", height: 200, display: "block", borderRadius: 9 }}
     />
   );
 }
 
 const TIME_OPTIONS = [
-  { seconds: 30, label: "30s", profitPercent: 20, color: B.green },
-  { seconds: 60, label: "60s", profitPercent: 30, color: "#1890ff" },
-  { seconds: 120, label: "2min", profitPercent: 40, color: B.gold },
-  { seconds: 180, label: "3min", profitPercent: 50, color: "#b37feb" },
-  { seconds: 240, label: "4min", profitPercent: 60, color: "#f759ab" },
+  { seconds: 30, label: "30s", profitPercent: 20, color: T.green },
+  { seconds: 60, label: "60s", profitPercent: 30, color: T.blue },
+  { seconds: 120, label: "120s", profitPercent: 40, color: T.gold },
+  { seconds: 180, label: "180s", profitPercent: 50, color: "#8b5cf6" },
+  { seconds: 240, label: "240s", profitPercent: 60, color: "#ec4899" },
 ];
 
 async function getUserBalance(username) {
@@ -203,19 +136,13 @@ function OrderConfirmation({ order, onClose }) {
     {
       label: "Currency",
       value: `${order.coin}/USDT`,
-      color: B.text,
+      color: T.text,
       key: "currency",
     },
     {
       label: "Order No.",
       value: (
-        <span
-          style={{
-            fontFamily: "'IBM Plex Mono',monospace",
-            fontSize: 11,
-            color: B.gold,
-          }}
-        >
+        <span style={{ fontFamily: "monospace", fontSize: 11, color: T.acc }}>
           {order.orderNumber}
         </span>
       ),
@@ -225,44 +152,38 @@ function OrderConfirmation({ order, onClose }) {
     {
       label: "Order Amount",
       value: `$${order.amount}`,
-      color: B.gold,
+      color: T.gold,
       key: "orderAmount",
     },
-    {
-      label: "Profit Amount",
-      value: "0",
-      color: B.textMid,
-      key: "profitAmount",
-    },
+    { label: "Profit Amount", value: "0", color: T.dim, key: "profitAmount" },
     {
       label: "Direction",
       value: isUp ? "Buy Up ↑" : "Buy Down ↓",
-      color: isUp ? B.green : B.red,
+      color: isUp ? T.green : T.red,
       key: "direction",
     },
     {
       label: "Scale",
       value: `${order.profitPercent}%`,
-      color: B.blue,
+      color: T.blue,
       key: "scale",
     },
     {
       label: "Duration",
       value: `${order.timeSeconds}s`,
-      color: B.text,
+      color: T.text,
       key: "duration",
     },
     {
       label: "Order Time",
       value: order.orderTime,
-      color: B.textMid,
+      color: T.dim,
       key: "orderTime",
     },
   ];
 
   return (
     <div
-      className="tr-page"
       style={{
         flex: 1,
         display: "flex",
@@ -271,26 +192,24 @@ function OrderConfirmation({ order, onClose }) {
         justifyContent: "center",
         padding: "24px 16px",
         overflowY: "auto",
+        background: T.bg,
       }}
     >
-      <style>{TRADE_CSS}</style>
       <div
         style={{
           width: "100%",
           maxWidth: 380,
-          background: B.card,
-          borderRadius: 12,
-          border: `1px solid ${isUp ? "rgba(14,203,129,0.25)" : "rgba(246,70,93,0.25)"}`,
+          background: T.card,
+          borderRadius: 16,
+          border: `1px solid ${isUp ? T.green : T.red}`,
           overflow: "hidden",
-          animation: "trFadeUp 0.4s ease both",
         }}
       >
-        {/* Header */}
         <div
           style={{
             padding: "20px 20px 16px",
-            background: isUp ? "rgba(14,203,129,0.06)" : "rgba(246,70,93,0.06)",
-            borderBottom: `1px solid ${B.border}`,
+            background: isUp ? "rgba(16,185,129,0.06)" : "rgba(239,68,68,0.06)",
+            borderBottom: `1px solid ${T.line}`,
             textAlign: "center",
           }}
         >
@@ -300,9 +219,9 @@ function OrderConfirmation({ order, onClose }) {
               height: 44,
               borderRadius: 10,
               background: isUp
-                ? "rgba(14,203,129,0.12)"
-                : "rgba(246,70,93,0.12)",
-              border: `1px solid ${isUp ? "rgba(14,203,129,0.3)" : "rgba(246,70,93,0.3)"}`,
+                ? "rgba(16,185,129,0.12)"
+                : "rgba(239,68,68,0.12)",
+              border: `1px solid ${isUp ? T.green : T.red}`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -312,15 +231,14 @@ function OrderConfirmation({ order, onClose }) {
           >
             {isUp ? "↑" : "↓"}
           </div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: B.text }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>
             Order Placed Successfully
           </div>
-          <div style={{ fontSize: 11, color: B.textMid, marginTop: 4 }}>
+          <div style={{ fontSize: 11, color: T.dim, marginTop: 4 }}>
             Your trade is being processed
           </div>
         </div>
 
-        {/* Rows */}
         <div style={{ padding: "4px 20px" }}>
           {rows.map((row) => (
             <div
@@ -332,18 +250,16 @@ function OrderConfirmation({ order, onClose }) {
                 padding: "12px 0",
                 borderBottom:
                   row.key !== rows[rows.length - 1].key
-                    ? `1px solid ${B.border}`
+                    ? `1px solid ${T.line}`
                     : "none",
               }}
             >
-              <span style={{ fontSize: 12, color: B.textMid }}>
-                {row.label}
-              </span>
+              <span style={{ fontSize: 12, color: T.dim }}>{row.label}</span>
               <span
                 style={{
                   fontSize: 12,
                   fontWeight: 600,
-                  color: row.color || B.text,
+                  color: row.color || T.text,
                 }}
               >
                 {row.value}
@@ -352,23 +268,20 @@ function OrderConfirmation({ order, onClose }) {
           ))}
         </div>
 
-        {/* Potential profit banner */}
         <div
           style={{
             margin: "0 20px 16px",
             padding: "12px 14px",
             borderRadius: 8,
-            background: "rgba(14,203,129,0.07)",
-            border: "1px solid rgba(14,203,129,0.15)",
+            background: "rgba(16,185,129,0.07)",
+            border: "1px solid rgba(16,185,129,0.15)",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
           }}
         >
-          <span style={{ fontSize: 12, color: B.textMid }}>
-            Potential Profit
-          </span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: B.green }}>
+          <span style={{ fontSize: 12, color: T.dim }}>Potential Profit</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: T.green }}>
             +${profit.toFixed(2)}{" "}
             <span style={{ fontSize: 10, fontWeight: 400 }}>
               ({order.profitPercent}%)
@@ -382,10 +295,10 @@ function OrderConfirmation({ order, onClose }) {
             style={{
               width: "100%",
               padding: "13px",
-              background: B.gold,
+              background: "linear-gradient(135deg, #00e5b0, #3b82f6)",
               border: "none",
-              borderRadius: 6,
-              color: "#0b0e11",
+              borderRadius: 10,
+              color: "#fff",
               fontSize: 13,
               fontWeight: 700,
               fontFamily: "inherit",
@@ -410,7 +323,6 @@ export default function TradePage({ nav, px, onTrade, coin }) {
   const [balance, setBalance] = useState(0);
   const [showConfirmation, setShow] = useState(false);
   const [placedOrder, setPlaced] = useState(null);
-  const [tab, setTab] = useState("chart"); // "chart" | "info"
   const coinSelRef = useRef(null);
 
   useEffect(() => {
@@ -559,16 +471,14 @@ export default function TradePage({ nav, px, onTrade, coin }) {
 
   return (
     <div
-      className="tr-page"
       style={{
         flex: 1,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
+        background: T.bg,
       }}
     >
-      <style>{TRADE_CSS}</style>
-
       {/* ── Top Header ── */}
       <div
         style={{
@@ -576,8 +486,8 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           alignItems: "center",
           justifyContent: "space-between",
           padding: "13px 16px 11px",
-          borderBottom: `1px solid ${B.border}`,
-          background: B.bg,
+          borderBottom: `1px solid ${T.line}`,
+          background: T.bg,
           position: "sticky",
           top: 0,
           zIndex: 10,
@@ -589,30 +499,30 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           style={{
             width: 34,
             height: 34,
-            borderRadius: 6,
-            border: `1px solid ${B.border}`,
-            background: B.card,
+            borderRadius: 8,
+            border: `1px solid ${T.line}`,
+            background: T.card,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            color: B.textMid,
-            fontSize: 15,
+            color: T.text,
+            fontSize: 16,
           }}
         >
           ←
         </button>
 
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: B.text }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>
             {sel}/USDT
           </div>
-          <div style={{ fontSize: 10, color: B.textMid }}>Binary Options</div>
+          <div style={{ fontSize: 10, color: T.dim }}>Binary Options</div>
         </div>
 
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 10, color: B.textMid }}>Balance</div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: B.green }}>
+          <div style={{ fontSize: 10, color: T.dim }}>Balance</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: T.green }}>
             {usd(balance)}
           </div>
         </div>
@@ -623,7 +533,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
         style={{
           flex: 1,
           overflowY: "auto",
-          scrollbarWidth: "thin",
+          scrollbarWidth: "none",
           paddingBottom: 16,
         }}
       >
@@ -631,7 +541,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
         <div
           style={{
             padding: "12px 16px 10px",
-            borderBottom: `1px solid ${B.border}`,
+            borderBottom: `1px solid ${T.line}`,
           }}
         >
           <div
@@ -644,10 +554,10 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           >
             <div
               style={{
-                fontFamily: "'IBM Plex Mono',monospace",
+                fontFamily: "monospace",
                 fontSize: 26,
                 fontWeight: 600,
-                color: isUp ? B.green : B.red,
+                color: isUp ? T.green : T.red,
                 lineHeight: 1,
               }}
             >
@@ -661,9 +571,9 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                   fontSize: 11,
                   fontWeight: 600,
                   background: isUp
-                    ? "rgba(14,203,129,0.1)"
-                    : "rgba(246,70,93,0.1)",
-                  color: isUp ? B.green : B.red,
+                    ? "rgba(16,185,129,0.1)"
+                    : "rgba(239,68,68,0.1)",
+                  color: isUp ? T.green : T.red,
                 }}
               >
                 {isUp ? "+" : ""}
@@ -673,19 +583,19 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           </div>
           <div style={{ display: "flex", gap: 16 }}>
             {[
-              ["24h High", f2(hi24, 4), B.green],
-              ["24h Low", f2(lo24, 4), B.red],
+              ["24h High", f2(hi24, 4), T.green],
+              ["24h Low", f2(lo24, 4), T.red],
               [
                 "Change",
                 `${isUp ? "+" : ""}${f2(chg, 4)}`,
-                isUp ? B.green : B.red,
+                isUp ? T.green : T.red,
               ],
             ].map(([label, val, color]) => (
               <div key={label}>
                 <div
                   style={{
                     fontSize: 9,
-                    color: B.textDim,
+                    color: T.dim,
                     letterSpacing: 0.3,
                     marginBottom: 2,
                   }}
@@ -697,7 +607,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                     fontSize: 11,
                     fontWeight: 500,
                     color,
-                    fontFamily: "'IBM Plex Mono',monospace",
+                    fontFamily: "monospace",
                   }}
                 >
                   {val}
@@ -711,11 +621,10 @@ export default function TradePage({ nav, px, onTrade, coin }) {
         <div
           style={{
             padding: "0 12px 12px",
-            background: B.surface,
-            borderBottom: `1px solid ${B.border}`,
+            background: T.card2,
+            borderBottom: `1px solid ${T.line}`,
           }}
         >
-          {/* Chart tab bar */}
           <div
             style={{
               display: "flex",
@@ -732,8 +641,8 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                   padding: "4px 10px",
                   borderRadius: 4,
                   border: "none",
-                  background: tf === "1m" ? B.card : "transparent",
-                  color: tf === "1m" ? B.text : B.textMid,
+                  background: tf === "1m" ? T.card : "transparent",
+                  color: tf === "1m" ? T.text : T.dim,
                   fontSize: 11,
                   fontWeight: 500,
                   cursor: "pointer",
@@ -760,7 +669,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
             <div
               style={{
                 fontSize: 10,
-                color: B.textMid,
+                color: T.dim,
                 fontWeight: 600,
                 letterSpacing: 0.8,
                 marginBottom: 9,
@@ -783,7 +692,18 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                   key={c.id}
                   data-coin={c.id}
                   onClick={() => setSel(c.id)}
-                  className={`tr-coin-chip${sel === c.id ? " active" : ""}`}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    padding: "8px 5px",
+                    borderRadius: 8,
+                    border: `1.5px solid ${sel === c.id ? T.acc : T.line}`,
+                    background: sel === c.id ? "rgba(0,229,176,0.07)" : T.card2,
+                    cursor: "pointer",
+                    textAlign: "center",
+                    minWidth: 70,
+                  }}
                 >
                   <div
                     style={{
@@ -805,7 +725,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                     style={{
                       fontSize: 10,
                       fontWeight: 700,
-                      color: sel === c.id ? B.gold : B.text,
+                      color: sel === c.id ? T.acc : T.text,
                     }}
                   >
                     {c.id}
@@ -813,8 +733,8 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                   <div
                     style={{
                       fontSize: 9,
-                      color: B.textDim,
-                      fontFamily: "'IBM Plex Mono',monospace",
+                      color: T.dim,
+                      fontFamily: "monospace",
                       marginTop: 1,
                     }}
                   >
@@ -830,7 +750,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
             <div
               style={{
                 fontSize: 10,
-                color: B.textMid,
+                color: T.dim,
                 fontWeight: 600,
                 letterSpacing: 0.8,
                 marginBottom: 9,
@@ -843,24 +763,28 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                 <button
                   key={opt.seconds}
                   onClick={() => setSelTime(opt)}
-                  className="tr-time-btn"
                   style={{
-                    color:
-                      selectedTime.seconds === opt.seconds
-                        ? opt.color
-                        : B.textMid,
-                    borderColor:
-                      selectedTime.seconds === opt.seconds
-                        ? opt.color
-                        : B.border,
+                    flex: 1,
+                    padding: "8px 6px",
+                    borderRadius: 6,
+                    border: `1.5px solid ${
+                      selectedTime.seconds === opt.seconds ? opt.color : T.line
+                    }`,
                     background:
                       selectedTime.seconds === opt.seconds
-                        ? `${opt.color}12`
-                        : B.card,
+                        ? `${opt.color}15`
+                        : T.card,
+                    color:
+                      selectedTime.seconds === opt.seconds ? opt.color : T.dim,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    textAlign: "center",
                   }}
                 >
                   <div>{opt.label}</div>
-                  <div style={{ fontSize: 10, marginTop: 2, opacity: 0.8 }}>
+                  <div style={{ fontSize: 9, marginTop: 2 }}>
                     {opt.profitPercent}%
                   </div>
                 </button>
@@ -873,7 +797,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
             <div
               style={{
                 fontSize: 10,
-                color: B.textMid,
+                color: T.dim,
                 fontWeight: 600,
                 letterSpacing: 0.8,
                 marginBottom: 9,
@@ -891,17 +815,16 @@ export default function TradePage({ nav, px, onTrade, coin }) {
               <button
                 onClick={() => setOrderType("up")}
                 style={{
-                  padding: "14px 0",
-                  borderRadius: 6,
+                  padding: "13px 0",
+                  borderRadius: 8,
                   fontFamily: "inherit",
-                  border: `1.5px solid ${orderType === "up" ? B.green : B.border}`,
+                  border: `1.5px solid ${orderType === "up" ? T.green : T.line}`,
                   background:
-                    orderType === "up" ? "rgba(14,203,129,0.1)" : B.card,
-                  color: B.green,
+                    orderType === "up" ? "rgba(16,185,129,0.1)" : T.card,
+                  color: T.green,
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: "pointer",
-                  transition: "all 0.15s",
                 }}
               >
                 ↑ Buy Up
@@ -909,17 +832,16 @@ export default function TradePage({ nav, px, onTrade, coin }) {
               <button
                 onClick={() => setOrderType("down")}
                 style={{
-                  padding: "14px 0",
-                  borderRadius: 6,
+                  padding: "13px 0",
+                  borderRadius: 8,
                   fontFamily: "inherit",
-                  border: `1.5px solid ${orderType === "down" ? B.red : B.border}`,
+                  border: `1.5px solid ${orderType === "down" ? T.red : T.line}`,
                   background:
-                    orderType === "down" ? "rgba(246,70,93,0.1)" : B.card,
-                  color: B.red,
+                    orderType === "down" ? "rgba(239,68,68,0.1)" : T.card,
+                  color: T.red,
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: "pointer",
-                  transition: "all 0.15s",
                 }}
               >
                 ↓ Buy Down
@@ -932,7 +854,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
             <div
               style={{
                 fontSize: 10,
-                color: B.textMid,
+                color: T.dim,
                 fontWeight: 600,
                 letterSpacing: 0.8,
                 marginBottom: 9,
@@ -948,7 +870,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                   top: "50%",
                   transform: "translateY(-50%)",
                   fontSize: 14,
-                  color: B.textMid,
+                  color: T.dim,
                   fontWeight: 500,
                 }}
               >
@@ -959,8 +881,17 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="tr-input"
-                style={{ paddingLeft: 28 }}
+                style={{
+                  width: "100%",
+                  background: T.card2,
+                  border: `1px solid ${T.line}`,
+                  borderRadius: 10,
+                  padding: "12px 14px 12px 28px",
+                  fontSize: 15,
+                  color: T.text,
+                  outline: "none",
+                  fontFamily: "inherit",
+                }}
               />
             </div>
 
@@ -973,11 +904,11 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                   style={{
                     flex: 1,
                     padding: "6px 0",
-                    borderRadius: 5,
-                    border: `1px solid ${amount === String(p) ? B.gold : B.border}`,
+                    borderRadius: 6,
+                    border: `1.5px solid ${amount === String(p) ? T.acc : T.line}`,
                     background:
-                      amount === String(p) ? "rgba(240,185,11,0.08)" : B.card,
-                    color: amount === String(p) ? B.gold : B.textMid,
+                      amount === String(p) ? "rgba(0,229,176,0.08)" : T.card,
+                    color: amount === String(p) ? T.acc : T.dim,
                     fontSize: 11,
                     fontWeight: 600,
                     cursor: "pointer",
@@ -994,17 +925,16 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           {!isNaN(amt) && amt > 0 && (
             <div
               style={{
-                background: B.card2,
-                borderRadius: 8,
-                padding: "13px 14px",
-                border: `1px solid ${B.border}`,
-                animation: "trFadeUp 0.3s ease both",
+                background: T.card,
+                borderRadius: 10,
+                padding: "12px 14px",
+                border: `1px solid ${T.line}`,
               }}
             >
               <div
                 style={{
                   fontSize: 10,
-                  color: B.textMid,
+                  color: T.dim,
                   fontWeight: 600,
                   letterSpacing: 0.8,
                   marginBottom: 10,
@@ -1013,10 +943,10 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                 TRADE BREAKDOWN
               </div>
               {[
-                ["Wager", `$${amt.toFixed(2)}`, B.text],
-                ["Potential Profit", `+$${potProfit.toFixed(2)}`, B.green],
-                ["Total if Win", `$${(amt + potProfit).toFixed(2)}`, B.gold],
-                ["Scale", `${selectedTime.profitPercent}%`, B.blue],
+                ["Wager", `$${amt.toFixed(2)}`, T.text],
+                ["Potential Profit", `+$${potProfit.toFixed(2)}`, T.green],
+                ["Total if Win", `$${(amt + potProfit).toFixed(2)}`, T.acc],
+                ["Scale", `${selectedTime.profitPercent}%`, T.blue],
               ].map(([label, val, color]) => (
                 <div
                   key={label}
@@ -1026,9 +956,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                     marginBottom: 7,
                   }}
                 >
-                  <span style={{ fontSize: 12, color: B.textMid }}>
-                    {label}
-                  </span>
+                  <span style={{ fontSize: 12, color: T.dim }}>{label}</span>
                   <span style={{ fontSize: 12, fontWeight: 600, color }}>
                     {val}
                   </span>
@@ -1042,11 +970,11 @@ export default function TradePage({ nav, px, onTrade, coin }) {
             <div
               style={{
                 padding: "10px 13px",
-                borderRadius: 6,
-                background: "rgba(246,70,93,0.08)",
-                border: "1px solid rgba(246,70,93,0.2)",
+                borderRadius: 8,
+                background: "rgba(239,68,68,0.08)",
+                border: "1px solid rgba(239,68,68,0.2)",
                 fontSize: 12,
-                color: B.red,
+                color: T.red,
                 textAlign: "center",
               }}
             >
@@ -1055,31 +983,28 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           )}
 
           {/* ── Place Order Button ── */}
-          {/* CHANGED: Centered with max-width 260px, so it's less wide */}
           <div style={{ display: "flex", justifyContent: "center" }}>
             <button
               onClick={submitOrder}
               style={{
                 width: "100%",
                 maxWidth: 260,
-                padding: "15px 0",
-                borderRadius: 6,
+                padding: "14px 0",
+                borderRadius: 10,
                 border: "none",
                 cursor: "pointer",
                 fontFamily: "inherit",
                 fontSize: 14,
                 fontWeight: 700,
-                letterSpacing: 0.3,
                 background:
                   orderType === "up"
-                    ? "linear-gradient(90deg, #0ecb81, #07a86a)"
-                    : "linear-gradient(90deg, #f6465d, #d63651)",
+                    ? "linear-gradient(135deg, #00e5b0, #3b82f6)"
+                    : "linear-gradient(135deg, #ef4444, #dc2626)",
                 color: "#fff",
                 boxShadow:
                   orderType === "up"
-                    ? "0 4px 16px rgba(14,203,129,0.25)"
-                    : "0 4px 16px rgba(246,70,93,0.25)",
-                transition: "opacity 0.2s, transform 0.1s",
+                    ? "0 4px 14px rgba(0,229,176,0.3)"
+                    : "0 4px 14px rgba(239,68,68,0.3)",
               }}
             >
               {orderType === "up"

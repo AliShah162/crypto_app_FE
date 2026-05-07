@@ -639,18 +639,7 @@ function LxHdr({ title, back, subtitle }) {
   );
 }
 
-const SortArrow = ({ k }) => (
-    <span
-      style={{
-        fontSize: 9,
-        marginLeft: 3,
-        opacity: sortKey === k ? 1 : 0.3,
-        color: sortKey === k ? T.acc : T.dim,
-      }}
-    >
-      {sortKey === k ? (sortDir === -1 ? "▼" : "▲") : "▼"}
-    </span>
-  );
+
 
 /* ── NewsPage ─────────────────────────────────────────────── */
 export function NewsPage({ nav }) {
@@ -757,6 +746,20 @@ export function MarketPage({ px, nav }) {
       setSortDir(-1);
     }
   };
+
+
+  const SortArrow = ({ k }) => (
+    <span
+      style={{
+        fontSize: 9,
+        marginLeft: 3,
+        opacity: sortKey === k ? 1 : 0.3,
+        color: sortKey === k ? T.acc : T.dim,
+      }}
+    >
+      {sortKey === k ? (sortDir === -1 ? "▼" : "▲") : "▼"}
+    </span>
+  );
 
   const coins = COINS.filter((c) => {
     if (tab === "⭐ Favorites") return favs.includes(c.id);

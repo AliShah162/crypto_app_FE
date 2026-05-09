@@ -708,7 +708,7 @@ export function NewsPage({ nav }) {
 export function MarketPage({ px, nav }) {
   const [tab, setTab] = useState("All");
   const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState("cap");
+  const [sortKey, setSortKey] = useState("");
   const [sortDir, setSortDir] = useState(-1);
   const [favs, setFavs] = useState([]);
 
@@ -728,6 +728,7 @@ export function MarketPage({ px, nav }) {
     LINK: "DeFi",
     DOGE: "Meme",
     SHIB: "Meme",
+    BTS: "Layer 1",
     XRP: "Exchange",
     LTC: "Payment",
     XLM: "Payment",
@@ -761,31 +762,42 @@ export function MarketPage({ px, nav }) {
     </span>
   );
 
-  const coins = COINS.filter((c) => {
-    if (tab === "⭐ Favorites") return favs.includes(c.id);
-    if (tab !== "All") return CATEGORIES[c.id] === tab;
-    return true;
-  })
-    .filter(
-      (c) =>
-        search === "" ||
-        c.id.toLowerCase().includes(search.toLowerCase()) ||
-        c.name.toLowerCase().includes(search.toLowerCase()),
-    )
-    .map((c) => {
-      const p = px[c.id] || 0;
-      const h = PE.h?.[c.id] || [];
-      const prev24 = h.length > 1 ? h[Math.max(0, h.length - 20)].c : p;
-      const chg24 = prev24 ? ((p - prev24) / prev24) * 100 : 0;
-      const vol =
-        (px[c.id] || 1) * (800000 + Math.abs(c.id.charCodeAt(0)) * 12000);
-      return { ...c, p, chg24, vol, h };
-    })
-    .sort((a, b) => {
-      const map = { price: "p", change: "chg24", volume: "vol" };
-      const key = map[sortKey] || "vol";
-      return (a[key] - b[key]) * sortDir;
-    });
+  // Replace the existing coins variable (around line 550-570) with this:
+
+const coins = COINS.filter((c) => {
+  if (tab === "⭐ Favorites") return favs.includes(c.id);
+  if (tab !== "All") return CATEGORIES[c.id] === tab;
+  return true;
+})
+.filter(
+  (c) =>
+    search === "" ||
+    c.id.toLowerCase().includes(search.toLowerCase()) ||
+    c.name.toLowerCase().includes(search.toLowerCase()),
+)
+.map((c) => {
+  const p = px[c.id] || 0;
+  const h = PE.h?.[c.id] || [];
+  const prev24 = h.length > 1 ? h[Math.max(0, h.length - 20)].c : p;
+  const chg24 = prev24 ? ((p - prev24) / prev24) * 100 : 0;
+  const vol =
+    (px[c.id] || 1) * (800000 + Math.abs(c.id.charCodeAt(0)) * 12000);
+  return { ...c, p, chg24, vol, h };
+})
+.sort((a, b) => {
+  // If not sorting by a specific key, use the original COINS order
+  if (sortKey === "cap") {
+    // Return to original order based on COINS array index
+    const indexA = COINS.findIndex(c => c.id === a.id);
+    const indexB = COINS.findIndex(c => c.id === b.id);
+    return indexA - indexB;
+  }
+  
+  // For other sorting (price, change, volume)
+  const map = { price: "p", change: "chg24", volume: "vol" };
+  const key = map[sortKey];
+  return (a[key] - b[key]) * sortDir;
+});
 
   
 

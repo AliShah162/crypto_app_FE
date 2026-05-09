@@ -268,26 +268,7 @@ function OrderConfirmation({ order, onClose }) {
           ))}
         </div>
 
-        <div
-          style={{
-            margin: "0 20px 16px",
-            padding: "12px 14px",
-            borderRadius: 8,
-            background: "rgba(16,185,129,0.07)",
-            border: "1px solid rgba(16,185,129,0.15)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <span style={{ fontSize: 12, color: T.dim }}>Potential Profit</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: T.green }}>
-            +${profit.toFixed(2)}{" "}
-            <span style={{ fontSize: 10, fontWeight: 400 }}>
-              ({order.profitPercent}%)
-            </span>
-          </span>
-        </div>
+        
 
         <div style={{ padding: "0 20px 20px" }}>
           <button
@@ -346,96 +327,91 @@ export default function TradePage({ nav, px, onTrade, coin }) {
   }, [sel]);
 
   const submitOrder = async () => {
-    setErr("");
-    const amt = parseFloat(amount);
-    const sessionUser = localStorage.getItem("session");
-    if (!sessionUser) {
-      setErr("Not logged in");
-      return;
-    }
-    if (!amt || amt <= 0) {
-      setErr("Enter a valid amount");
-      return;
-    }
+  setErr("");
+  const amt = parseFloat(amount);
+  const sessionUser = localStorage.getItem("session");
+  
+  if (!sessionUser) {
+    setErr("Not logged in");
+    return;
+  }
+  if (!amt || amt <= 0) {
+    setErr("Enter a valid amount");
+    return;
+  }
 
-    let freshBalance;
-    try {
-      freshBalance = await getUserBalance(sessionUser);
-    } catch {
-      setErr("Cannot reach server. Check your connection.");
-      return;
-    }
+  // Check balance first
+  let freshBalance;
+  try {
+    freshBalance = await getUserBalance(sessionUser);
+  } catch {
+    setErr("Cannot reach server. Check your connection.");
+    return;
+  }
 
-    if (freshBalance < amt) {
-      setBalance(freshBalance);
-      setErr(`Insufficient balance. Available: ${usd(freshBalance)}`);
-      return;
-    }
+  if (freshBalance < amt) {
+    setBalance(freshBalance);
+    setErr(`Insufficient balance. Available: ${usd(freshBalance)}`);
+    return;
+  }
 
-    const orderNumber = generateOrderNumber();
-    const orderData = {
-      id: Date.now() + Math.random(),
-      orderNumber,
-      coin: sel,
-      amount: amt,
-      orderType,
-      timeSeconds: selectedTime.seconds,
-      profitPercent: selectedTime.profitPercent,
-      status: "pending",
-      startPrice: px[sel] || PE.p[sel] || 0,
-      username: sessionUser,
-      startTime: new Date().toISOString(),
-    };
+  const orderNumber = generateOrderNumber();
+  const orderData = {
+    id: Date.now() + Math.random(),
+    orderNumber,
+    coin: sel,
+    amount: amt,
+    orderType,
+    timeSeconds: selectedTime.seconds,
+    profitPercent: selectedTime.profitPercent,
+    status: "pending",
+    startPrice: px[sel] || PE.p[sel] || 0,
+    username: sessionUser,
+    startTime: new Date().toISOString(),
+  };
 
-    try {
-      const res = await fetch(
-        `${API_URL}/api/users/${sessionUser}/pending-trades`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(orderData),
-        },
-      );
-      if (!res.ok) throw new Error();
-    } catch {
-      setErr("Failed to place order. Please try again.");
-      return;
-    }
+  // FIRE ALL API CALLS IN PARALLEL - NO WAITING
+  setPlaced({ ...orderData, orderTime: new Date().toLocaleString() });
+  setShow(true);
+  setAmount("");
 
-    try {
-      await fetch(`${API_URL}/api/users/${sessionUser}/transactions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "Binary Trade",
-          orderNumber,
-          coin: sel,
-          amount: amt,
-          orderType,
-          timeSeconds: selectedTime.seconds,
-          profitPercent: selectedTime.profitPercent,
-          status: "pending",
-          profitAmount: 0,
-          date: new Date().toISOString(),
-          formattedDate: new Date().toLocaleString(),
-        }),
-      });
-    } catch {}
-
-    await fetch(`${API_URL}/api/users/${sessionUser}/notifications`, {
+  // Execute all in background without blocking UI
+  Promise.all([
+    fetch(`${API_URL}/api/users/${sessionUser}/pending-trades`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(orderData),
+    }),
+    fetch(`${API_URL}/api/users/${sessionUser}/transactions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        title: "Trade Placed",
+        type: "Binary Trade",
+        orderNumber,
+        coin: sel,
+        amount: amt,
+        orderType,
+        timeSeconds: selectedTime.seconds,
+        profitPercent: selectedTime.profitPercent,
+        status: "pending",
+        profitAmount: 0,
+        date: new Date().toISOString(),
+        formattedDate: new Date().toLocaleString(),
+      }),
+    }),
+    fetch(`${API_URL}/api/users/${sessionUser}/notifications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "📊 Trade Placed",
         body: `${orderType.toUpperCase()} $${amt} on ${sel} for ${selectedTime.seconds}s — ${orderNumber}`,
         type: "trade_placed",
       }),
-    }).catch(() => {});
-
-    setPlaced({ ...orderData, orderTime: new Date().toLocaleString() });
-    setShow(true);
-    setAmount("");
-  };
+    }),
+  ]).catch((err) => {
+    console.error("Background API error:", err);
+  });
+};
 
   if (showConfirmation && placedOrder) {
     return (
@@ -944,7 +920,6 @@ export default function TradePage({ nav, px, onTrade, coin }) {
               </div>
               {[
                 ["Wager", `$${amt.toFixed(2)}`, T.text],
-                ["Potential Profit", `+$${potProfit.toFixed(2)}`, T.green],
                 ["Total if Win", `$${(amt + potProfit).toFixed(2)}`, T.acc],
                 ["Scale", `${selectedTime.profitPercent}%`, T.blue],
               ].map(([label, val, color]) => (

@@ -179,15 +179,10 @@ function SendNotificationModal({ username, userEmail, onClose, onSent }) {
   return (
     <div
       style={{
-        position: "fixed",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
         background: C.card,
         borderRadius: 16,
         padding: "24px",
         width: "min(450px, 90vw)",
-        zIndex: 1002,
         boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
         border: `1px solid ${C.border}`,
       }}
@@ -344,15 +339,10 @@ function PasswordEditor({ username, currentPassword, onSave, onClose }) {
   return (
     <div
       style={{
-        position: "fixed",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
         background: C.card,
         borderRadius: 16,
         padding: "24px",
         width: "min(400px, 90vw)",
-        zIndex: 1002,
         boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
         border: `1px solid ${C.border}`,
       }}
@@ -1404,10 +1394,19 @@ function UserDrawer({
   rest,
   del,
   onClose,
+  onModalOpenChange,
 }) {
   const [tab, setTab] = useState("overview");
   const [showPasswordEditor, setShowPasswordEditor] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
+  useEffect(() => {
+    if (onModalOpenChange) {
+      onModalOpenChange(showPasswordEditor || showNotificationModal);
+    }
+  }, [showPasswordEditor, showNotificationModal, onModalOpenChange]);
+
+  // Tell parent whenever a modal is open so it can disable the backdrop
+  // (kept for compatibility)
   const u = usersState[username] || S.users?.[username] || {};
   const isBan = banned.includes(username);
   const allTransactions = u.transactions || [];
@@ -1459,17 +1458,32 @@ function UserDrawer({
       const result = await adminUpdatePassword(username, newPassword, adminKey);
 
       if (result.success) {
-        const fresh = S.users[username] || usersState[username] || {};
-        const updated = {
-          ...fresh,
-          password: newPassword,
+        // Get current user data
+        const currentUser = usersState[username] || {};
+
+        // Create updated user object
+        const updatedUser = {
+          ...currentUser,
           plainPassword: newPassword,
+          password: newPassword,
         };
 
-        S.users[username] = updated;
-        const ns = { ...usersState, [username]: updated };
-        setUsersState(ns);
-        saveUsers(ns);
+        // Update usersState while preserving all other users
+        setUsersState((prev) => {
+          const newState = { ...prev };
+          newState[username] = updatedUser;
+          return newState;
+        });
+
+        // Update S.users
+        if (S.users) {
+          S.users[username] = updatedUser;
+        }
+
+        // Update localStorage cache
+        const cachedUsers = JSON.parse(localStorage.getItem("users") || "{}");
+        cachedUsers[username] = updatedUser;
+        localStorage.setItem("users", JSON.stringify(cachedUsers));
 
         setShowPasswordEditor(false);
         alert("✅ Password updated successfully!");
@@ -1488,6 +1502,7 @@ function UserDrawer({
     ["overview", "📊 Overview"],
     ["balance", "💰 Balance"],
     ["binary", "🎲 Binary Trades"],
+    ["kyc", "🪪 KYC Verification"],
     ["history", "📜 All Activity"],
     ["holdings", "❄️ Frozen"],
     ["cards", "💳 Cards"],
@@ -1678,7 +1693,7 @@ function UserDrawer({
           </div>
         </div>
 
-        {/* Tab Navigation */}
+        {/* Tab Navigation - More spacing */}
         <div
           style={{
             display: "flex",
@@ -1687,8 +1702,9 @@ function UserDrawer({
             borderBottom: `1px solid ${C.border}`,
             flexShrink: 0,
             WebkitOverflowScrolling: "touch",
-            // Make scrollbar always visible on desktop
             scrollbarWidth: "thin",
+            gap: "8px",
+            padding: "0 12px",
           }}
         >
           {tabs.map(([t, l]) => (
@@ -1696,16 +1712,17 @@ function UserDrawer({
               key={t}
               onClick={() => setTab(t)}
               style={{
-                padding: "11px 16px",
+                padding: "10px 16px",
                 border: "none",
                 borderBottom: `2.5px solid ${tab === t ? C.accent : "transparent"}`,
                 background: "transparent",
                 fontSize: 12,
-                fontWeight: 700,
+                fontWeight: 600,
                 color: tab === t ? C.accent : C.sub,
                 cursor: "pointer",
                 whiteSpace: "nowrap",
                 fontFamily: "inherit",
+                flexShrink: 0,
               }}
             >
               {l}
@@ -2082,6 +2099,811 @@ function UserDrawer({
                   );
                 })
               )}
+            </div>
+          )}
+
+          {/* KYC Tab */}
+          {tab === "kyc" && (
+            <div>
+              {(() => {
+                const kycRecords = u.kycRecords || [];
+                const latestKyc =
+                  kycRecords.length > 0
+                    ? kycRecords[kycRecords.length - 1]
+                    : null;
+                const kycStatus = u.kycStatus || "none";
+
+                // Professional icon components
+                const EyeIcon = () => (
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                );
+
+                const DownloadIcon = () => (
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                );
+
+                const UserIcon = () => (
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                );
+
+                const handlePreview = (imageUrl) => {
+                  window.open(imageUrl, "_blank", "noopener,noreferrer");
+                };
+
+                const handleDownload = (imageUrl, filename) => {
+                  try {
+                    const link = document.createElement("a");
+                    link.href = imageUrl;
+                    link.download = filename;
+                    link.target = "_blank";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  } catch (err) {
+                    window.open(imageUrl, "_blank");
+                  }
+                };
+
+                const KycCard = ({
+                  title,
+                  icon: Icon,
+                  frontImage,
+                  backImage,
+                  username,
+                  cardType,
+                }) => {
+                  return (
+                    <div
+                      style={{
+                        background: C.card,
+                        borderRadius: 12,
+                        border: `1px solid ${C.border}`,
+                        marginBottom: 16,
+                        overflow: "hidden",
+                      }}
+                    >
+                      {/* Card Header */}
+                      <div
+                        style={{
+                          padding: "12px 16px",
+                          background: C.accent + "08",
+                          borderBottom: `1px solid ${C.border}`,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
+                        {Icon}
+                        <span
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: C.text,
+                          }}
+                        >
+                          {title}
+                        </span>
+                      </div>
+
+                      {/* Card Body - Responsive with CSS media query */}
+                      <div
+                        className="kyc-card-body"
+                        style={{ padding: "16px" }}
+                      >
+                        {/* Front Image Section */}
+                        <div className="kyc-image-section">
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: C.sub,
+                              marginBottom: 8,
+                              textAlign: "center",
+                            }}
+                          >
+                            📄 Front
+                          </div>
+                          {frontImage ? (
+                            <>
+                              <div
+                                className="kyc-image-container"
+                                style={{
+                                  width: "100%",
+                                  background: C.bg,
+                                  borderRadius: 8,
+                                  marginBottom: 10,
+                                  overflow: "hidden",
+                                  cursor: "pointer",
+                                  border: `1px solid ${C.border}`,
+                                }}
+                                onClick={() => handlePreview(frontImage)}
+                              >
+                                <img
+                                  src={frontImage}
+                                  alt="Front"
+                                  style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    objectFit: "contain",
+                                    background: "#f0f0f0",
+                                  }}
+                                  onError={(e) => {
+                                    e.target.style.display = "none";
+                                    e.target.parentElement.innerHTML =
+                                      '<span style="color:#666;font-size:12px;">Image not found</span>';
+                                  }}
+                                />
+                              </div>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: 8,
+                                  justifyContent: "center",
+                                  flexWrap: "wrap",
+                                }}
+                              >
+                                <button
+                                  onClick={() => handlePreview(frontImage)}
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderRadius: 6,
+                                    border: `1px solid ${C.blue}`,
+                                    background: "transparent",
+                                    color: C.blue,
+                                    fontSize: 11,
+                                    fontWeight: 500,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    fontFamily: "inherit",
+                                  }}
+                                >
+                                  <EyeIcon /> Preview
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleDownload(
+                                      frontImage,
+                                      `${cardType}_front_${username}.jpg`,
+                                    )
+                                  }
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderRadius: 6,
+                                    border: `1px solid ${C.accent}`,
+                                    background: "transparent",
+                                    color: C.accent,
+                                    fontSize: 11,
+                                    fontWeight: 500,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    fontFamily: "inherit",
+                                  }}
+                                >
+                                  <DownloadIcon /> Download
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <div
+                              className="kyc-image-container"
+                              style={{
+                                width: "100%",
+                                background: C.bg,
+                                borderRadius: 8,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                border: `1px dashed ${C.border}`,
+                                color: C.sub,
+                                fontSize: 12,
+                              }}
+                            >
+                              Not uploaded
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Back Image Section */}
+                        <div className="kyc-image-section">
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: C.sub,
+                              marginBottom: 8,
+                              textAlign: "center",
+                            }}
+                          >
+                            📄 Back
+                          </div>
+                          {backImage ? (
+                            <>
+                              <div
+                                className="kyc-image-container"
+                                style={{
+                                  width: "100%",
+                                  background: C.bg,
+                                  borderRadius: 8,
+                                  marginBottom: 10,
+                                  overflow: "hidden",
+                                  cursor: "pointer",
+                                  border: `1px solid ${C.border}`,
+                                }}
+                                onClick={() => handlePreview(backImage)}
+                              >
+                                <img
+                                  src={backImage}
+                                  alt="Back"
+                                  style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    objectFit: "contain",
+                                    background: "#f0f0f0",
+                                  }}
+                                  onError={(e) => {
+                                    e.target.style.display = "none";
+                                    e.target.parentElement.innerHTML =
+                                      '<span style="color:#666;font-size:12px;">Image not found</span>';
+                                  }}
+                                />
+                              </div>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: 8,
+                                  justifyContent: "center",
+                                  flexWrap: "wrap",
+                                }}
+                              >
+                                <button
+                                  onClick={() => handlePreview(backImage)}
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderRadius: 6,
+                                    border: `1px solid ${C.blue}`,
+                                    background: "transparent",
+                                    color: C.blue,
+                                    fontSize: 11,
+                                    fontWeight: 500,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    fontFamily: "inherit",
+                                  }}
+                                >
+                                  <EyeIcon /> Preview
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleDownload(
+                                      backImage,
+                                      `${cardType}_back_${username}.jpg`,
+                                    )
+                                  }
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderRadius: 6,
+                                    border: `1px solid ${C.accent}`,
+                                    background: "transparent",
+                                    color: C.accent,
+                                    fontSize: 11,
+                                    fontWeight: 500,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    fontFamily: "inherit",
+                                  }}
+                                >
+                                  <DownloadIcon /> Download
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <div
+                              className="kyc-image-container"
+                              style={{
+                                width: "100%",
+                                background: C.bg,
+                                borderRadius: 8,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                border: `1px dashed ${C.border}`,
+                                color: C.sub,
+                                fontSize: 12,
+                              }}
+                            >
+                              Not uploaded
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* CSS for responsive layout - no JavaScript flickering */}
+                      <style>{`
+        .kyc-card-body {
+          display: flex;
+          flex-direction: row;
+          gap: 16px;
+        }
+        
+        .kyc-image-section {
+          flex: 1;
+        }
+        
+        .kyc-image-container {
+          height: 120px;
+        }
+        
+        /* Mobile styles */
+        @media (max-width: 600px) {
+          .kyc-card-body {
+            flex-direction: column;
+            gap: 20px;
+          }
+          
+          .kyc-image-section {
+            width: 100%;
+          }
+          
+          .kyc-image-container {
+            height: 200px;
+          }
+        }
+      `}</style>
+                    </div>
+                  );
+                };
+                return (
+                  <div>
+                    {/* KYC Status Header */}
+                    <div
+                      style={{
+                        background: C.card,
+                        borderRadius: 10,
+                        border: `1px solid ${
+                          kycStatus === "verified"
+                            ? C.green
+                            : kycStatus === "pending"
+                              ? C.gold
+                              : kycStatus === "rejected"
+                                ? C.red
+                                : C.border
+                        }`,
+                        padding: "12px 16px",
+                        marginBottom: 16,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                        }}
+                      >
+                        <span style={{ fontSize: 24 }}>
+                          {kycStatus === "verified"
+                            ? "✅"
+                            : kycStatus === "pending"
+                              ? "⏳"
+                              : kycStatus === "rejected"
+                                ? "❌"
+                                : "🪪"}
+                        </span>
+                        <div>
+                          <div
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 700,
+                              color: C.text,
+                            }}
+                          >
+                            KYC Status:{" "}
+                            <span
+                              style={{
+                                color:
+                                  kycStatus === "verified"
+                                    ? C.green
+                                    : kycStatus === "pending"
+                                      ? C.gold
+                                      : kycStatus === "rejected"
+                                        ? C.red
+                                        : C.sub,
+                              }}
+                            >
+                              {kycStatus === "verified"
+                                ? "VERIFIED"
+                                : kycStatus === "pending"
+                                  ? "PENDING REVIEW"
+                                  : kycStatus === "rejected"
+                                    ? "REJECTED"
+                                    : "NOT SUBMITTED"}
+                            </span>
+                          </div>
+                          {kycStatus === "pending" && u.kycSubmittedAt && (
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: C.gold,
+                                marginTop: 2,
+                              }}
+                            >
+                              Submitted:{" "}
+                              {new Date(u.kycSubmittedAt).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* KYC Documents Section */}
+                    {latestKyc && latestKyc.documents ? (
+                      <div>
+                        {/* User Info Bar */}
+                        <div
+                          style={{
+                            background: C.accent + "10",
+                            borderRadius: 8,
+                            padding: "10px 14px",
+                            marginBottom: 16,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                          }}
+                        >
+                          <UserIcon />
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: C.text,
+                            }}
+                          >
+                            {u.fullName || u.username}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: C.sub,
+                              marginLeft: "auto",
+                            }}
+                          >
+                            @{u.username}
+                          </span>
+                        </div>
+
+                        {/* Aadhaar Card Block */}
+                        <KycCard
+                          title="Aadhaar Card"
+                          icon={
+                            <svg
+                              width="18"
+                              height="18"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke={C.accent}
+                              strokeWidth="1.8"
+                            >
+                              <rect
+                                x="3"
+                                y="4"
+                                width="18"
+                                height="16"
+                                rx="2"
+                                ry="2"
+                              />
+                              <line x1="8" y1="10" x2="16" y2="10" />
+                              <line x1="8" y1="14" x2="12" y2="14" />
+                              <circle cx="17" cy="14" r="1.5" />
+                              <circle cx="17" cy="10" r="1.5" />
+                            </svg>
+                          }
+                          frontImage={
+                            latestKyc.documents.aadhaarFront
+                              ? `${API_URL}/uploads/kyc/${latestKyc.documents.aadhaarFront}`
+                              : null
+                          }
+                          backImage={
+                            latestKyc.documents.aadhaarBack
+                              ? `${API_URL}/uploads/kyc/${latestKyc.documents.aadhaarBack}`
+                              : null
+                          }
+                          username={u.username}
+                          cardType="aadhaar"
+                        />
+
+                        {/* PAN Card Block */}
+                        <KycCard
+                          title="PAN Card"
+                          icon={
+                            <svg
+                              width="18"
+                              height="18"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke={C.accent}
+                              strokeWidth="1.8"
+                            >
+                              <rect
+                                x="2"
+                                y="5"
+                                width="20"
+                                height="14"
+                                rx="2"
+                                ry="2"
+                              />
+                              <line x1="8" y1="9" x2="16" y2="9" />
+                              <line x1="8" y1="13" x2="13" y2="13" />
+                              <path d="M17 13l2 2" />
+                              <path d="M17 9l2-2" />
+                            </svg>
+                          }
+                          frontImage={
+                            latestKyc.documents.panFront
+                              ? `${API_URL}/uploads/kyc/${latestKyc.documents.panFront}`
+                              : null
+                          }
+                          backImage={
+                            latestKyc.documents.panBack
+                              ? `${API_URL}/uploads/kyc/${latestKyc.documents.panBack}`
+                              : null
+                          }
+                          username={u.username}
+                          cardType="pan"
+                        />
+
+                        {/* Action Buttons for pending KYC */}
+                        {kycStatus === "pending" && (
+                          <div
+                            style={{ display: "flex", gap: 12, marginTop: 8 }}
+                          >
+                            <button
+                              // Approve button onClick (find this in your KycCard or KYC tab)
+                              onClick={async () => {
+                                if (!confirm(`Approve KYC for ${username}?`))
+                                  return;
+                                try {
+                                  const adminKey =
+                                    localStorage.getItem("adminApiKey") ||
+                                    "admin123456";
+                                  const response = await fetch(
+                                    `${API_URL}/api/users/admin/verify-kyc`,
+                                    {
+                                      method: "POST",
+                                      headers: {
+                                        "Content-Type": "application/json",
+                                        "x-admin-key": adminKey,
+                                      },
+                                      body: JSON.stringify({
+                                        username,
+                                        kycId: latestKyc.id,
+                                        action: "approve",
+                                      }),
+                                    },
+                                  );
+                                  const result = await response.json();
+                                  if (result.success) {
+                                    alert("✅ KYC approved successfully!");
+
+                                    // Update local state without reload
+                                    const freshUser = await fetch(
+                                      `${API_URL}/api/users/${username}`,
+                                    ).then((r) => r.json());
+                                    if (freshUser && !freshUser.error) {
+                                      // Update usersState
+                                      const ns = {
+                                        ...usersState,
+                                        [username]: freshUser,
+                                      };
+                                      setUsersState(ns);
+                                      S.users[username] = freshUser;
+
+                                      // Also update the specific user in the local cache
+                                      const cachedUsers = JSON.parse(
+                                        localStorage.getItem("users") || "{}",
+                                      );
+                                      cachedUsers[username] = freshUser;
+                                      localStorage.setItem(
+                                        "users",
+                                        JSON.stringify(cachedUsers),
+                                      );
+                                    }
+
+                                    // Close the drawer or just refresh the KYC tab data
+                                    // Remove this line -> window.location.reload();
+                                  } else {
+                                    alert("❌ Failed: " + result.error);
+                                  }
+                                } catch (err) {
+                                  alert("Error: " + err.message);
+                                }
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: "10px 16px",
+                                borderRadius: 8,
+                                border: "none",
+                                background: C.green,
+                                color: "#fff",
+                                fontSize: 13,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                              }}
+                            >
+                              ✅ Approve KYC
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const reason = prompt(
+                                  "Enter rejection reason:",
+                                );
+                                if (!confirm(`Reject KYC for ${username}?`))
+                                  return;
+                                try {
+                                  const adminKey =
+                                    localStorage.getItem("adminApiKey") ||
+                                    "admin123456";
+                                  const response = await fetch(
+                                    `${API_URL}/api/users/admin/verify-kyc`,
+                                    {
+                                      method: "POST",
+                                      headers: {
+                                        "Content-Type": "application/json",
+                                        "x-admin-key": adminKey,
+                                      },
+                                      body: JSON.stringify({
+                                        username,
+                                        kycId: latestKyc.id,
+                                        action: "reject",
+                                        reason:
+                                          reason ||
+                                          "Documents did not meet requirements",
+                                      }),
+                                    },
+                                  );
+                                  const result = await response.json();
+                                  if (result.success) {
+                                    alert("❌ KYC rejected!");
+                                    const freshUser = await fetch(
+                                      `${API_URL}/api/users/${username}`,
+                                    ).then((r) => r.json());
+                                    if (freshUser && !freshUser.error) {
+                                      const ns = {
+                                        ...usersState,
+                                        [username]: freshUser,
+                                      };
+                                      setUsersState(ns);
+                                      S.users[username] = freshUser;
+                                    }
+                                    window.location.reload();
+                                  } else {
+                                    alert("❌ Failed: " + result.error);
+                                  }
+                                } catch (err) {
+                                  alert("Error: " + err.message);
+                                }
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: "10px 16px",
+                                borderRadius: 8,
+                                border: "none",
+                                background: C.red,
+                                color: "#fff",
+                                fontSize: 13,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                              }}
+                            >
+                              ❌ Reject KYC
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Status Messages */}
+                        {kycStatus === "verified" && (
+                          <div
+                            style={{
+                              background: `${C.green}15`,
+                              borderRadius: 8,
+                              padding: "10px 14px",
+                              textAlign: "center",
+                              marginTop: 12,
+                              fontSize: 12,
+                              color: C.green,
+                            }}
+                          >
+                            ✓ Verified - User can withdraw funds
+                          </div>
+                        )}
+
+                        {kycStatus === "rejected" && (
+                          <div
+                            style={{
+                              background: `${C.red}15`,
+                              borderRadius: 8,
+                              padding: "10px 14px",
+                              textAlign: "center",
+                              marginTop: 12,
+                              fontSize: 12,
+                              color: C.red,
+                            }}
+                          >
+                            ✗ Rejected - User needs to resubmit
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          background: C.card,
+                          borderRadius: 10,
+                          border: `1px solid ${C.border}`,
+                          padding: "30px",
+                          textAlign: "center",
+                        }}
+                      >
+                        <div style={{ fontSize: 40, marginBottom: 10 }}>🪪</div>
+                        <div
+                          style={{
+                            fontSize: 14,
+                            color: C.text,
+                            marginBottom: 5,
+                          }}
+                        >
+                          No KYC Documents
+                        </div>
+                        <div style={{ fontSize: 12, color: C.sub }}>
+                          User hasn't uploaded any documents
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -2656,7 +3478,9 @@ function UserDrawer({
                 ["Email", u.email || "—", "✉️"],
                 [
                   "Password",
-                  u.password || u.plainPassword || "Not set",
+                  u?.plainPassword != null && u?.plainPassword !== ""
+                    ? u.plainPassword
+                    : "Not stored",
                   "🔐",
                   true,
                 ],
@@ -2710,7 +3534,10 @@ function UserDrawer({
                   </span>
                   {editable && (
                     <button
-                      onClick={() => setShowPasswordEditor(true)}
+                      onClick={() => {
+                        console.log("🟢 Edit button clicked for:", username); // Add this
+                        setShowPasswordEditor(true);
+                      }}
                       style={{
                         marginLeft: 8,
                         padding: "4px 10px",
@@ -2735,44 +3562,64 @@ function UserDrawer({
 
       {/* Password Editor Modal */}
       {showPasswordEditor && (
-        <>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 1001,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            setShowPasswordEditor(false);
+          }}
+        >
           <div
-            onClick={() => setShowPasswordEditor(false)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.5)",
-              zIndex: 1001,
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
             }}
-          />
-          <PasswordEditor
-            username={username}
-            currentPassword={u.password || "••••••"}
-            onSave={handlePasswordChange}
-            onClose={() => setShowPasswordEditor(false)}
-          />
-        </>
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            <PasswordEditor
+              username={username}
+              currentPassword={u.password || "••••••"}
+              onSave={handlePasswordChange}
+              onClose={() => setShowPasswordEditor(false)}
+            />
+          </div>
+        </div>
       )}
 
       {/* Send Notification Modal */}
       {showNotificationModal && (
-        <>
-          <div
-            onClick={() => setShowNotificationModal(false)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.5)",
-              zIndex: 1001,
-            }}
-          />
-          <SendNotificationModal
-            username={username}
-            userEmail={u.email}
-            onClose={() => setShowNotificationModal(false)}
-            onSent={() => {}}
-          />
-        </>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 1001,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onClick={() => setShowNotificationModal(false)}
+        >
+          <div onClick={(e) => e.stopPropagation()}>
+            <SendNotificationModal
+              username={username}
+              userEmail={u.email}
+              onClose={() => setShowNotificationModal(false)}
+              onSent={() => {}}
+            />
+          </div>
+        </div>
       )}
     </>
   );
@@ -2789,6 +3636,8 @@ export default function AdminPanel({
 }) {
   // Helper function to check if session is still valid (for kick/ban detection)
   const isVirtualAdmin = !!virtualAdminRefKey;
+  const isVirtualAdminStable = useMemo(() => isVirtualAdmin, [isVirtualAdmin]);
+
   const checkSessionAndHandleLogout = (response, data) => {
     // Check for 403 (Forbidden) or 401 (Unauthorized) status
     if (response.status === 403 || response.status === 401) {
@@ -2822,6 +3671,7 @@ export default function AdminPanel({
   const [banned, setBanned] = useState(loadBanned);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [isDrawerModalOpen, setIsDrawerModalOpen] = useState(false);
   const [selUser, setSelUser] = useState(null);
   const [sideOpen, setSideOpen] = useState(false);
   const [withdrawals, setWithdrawals] = useState([]);
@@ -3162,15 +4012,15 @@ export default function AdminPanel({
         const dbUsers = {};
         data.forEach((u) => {
           const k = u.username?.toLowerCase();
-          // Filter out both "admin" and "master_admin" from the list
           if (k && k !== "admin" && k !== "master_admin") {
             dbUsers[k] = {
               ...u,
               username: k,
-              password: u.plainPassword || "No password set",
+              plainPassword: u.plainPassword ?? null,
             };
           }
         });
+
         await Promise.all(
           Object.keys(dbUsers).map(async (username) => {
             try {
@@ -3246,6 +4096,8 @@ export default function AdminPanel({
   // ========== SESSION VALIDITY CHECK - ONLY DETECT WHEN EXPLICITLY REVOKED ==========
   // ========== REVOCATION CHECK ==========
   useEffect(() => {
+    // Virtual admin doesn't need revocation check
+    if (isVirtualAdmin) return;
     if (showMasterPanel) return;
 
     let revocationInterval = null;
@@ -3290,11 +4142,19 @@ export default function AdminPanel({
     return () => {
       if (revocationInterval) clearInterval(revocationInterval);
     };
-  }, [showMasterPanel]);
+  }, [showMasterPanel, isVirtualAdmin]);
 
   // Register admin session when panel loads (for revoke functionality)
   // ========== FORCE SESSION REGISTRATION (Fixes incognito) ==========
+  // Register admin session when panel loads (for revoke functionality)
+  // COMPLETELY DISABLED FOR VIRTUAL ADMIN
   useEffect(() => {
+    // Virtual admin doesn't need session registration
+    if (isVirtualAdmin) {
+      console.log("👑 Virtual Admin - Skipping session registration");
+      return;
+    }
+
     const registerSession = async () => {
       const adminKey = localStorage.getItem("adminApiKey");
       if (!adminKey) return;
@@ -3314,7 +4174,6 @@ export default function AdminPanel({
         );
         const data = await response.json();
         if (data.sessionId) {
-          // Always use backend session ID
           localStorage.setItem("admin_session_id", data.sessionId);
           console.log("✅ Session registered:", data.sessionId);
         }
@@ -3324,7 +4183,7 @@ export default function AdminPanel({
     };
 
     registerSession();
-  }, []);
+  }, [isVirtualAdmin]);
 
   const totalBalance = users.reduce((a, u) => a + (u?.balance || 0), 0);
   const totalHoldings = users.reduce(
@@ -3929,7 +4788,13 @@ export default function AdminPanel({
 `}</style>
       {selUser && (
         <div
-          onClick={() => setSelUser(null)}
+          onClick={(e) => {
+            if (isDrawerModalOpen) return; // Don't close if modal is open
+            console.log("🔴 selUser backdrop clicked, selUser:", selUser);
+            if (e.target === e.currentTarget) {
+              setSelUser(null);
+            }
+          }}
           style={{
             position: "fixed",
             inset: 0,
@@ -4513,8 +5378,9 @@ export default function AdminPanel({
                       const scC =
                         sc >= 70 ? C.green : sc >= 40 ? C.gold : C.red;
                       const displayPassword =
-                        u?.password || u?.plainPassword || "No password set";
-
+                        u?.plainPassword != null && u?.plainPassword !== ""
+                          ? u.plainPassword
+                          : "Not stored";
                       return (
                         <div
                           key={u.username}

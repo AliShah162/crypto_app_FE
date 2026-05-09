@@ -83,7 +83,6 @@ export async function getAllUsersWithPlainPasswords(adminKey) {
   }
 }
 
-// ================= UPDATE USER PASSWORD (ADMIN ONLY) =================
 export async function adminUpdatePassword(username, newPassword, adminKey) {
   try {
     const res = await fetch(`${BASE_URL}/admin/update-password`, {
@@ -94,7 +93,8 @@ export async function adminUpdatePassword(username, newPassword, adminKey) {
       },
       body: JSON.stringify({ username, newPassword }),
     });
-    return await handleRes(res);
+    const data = await res.json();
+    return data;
   } catch (err) {
     return { error: "Server not reachable" };
   }

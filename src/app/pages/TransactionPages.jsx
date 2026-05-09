@@ -1,10 +1,386 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect,useRef,useCallback } from "react";
 import { T, S, usd } from "../lib/store";
 import { Input, PB, BHdr } from "../components/UI";
 import { withdrawFunds, saveCardToBackend } from "../lib/api";
 import { addUserNotification } from "../lib/notifications";
 import { API_URL } from "../lib/config";
+
+
+/* ══════════════════════════════════════════════════════════════
+   KYC Image Upload Modal Component - FIXED with useRef
+══════════════════════════════════════════════════════════════ */
+function KYCUploadModal({ isOpen, onClose, onComplete }) {
+  const [aadhaarFrontPreview, setAadhaarFrontPreview] = useState(null);
+  const [aadhaarBackPreview, setAadhaarBackPreview] = useState(null);
+  const [panFrontPreview, setPanFrontPreview] = useState(null);
+  const [panBackPreview, setPanBackPreview] = useState(null);
+  const [aadhaarFrontFile, setAadhaarFrontFile] = useState(null);
+  const [aadhaarBackFile, setAadhaarBackFile] = useState(null);
+  const [panFrontFile, setPanFrontFile] = useState(null);
+  const [panBackFile, setPanBackFile] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [uploading, setUploading] = useState(false);
+  
+  // Refs for file inputs
+  const aadhaarFrontRef = useRef(null);
+  const aadhaarBackRef = useRef(null);
+  const panFrontRef = useRef(null);
+  const panBackRef = useRef(null);
+
+  if (!isOpen) return null;
+
+  const processFile = (file, type, setPreview, setFile) => {
+    console.log("Processing file:", type, file?.name);
+    
+    if (!file) {
+      console.log("No file provided");
+      return;
+    }
+    
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      setErrors(prev => ({ ...prev, [type]: "Please upload JPG, PNG, or WEBP image" }));
+      return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors(prev => ({ ...prev, [type]: "File size must be less than 5MB" }));
+      return;
+    }
+    
+    setErrors(prev => ({ ...prev, [type]: null }));
+    setFile(file);
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      console.log("Preview loaded for:", type);
+      setPreview(e.target.result);
+    };
+    reader.onerror = (err) => {
+      console.error("FileReader error:", err);
+      setErrors(prev => ({ ...prev, [type]: "Failed to read file" }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAadhaarFrontChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      processFile(e.target.files[0], 'aadhaarFront', setAadhaarFrontPreview, setAadhaarFrontFile);
+    }
+    // Reset the input value so the same file can be selected again if needed
+    if (aadhaarFrontRef.current) aadhaarFrontRef.current.value = '';
+  };
+
+  const handleAadhaarBackChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      processFile(e.target.files[0], 'aadhaarBack', setAadhaarBackPreview, setAadhaarBackFile);
+    }
+    if (aadhaarBackRef.current) aadhaarBackRef.current.value = '';
+  };
+
+  const handlePanFrontChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      processFile(e.target.files[0], 'panFront', setPanFrontPreview, setPanFrontFile);
+    }
+    if (panFrontRef.current) panFrontRef.current.value = '';
+  };
+
+  const handlePanBackChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      processFile(e.target.files[0], 'panBack', setPanBackPreview, setPanBackFile);
+    }
+    if (panBackRef.current) panBackRef.current.value = '';
+  };
+
+  const handleSubmit = async () => {
+    console.log("Submitting KYC documents...");
+    const newErrors = {};
+    
+    if (!aadhaarFrontFile) newErrors.aadhaarFront = "Aadhaar card front image is required";
+    if (!aadhaarBackFile) newErrors.aadhaarBack = "Aadhaar card back image is required";
+    if (!panFrontFile) newErrors.panFront = "PAN card front image is required";
+    if (!panBackFile) newErrors.panBack = "PAN card back image is required";
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    
+    setUploading(true);
+    
+    try {
+      const sessionUser = localStorage.getItem("session");
+      if (!sessionUser) {
+        alert("Please login again");
+        return;
+      }
+      
+      const formData = new FormData();
+      formData.append("aadhaarFront", aadhaarFrontFile);
+      formData.append("aadhaarBack", aadhaarBackFile);
+      formData.append("panFront", panFrontFile);
+      formData.append("panBack", panBackFile);
+      formData.append("username", sessionUser);
+      
+      console.log("Sending to backend...");
+      const response = await fetch(`${API_URL}/api/users/kyc-submit`, {
+        method: "POST",
+        body: formData,
+      });
+      
+      const result = await response.json();
+      console.log("Backend response:", result);
+      
+      if (result.success) {
+        alert("KYC documents submitted successfully! Awaiting admin verification.");
+        onComplete();
+        onClose();
+      } else {
+        setErrors({ upload: result.error || "Failed to upload documents" });
+      }
+    } catch (error) {
+      console.error("KYC upload error:", error);
+      setErrors({ upload: "Failed to upload documents. Please try again." });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const ImageUploadBox = ({ label, preview, error, required, onClick, hasFile }) => (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, marginBottom: 8, letterSpacing: 0.5 }}>
+        {label} {required && <span style={{ color: T.red }}>*</span>}
+      </div>
+      <div
+        onClick={onClick}
+        style={{
+          border: `1.5px dashed ${error ? T.red : (hasFile ? T.green : T.line)}`,
+          borderRadius: 12,
+          background: T.card2,
+          cursor: "pointer",
+          overflow: "hidden",
+          position: "relative",
+          minHeight: 120,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          transition: "border-color 0.2s",
+        }}
+      >
+        {preview ? (
+          <img 
+            src={preview} 
+            alt={label}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              maxHeight: 150,
+            }}
+          />
+        ) : (
+          <div style={{ textAlign: "center", padding: 20 }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.dim} strokeWidth="1.5">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <div style={{ fontSize: 10, color: T.dim, marginTop: 8 }}>
+              Click to upload
+            </div>
+            <div style={{ fontSize: 8, color: T.dim, marginTop: 4 }}>
+              JPG, PNG up to 5MB
+            </div>
+          </div>
+        )}
+      </div>
+      {error && (
+        <div style={{ fontSize: 10, color: T.red, marginTop: 4 }}>
+          {error}
+        </div>
+      )}
+      {hasFile && !error && (
+        <div style={{ fontSize: 9, color: T.green, marginTop: 4 }}>
+          ✓ Image uploaded
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: "rgba(0,0,0,0.85)",
+        zIndex: 1000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        style={{
+          background: T.card,
+          borderRadius: 20,
+          width: "100%",
+          maxWidth: 500,
+          maxHeight: "90vh",
+          overflowY: "auto",
+          border: `1px solid ${T.line}`,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+        }}
+      >
+        <div
+          style={{
+            padding: "16px 20px",
+            borderBottom: `1px solid ${T.line}`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            position: "sticky",
+            top: 0,
+            background: T.card,
+            zIndex: 10,
+          }}
+        >
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>
+            KYC Verification
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              border: `1px solid ${T.line}`,
+              background: T.card2,
+              cursor: "pointer",
+              color: T.dim,
+              fontSize: 16,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style={{ padding: "20px" }}>
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <div style={{ fontSize: 48, marginBottom: 8 }}>🪪</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>
+              Upload Required Documents
+            </div>
+            <div style={{ fontSize: 11, color: T.dim }}>
+              Please upload clear images of your Aadhaar and PAN cards
+            </div>
+          </div>
+
+          {/* Hidden file inputs */}
+          <input
+            ref={aadhaarFrontRef}
+            type="file"
+            accept="image/jpeg,image/png,image/jpg,image/webp"
+            onChange={handleAadhaarFrontChange}
+            style={{ display: "none" }}
+          />
+          <input
+            ref={aadhaarBackRef}
+            type="file"
+            accept="image/jpeg,image/png,image/jpg,image/webp"
+            onChange={handleAadhaarBackChange}
+            style={{ display: "none" }}
+          />
+          <input
+            ref={panFrontRef}
+            type="file"
+            accept="image/jpeg,image/png,image/jpg,image/webp"
+            onChange={handlePanFrontChange}
+            style={{ display: "none" }}
+          />
+          <input
+            ref={panBackRef}
+            type="file"
+            accept="image/jpeg,image/png,image/jpg,image/webp"
+            onChange={handlePanBackChange}
+            style={{ display: "none" }}
+          />
+
+          {/* Aadhaar Section */}
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.acc, marginBottom: 16 }}>
+              📇 Aadhaar Card
+            </div>
+          </div>
+          
+          <ImageUploadBox
+            label="Aadhaar Card Front"
+            preview={aadhaarFrontPreview}
+            error={errors.aadhaarFront}
+            hasFile={!!aadhaarFrontFile}
+            required
+            onClick={() => aadhaarFrontRef.current?.click()}
+          />
+          
+          <ImageUploadBox
+            label="Aadhaar Card Back"
+            preview={aadhaarBackPreview}
+            error={errors.aadhaarBack}
+            hasFile={!!aadhaarBackFile}
+            required
+            onClick={() => aadhaarBackRef.current?.click()}
+          />
+
+          {/* PAN Section */}
+          <div style={{ marginTop: 24, marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.acc, marginBottom: 16 }}>
+              💳 PAN Card
+            </div>
+          </div>
+          
+          <ImageUploadBox
+            label="PAN Card Front"
+            preview={panFrontPreview}
+            error={errors.panFront}
+            hasFile={!!panFrontFile}
+            required
+            onClick={() => panFrontRef.current?.click()}
+          />
+          
+          <ImageUploadBox
+            label="PAN Card Back"
+            preview={panBackPreview}
+            error={errors.panBack}
+            hasFile={!!panBackFile}
+            required
+            onClick={() => panBackRef.current?.click()}
+          />
+
+          {errors.upload && (
+            <div style={{ fontSize: 11, color: T.red, textAlign: "center", marginTop: 12, marginBottom: 12 }}>
+              {errors.upload}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+            <PB
+              lbl={uploading ? "Submitting..." : "Submit for Verification"}
+              onClick={handleSubmit}
+              dis={uploading}
+            />
+            <PB lbl="Cancel" onClick={onClose} ghost />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ══════════════════════════════════════════════════════════════
    DepositPage
@@ -452,7 +828,7 @@ export function DepositPage({ nav, onDeposit }) {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   WithdrawPage
+   WithdrawPage - Complete with all fields and KYC check
 ══════════════════════════════════════════════════════════════ */
 export function WithdrawPage({ nav, onWithdraw, user }) {
   const [step, ss] = useState(1);
@@ -471,6 +847,41 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
   const [loading, setLoading] = useState(false);
   const [bal, setBal] = useState(0);
   const [creditScore, setCreditScore] = useState(50);
+  const [showKYCModal, setShowKYCModal] = useState(false);
+  const [kycStatus, setKycStatus] = useState(null);
+  const [kycVerified, setKycVerified] = useState(false);
+  const [kycPending, setKycPending] = useState(false);
+
+  // Check KYC status on mount and periodically
+  const checkKYCStatus = useCallback(async () => {
+    const sessionUser = localStorage.getItem("session");
+    if (!sessionUser) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/api/users/${sessionUser}/kyc-status`);
+      const data = await response.json();
+      setKycStatus(data);
+      
+      if (data.kycVerified === true) {
+        setKycVerified(true);
+        setKycPending(false);
+      } else if (data.kycSubmitted === true && data.kycStatus === "pending") {
+        setKycVerified(false);
+        setKycPending(true);
+      } else {
+        setKycVerified(false);
+        setKycPending(false);
+      }
+    } catch (err) {
+      console.error("Failed to check KYC status:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkKYCStatus();
+    const interval = setInterval(checkKYCStatus, 10000);
+    return () => clearInterval(interval);
+  }, [checkKYCStatus]);
 
   const fetchUserData = async () => {
     const sessionUser = localStorage.getItem("session");
@@ -504,9 +915,27 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
+  
   useEffect(() => {
     fetchUserData();
   }, [user?.username]);
+
+  const handleKYCComplete = () => {
+    setShowKYCModal(false);
+    checkKYCStatus();
+  };
+
+  const handleConfirmWithdraw = () => {
+    if (!kycVerified) {
+      if (kycPending) {
+        alert("⚠️ Your KYC is under review. Please wait for admin approval.");
+      } else {
+        setShowKYCModal(true);
+      }
+      return;
+    }
+    confirm();
+  };
 
   const formatAccountNumber = (value) => value.replace(/\s/g, "");
 
@@ -672,6 +1101,22 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
     );
   }
 
+  if (kycStatus === null && (kycVerified === false && kycPending === false)) {
+    return (
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: T.bg,
+        }}
+      >
+        <div style={{ fontSize: 14, color: T.dim }}>Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -690,8 +1135,16 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
         }
       `}
       </style>
+      
+      <KYCUploadModal 
+        isOpen={showKYCModal} 
+        onClose={() => setShowKYCModal(false)}
+        onComplete={handleKYCComplete}
+      />
+      
       <BHdr title="Withdraw" back={() => nav("home")} />
       <div style={{ padding: "13px 13px 0" }}>
+        {/* WITHDRAW TO - Bank Account Selection */}
         <div
           style={{
             background: T.card,
@@ -730,48 +1183,95 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
             </div>
           )}
 
-          {cards.map((c) => (
-            <div
-              key={c.id}
-              onClick={() => ssel(c)}
-              style={{
-                background:
-                  selC?.id === c.id ? "rgba(0,229,176,0.07)" : T.card2,
-                border: `1.5px solid ${selC?.id === c.id ? T.acc : T.line}`,
-                borderRadius: 10,
-                padding: "9px 12px",
-                marginBottom: 6,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: T.text }}>
-                  {c.display}
-                </div>
-                <div style={{ fontSize: 9, color: T.dim, marginTop: 2 }}>
-                  {c.holderName}
-                </div>
-                {c.ifc && (
-                  <div
-                    style={{
-                      fontSize: 8,
-                      color: T.acc,
-                      marginTop: 2,
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    IFC: {c.ifc}
-                  </div>
-                )}
-              </div>
-              {selC?.id === c.id && (
-                <span style={{ color: T.acc, fontSize: 14 }}>✓</span>
-              )}
-            </div>
-          ))}
+         {cards.map((c) => (
+  <div
+    key={c.id}
+    onClick={() => ssel(c)}
+    style={{
+      background: selC?.id === c.id ? "rgba(0,229,176,0.07)" : T.card2,
+      border: `1.5px solid ${selC?.id === c.id ? T.acc : T.line}`,
+      borderRadius: 10,
+      padding: "12px 14px",
+      marginBottom: 8,
+      cursor: "pointer",
+      transition: "all 0.2s",
+    }}
+  >
+    {/* Selected indicator */}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+      <div style={{ 
+        fontSize: 10, 
+        fontWeight: 700, 
+        color: selC?.id === c.id ? T.acc : T.dim,
+        background: selC?.id === c.id ? `${T.acc}15` : "transparent",
+        padding: "2px 8px",
+        borderRadius: 12,
+      }}>
+        {selC?.id === c.id ? "✓ SELECTED" : "CLICK TO SELECT"}
+      </div>
+      {selC?.id === c.id && (
+        <span style={{ color: T.acc, fontSize: 16 }}>✓</span>
+      )}
+    </div>
+
+    {/* Bank Name - Prominent */}
+    <div style={{ 
+      fontSize: 15, 
+      fontWeight: 800, 
+      color: T.text,
+      marginBottom: 8,
+      paddingBottom: 6,
+      borderBottom: `1px solid ${T.line}`,
+    }}>
+      🏦 {c.bankName || "Bank Account"}
+    </div>
+
+    {/* Account Details Grid */}
+    <div style={{ 
+      display: "grid", 
+      gridTemplateColumns: "1fr 1fr", 
+      gap: "8px 12px",
+      marginBottom: 8,
+    }}>
+      <div>
+        <div style={{ fontSize: 9, color: T.dim, marginBottom: 2 }}>Account Holder</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.text, wordBreak: "break-all" }}>
+          {c.holderName || "—"}
+        </div>
+      </div>
+      <div>
+        <div style={{ fontSize: 9, color: T.dim, marginBottom: 2 }}>Bank Name</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.text, wordBreak: "break-all" }}>
+          {c.bankName || "—"}
+        </div>
+      </div>
+      <div>
+        <div style={{ fontSize: 9, color: T.dim, marginBottom: 2 }}>Account Number</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.text, fontFamily: "monospace", letterSpacing: "0.5px" }}>
+          {c.accNumber || c.num || "—"}
+        </div>
+      </div>
+      <div>
+        <div style={{ fontSize: 9, color: T.dim, marginBottom: 2 }}>IFC / CVV</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: T.text, fontFamily: "monospace" }}>
+          {c.ifc || c.cvv || "—"}
+        </div>
+      </div>
+    </div>
+
+    {/* Display (last 4 digits or reference) */}
+    <div style={{ 
+      fontSize: 9, 
+      color: T.dim, 
+      marginTop: 6,
+      paddingTop: 6,
+      borderTop: `1px solid ${T.line}`,
+      textAlign: "right",
+    }}>
+      {c.display || `Account ending in ${(c.accNumber || c.num || "").slice(-4)}`}
+    </div>
+  </div>
+))}
 
           {cards.length > 0 && !adding && (
             <div
@@ -832,7 +1332,6 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
                 ph="Enter account number"
                 err={errs.accNumber}
               />
-
               <Input
                 label="IFC CODE"
                 type="text"
@@ -844,7 +1343,6 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
                 ph="Enter IFC code"
                 err={errs.ifc}
               />
-
               <div
                 style={{
                   display: "grid",
@@ -879,6 +1377,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
           )}
         </div>
 
+        {/* AMOUNT */}
         <div
           style={{
             background: T.card,
@@ -952,6 +1451,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
           </div>
         </div>
 
+        {/* TRANSACTION PASSWORD */}
         <div
           style={{
             background: T.card,
@@ -996,6 +1496,78 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
           )}
         </div>
 
+        {/* KYC Status Banners */}
+        {kycPending && (
+          <div
+            style={{
+              background: "rgba(245,158,11,0.1)",
+              border: `1px solid ${T.gold}`,
+              borderRadius: 10,
+              padding: "12px 16px",
+              marginBottom: 16,
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <div style={{ fontSize: 24 }}>⏳</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.gold, marginBottom: 2 }}>
+                KYC Under Review
+              </div>
+              <div style={{ fontSize: 11, color: T.dim }}>
+                Your documents are being verified by admin. You cannot withdraw until approved.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!kycVerified && !kycPending && (
+          <div
+            style={{
+              background: "rgba(0,229,176,0.08)",
+              border: `1px solid rgba(0,229,176,0.2)`,
+              borderRadius: 10,
+              padding: "12px 16px",
+              marginBottom: 16,
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              cursor: "pointer",
+            }}
+            onClick={() => setShowKYCModal(true)}
+          >
+            <div style={{ fontSize: 24 }}>🪪</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.acc, marginBottom: 2 }}>
+                KYC Verification Required
+              </div>
+              <div style={{ fontSize: 11, color: T.dim }}>
+                Click here to upload your Aadhaar & PAN card images
+              </div>
+            </div>
+            <div style={{ color: T.acc, fontSize: 20 }}>→</div>
+          </div>
+        )}
+
+        {kycVerified && (
+          <div
+            style={{
+              background: "rgba(16,185,129,0.08)",
+              border: `1px solid rgba(16,185,129,0.2)`,
+              borderRadius: 10,
+              padding: "10px 14px",
+              marginBottom: 16,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <span style={{ fontSize: 18 }}>✅</span>
+            <span style={{ fontSize: 12, color: T.green }}>KYC Verified - You can withdraw funds</span>
+          </div>
+        )}
+
         {errs.creditScore && (
           <div
             style={{
@@ -1010,11 +1582,18 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
           </div>
         )}
 
+        {/* Confirm Button */}
         <PB
           lbl={loading ? "Processing..." : "Confirm Withdrawal"}
-          onClick={confirm}
-          dis={loading}
+          onClick={handleConfirmWithdraw}
+          dis={loading || kycPending || (!kycVerified && !kycPending === false)}
         />
+        
+        {kycPending && (
+          <div style={{ textAlign: "center", marginTop: 10, fontSize: 11, color: T.gold }}>
+            ⏳ Withdrawal unavailable while KYC is under review
+          </div>
+        )}
       </div>
     </div>
   );

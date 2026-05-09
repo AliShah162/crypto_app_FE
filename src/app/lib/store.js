@@ -33,7 +33,7 @@ export const S = {
   session: null,
   banned: [],
   _hydrated: false,
-  
+
   _ensureBaseKeys() {
     if (typeof window === "undefined") return;
 
@@ -62,7 +62,11 @@ export const S = {
 
     if (typeof rawSession === "string" && rawSession.trim()) {
       this.session = rawSession.toLowerCase().trim();
-    } else if (rawSession && typeof rawSession === "object" && rawSession.username) {
+    } else if (
+      rawSession &&
+      typeof rawSession === "object" &&
+      rawSession.username
+    ) {
       this.session = rawSession.username.toLowerCase().trim();
       saveLS("session", this.session);
     } else {
@@ -90,7 +94,7 @@ export const S = {
 
   get() {
     this.hydrate();
-    return this.session ? (this.users[this.session] || null) : null;
+    return this.session ? this.users[this.session] || null : null;
   },
 
   setSession(user) {
@@ -163,18 +167,20 @@ export const S = {
     if (typeof window === "undefined") return null;
     this.hydrate();
     const u = username.toLowerCase().trim();
-    
+
     if (!userData && !this.users[u]) return null;
-    
+
     this.users[u] = userData || { ...this.users[u] };
     saveLS("users", this.users);
-    
+
     // Also trigger storage event for other tabs
-    window.dispatchEvent(new StorageEvent("storage", {
-      key: "users",
-      newValue: JSON.stringify(this.users)
-    }));
-    
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: "users",
+        newValue: JSON.stringify(this.users),
+      }),
+    );
+
     return this.users[u];
   },
 
@@ -222,18 +228,26 @@ export const S = {
 
 // ───── PRICE ENGINE ─────
 const BASES = {
-  BTC: 71320, ETH: 2251, LINK: 9.19, SOL: 148,
-  XMR: 0.004, MATIC: 0.89, BNB: 612,
-  XRP: 0.62, ADA: 0.45, DOGE: 0.18,
+  BTC: 71320,
+  ETH: 2251,
+  LINK: 9.19,
+  SOL: 148,
+  XMR: 0.004,
+  MATIC: 0.89,
+  BNB: 612,
+  XRP: 0.62,
+  ADA: 0.45,
+  DOGE: 0.18,
   // NEW COINS - add these
+  BTS: 0.045,
   TRX: 0.12,
   LTC: 82.5,
   DOT: 7.85,
-  AVAX: 36.40,
+  AVAX: 36.4,
   SHIB: 0.000023,
   XLM: 0.11,
-   BTG: 455.7,
   ATOM: 9.23,
+  BTG: 455.7,
   TON: 5.67,
 };
 
@@ -298,25 +312,57 @@ export const COINS = [
   { id: "XMR", name: "Monero", sym: "◈", cl: "#fb923c", bg: "#431407" },
   { id: "MATIC", name: "Polygon", sym: "⬟", cl: "#a78bfa", bg: "#2e1065" },
   { id: "BNB", name: "Binance Coin", sym: "🟡", cl: "#f3ba2f", bg: "#3a2a05" },
+  { id: "BTS", name: "BitShares", sym: "₿", cl: "#00d4ff", bg: "#0a2a3a" },
   { id: "XRP", name: "XRP", sym: "✕", cl: "#94a3b8", bg: "#1e293b" },
   { id: "ADA", name: "Cardano", sym: "₳", cl: "#3b82f6", bg: "#172554" },
   { id: "DOGE", name: "Dogecoin", sym: "Ð", cl: "#eab308", bg: "#422006" },
-  { id: "TRX", name: "TRON", sym: "T", cl: "#ff6b6b", bg: "#4a0e0e", tron: true },
+  {
+    id: "TRX",
+    name: "TRON",
+    sym: "T",
+    cl: "#ff6b6b",
+    bg: "#4a0e0e",
+    tron: true,
+  },
   { id: "LTC", name: "Litecoin", sym: "Ł", cl: "#a8e6cf", bg: "#1a3a2a" },
   { id: "DOT", name: "Polkadot", sym: "●", cl: "#e84393", bg: "#3a1040" },
   { id: "AVAX", name: "Avalanche", sym: "A", cl: "#e84142", bg: "#4a1010" },
   { id: "SHIB", name: "Shiba Inu", sym: "🐕", cl: "#f39c12", bg: "#4a2a00" },
   { id: "XLM", name: "Stellar", sym: "★", cl: "#48cae4", bg: "#0a3a4a" },
-   { id: "BTG", name: "Bitcoin Gold", sym: "Ƀ", cl: "#f59e0b", bg: "#451a03" },
+  { id: "BTG", name: "Bitcoin Gold", sym: "Ƀ", cl: "#f59e0b", bg: "#451a03" },
   { id: "ATOM", name: "Cosmos", sym: "⚛", cl: "#8b5cf6", bg: "#2e1065" },
   { id: "TON", name: "Toncoin", sym: "◈", cl: "#34d399", bg: "#064e3b" },
 ];
 
 export const NEWS = [
-  { src: "WSJ", cl: "#ef4444", ts: "2026-04-08 16:22", ttl: "Stock Market Today", body: "Markets reacted sharply..." },
-  { src: "CNBC", cl: "#3b82f6", ts: "2026-04-08 16:18", ttl: "Dow futures jump", body: "A rally sparked..." },
-  { src: "BBG", cl: "#a78bfa", ts: "2026-04-08 15:44", ttl: "Bitcoin surges", body: "ETF inflows..." },
-  { src: "MktW", cl: "#00e5b0", ts: "2026-04-08 15:10", ttl: "Market update", body: "Analysts warn..." },
+  {
+    src: "WSJ",
+    cl: "#ef4444",
+    ts: "2026-04-08 16:22",
+    ttl: "Stock Market Today",
+    body: "Markets reacted sharply...",
+  },
+  {
+    src: "CNBC",
+    cl: "#3b82f6",
+    ts: "2026-04-08 16:18",
+    ttl: "Dow futures jump",
+    body: "A rally sparked...",
+  },
+  {
+    src: "BBG",
+    cl: "#a78bfa",
+    ts: "2026-04-08 15:44",
+    ttl: "Bitcoin surges",
+    body: "ETF inflows...",
+  },
+  {
+    src: "MktW",
+    cl: "#00e5b0",
+    ts: "2026-04-08 15:10",
+    ttl: "Market update",
+    body: "Analysts warn...",
+  },
 ];
 
 export const T = {
@@ -333,10 +379,10 @@ export const T = {
   line: "#1a2540",
 };
 
-export const f2 = (n, d = 2) =>
-  typeof n === "number" ? n.toFixed(d) : "0.00";
+export const f2 = (n, d = 2) => (typeof n === "number" ? n.toFixed(d) : "0.00");
 
-export const usd = (n) => "$" + (typeof n === 'number' ? n.toFixed(2) : parseFloat(n || 0).toFixed(2));
+export const usd = (n) =>
+  "$" + (typeof n === "number" ? n.toFixed(2) : parseFloat(n || 0).toFixed(2));
 
 // ───── PENDING TRADES (admin-approval system) ─────
 export const PT = {
@@ -344,34 +390,51 @@ export const PT = {
 
   getAll() {
     if (typeof window === "undefined") return [];
-    try { return JSON.parse(localStorage.getItem(this._key) || "[]"); } catch { return []; }
+    try {
+      return JSON.parse(localStorage.getItem(this._key) || "[]");
+    } catch {
+      return [];
+    }
   },
 
   add(trade) {
     const list = this.getAll();
-    const entry = { ...trade, id: Date.now() + Math.random(), status: "pending", createdAt: new Date().toISOString() };
+    const entry = {
+      ...trade,
+      id: Date.now() + Math.random(),
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    };
     list.unshift(entry);
     localStorage.setItem(this._key, JSON.stringify(list));
     return entry;
   },
 
   approve(id) {
-    const list = this.getAll().map(t => t.id === id ? { ...t, status: "approved", resolvedAt: new Date().toISOString() } : t);
+    const list = this.getAll().map((t) =>
+      t.id === id
+        ? { ...t, status: "approved", resolvedAt: new Date().toISOString() }
+        : t,
+    );
     localStorage.setItem(this._key, JSON.stringify(list));
-    return list.find(t => t.id === id);
+    return list.find((t) => t.id === id);
   },
 
   reject(id) {
-    const list = this.getAll().map(t => t.id === id ? { ...t, status: "rejected", resolvedAt: new Date().toISOString() } : t);
+    const list = this.getAll().map((t) =>
+      t.id === id
+        ? { ...t, status: "rejected", resolvedAt: new Date().toISOString() }
+        : t,
+    );
     localStorage.setItem(this._key, JSON.stringify(list));
-    return list.find(t => t.id === id);
+    return list.find((t) => t.id === id);
   },
 
   forUser(username) {
-    return this.getAll().filter(t => t.username === username?.toLowerCase());
+    return this.getAll().filter((t) => t.username === username?.toLowerCase());
   },
 
   pendingCount() {
-    return this.getAll().filter(t => t.status === "pending").length;
+    return this.getAll().filter((t) => t.status === "pending").length;
   },
 };

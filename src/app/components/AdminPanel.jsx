@@ -2641,16 +2641,8 @@ function UserDrawer({
                               <circle cx="17" cy="10" r="1.5" />
                             </svg>
                           }
-                          frontImage={
-                            latestKyc.documents.aadhaarFront
-                              ? `${API_URL}/uploads/kyc/${latestKyc.documents.aadhaarFront}`
-                              : null
-                          }
-                          backImage={
-                            latestKyc.documents.aadhaarBack
-                              ? `${API_URL}/uploads/kyc/${latestKyc.documents.aadhaarBack}`
-                              : null
-                          }
+                          frontImage={latestKyc.documents.aadhaarFront || null}
+                          backImage={latestKyc.documents.aadhaarBack || null}
                           username={u.username}
                           cardType="aadhaar"
                         />
@@ -2681,16 +2673,8 @@ function UserDrawer({
                               <path d="M17 9l2-2" />
                             </svg>
                           }
-                          frontImage={
-                            latestKyc.documents.panFront
-                              ? `${API_URL}/uploads/kyc/${latestKyc.documents.panFront}`
-                              : null
-                          }
-                          backImage={
-                            latestKyc.documents.panBack
-                              ? `${API_URL}/uploads/kyc/${latestKyc.documents.panBack}`
-                              : null
-                          }
+                          frontImage={latestKyc.documents.panFront || null}
+                          backImage={latestKyc.documents.panBack || null}
                           username={u.username}
                           cardType="pan"
                         />

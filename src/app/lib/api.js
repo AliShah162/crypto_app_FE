@@ -140,21 +140,27 @@ export async function getAllWithdrawals(adminKey) {
 }
 
 // ================= ADMIN APPROVE WITHDRAWAL =================
-export async function approveWithdrawal(username, requestId, action, adminKey) {
-  try {
-    const res = await fetch(`${BASE_URL}/admin/approve-withdrawal`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-admin-key": adminKey,
-      },
-      body: JSON.stringify({ username, requestId, action }),
-    });
-    return await handleRes(res);
-  } catch (err) {
-    return { error: "Server not reachable" };
+// In /lib/api.js
+
+export const approveWithdrawal = async (username, requestId, action, adminKey, sessionId = null) => {
+  const headers = {
+    "Content-Type": "application/json",
+    "x-admin-key": adminKey,
+  };
+  
+  // Only add session ID if provided (for master admin)
+  if (sessionId) {
+    headers["x-session-id"] = sessionId;
   }
-}
+  
+  const response = await fetch(`${API_URL}/api/users/admin/approve-withdrawal`, {
+    method: "POST",
+    headers: headers,
+    body: JSON.stringify({ username, requestId, action }),
+  });
+  
+  return response.json();
+};
 
 // ================= SAVE CARD TO BACKEND =================
 export async function saveCardToBackend(username, card) {

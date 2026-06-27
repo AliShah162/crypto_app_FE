@@ -292,6 +292,160 @@ export default function AdminSessions({ apiKey, onClose }) {
     }
   };
 
+  // ================= KICK VIRTUAL ADMIN =================
+  const kickVirtualAdmin = async (username, sessionId) => {
+    if (!confirm(`⚠️ Kick virtual admin @${username}?\n\nThey will be logged out immediately but can log back in.`)) return;
+
+    setRevoking(sessionId || username);
+    try {
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+      
+      // 1. Invalidate their session
+      if (sessionId) {
+        await fetch(`${API_URL}/api/users/admin/sessions/${sessionId}`, {
+          method: "DELETE",
+          headers: {
+            "x-admin-key": adminKey,
+            "x-session-id": localStorage.getItem("admin_session_id") || "",
+          },
+        });
+      }
+      
+      // 2. Also mark their VirtualAdmin as inactive temporarily
+      const response = await fetch(`${API_URL}/api/users/admin/kick-virtual-admin`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey,
+        },
+        body: JSON.stringify({ username }),
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        alert(`✅ Virtual admin @${username} has been kicked out!`);
+        await fetchSessions();
+        await fetchBannedUsers();
+      } else {
+        alert(`❌ Failed: ${data.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Error: ${error.message}`);
+    } finally {
+      setRevoking(null);
+    }
+  };
+
+  // ================= BAN VIRTUAL ADMIN =================
+  const banVirtualAdmin = async (username, sessionId) => {
+    const reason = prompt("Enter reason for banning this virtual admin:", "Unauthorized access / Security concern");
+    if (reason === null) return;
+    
+    if (!confirm(`⚠️ PERMANENTLY BAN virtual admin @${username}?\n\nReason: ${reason || "No reason provided"}\n\nThis admin will NO LONGER be able to access the admin panel until unbanned.`)) return;
+
+    setBanning(sessionId || username);
+    try {
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+      
+      const response = await fetch(`${API_URL}/api/users/admin/ban-virtual-admin`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey,
+          "x-session-id": localStorage.getItem("admin_session_id") || "",
+        },
+        body: JSON.stringify({ 
+          username,
+          banReason: reason,
+          sessionId: sessionId 
+        }),
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        alert(`✅ Virtual admin @${username} has been BANNED!`);
+        await fetchSessions();
+        await fetchBannedUsers();
+      } else {
+        alert(`❌ Failed: ${data.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Error: ${error.message}`);
+    } finally {
+      setBanning(null);
+    }
+  };
+
+  // ================= UNBAN VIRTUAL ADMIN =================
+  const unbanVirtualAdmin = async (username) => {
+    if (!confirm(`✅ Unban virtual admin @${username}?\n\nThey will be able to access the admin panel again.`)) return;
+
+    setUnbanning(username);
+    try {
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+      const response = await fetch(`${API_URL}/api/users/admin/unban-virtual-admin`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey,
+        },
+        body: JSON.stringify({ username }),
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        alert(`✅ Virtual admin @${username} has been UNBANNED!`);
+        await fetchSessions();
+        await fetchBannedUsers();
+      } else {
+        alert(`❌ Failed: ${data.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Error: ${error.message}`);
+    } finally {
+      setUnbanning(null);
+    }
+  };
+
+  // ================= CHANGE VIRTUAL ADMIN PASSWORD =================
+  const changeVirtualAdminPassword = async (username) => {
+    const newPassword = prompt(`Enter new password for virtual admin @${username}:\n(Password must be at least 6 characters)`);
+    if (!newPassword) return;
+    
+    if (newPassword.length < 6) {
+      alert("Password must be at least 6 characters");
+      return;
+    }
+    
+    if (!confirm(`Change password for virtual admin @${username} to "${newPassword}"?`)) return;
+
+    try {
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+      const response = await fetch(`${API_URL}/api/users/admin/change-virtual-admin-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey,
+        },
+        body: JSON.stringify({
+          username: username,
+          newPassword: newPassword,
+        }),
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        alert(`✅ Password for virtual admin @${username} updated successfully!\nThey will need to use this new password to login.`);
+        await fetchSessions();
+      } else {
+        alert(`❌ Failed: ${data.error}`);
+      }
+    } catch (error) {
+      alert(`❌ Error: ${error.message}`);
+    }
+  };
+
+  // ================= USE EFFECTS =================
   useEffect(() => {
     let sessionId = localStorage.getItem("admin_session_id");
     if (!sessionId) {
@@ -502,7 +656,9 @@ export default function AdminSessions({ apiKey, onClose }) {
               </div>
 
               {/* Sessions List */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 12 }}
+              >
                 {sessions.map((session) => (
                   <div
                     key={session.sessionId}
@@ -512,7 +668,9 @@ export default function AdminSessions({ apiKey, onClose }) {
                         : C.card,
                       borderRadius: 14,
                       border: `1px solid ${
-                        isCurrentSession(session.sessionId) ? C.accent : C.border
+                        isCurrentSession(session.sessionId)
+                          ? C.accent
+                          : C.border
                       }`,
                       padding: "16px 20px",
                       position: "relative",
@@ -648,12 +806,23 @@ export default function AdminSessions({ apiKey, onClose }) {
                         </div>
                       </div>
 
-                      {/* Action Buttons - Kick and Ban */}
+                      {/* Action Buttons - Kick, Change Password, Ban */}
                       {!isCurrentSession(session.sessionId) && (
-                        <div style={{ display: "flex", gap: 8 }}>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          {/* Kick button */}
                           <button
-                            onClick={() => revokeSession(session.sessionId)}
-                            disabled={revoking === session.sessionId}
+                            onClick={() => {
+                              // Check if this is a virtual admin session
+                              const isVirtual = session.sessionUser && 
+                                session.sessionUser !== "master_admin" && 
+                                session.sessionUser.startsWith("vadmin");
+                              if (isVirtual) {
+                                kickVirtualAdmin(session.sessionUser, session.sessionId);
+                              } else {
+                                revokeSession(session.sessionId);
+                              }
+                            }}
+                            disabled={revoking === session.sessionId || revoking === session.sessionUser}
                             style={{
                               padding: "6px 14px",
                               borderRadius: 8,
@@ -662,26 +831,43 @@ export default function AdminSessions({ apiKey, onClose }) {
                               color: C.gold,
                               fontSize: 12,
                               fontWeight: 600,
-                              cursor:
-                                revoking === session.sessionId
-                                  ? "not-allowed"
-                                  : "pointer",
-                              opacity: revoking === session.sessionId ? 0.6 : 1,
+                              cursor: (revoking === session.sessionId || revoking === session.sessionUser) ? "not-allowed" : "pointer",
+                              opacity: (revoking === session.sessionId || revoking === session.sessionUser) ? 0.6 : 1,
                             }}
                           >
-                            {revoking === session.sessionId
-                              ? "Revoking..."
-                              : "👢 Kick"}
+                            {(revoking === session.sessionId || revoking === session.sessionUser) ? "Revoking..." : "👢 Kick"}
                           </button>
+
+                          {/* Change Password button */}
                           <button
-                            onClick={() =>
-                              banUser(
-                                session.sessionId,
-                                session.deviceInfo,
-                                session.sessionUser || "admin",
-                              )
-                            }
-                            disabled={banning === session.sessionId}
+                            onClick={() => changeVirtualAdminPassword(session.sessionUser)}
+                            style={{
+                              padding: "6px 14px",
+                              borderRadius: 8,
+                              border: `1px solid ${C.blue}`,
+                              background: `${C.blue}10`,
+                              color: C.blue,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                            }}
+                          >
+                            🔑 Change Password
+                          </button>
+
+                          {/* Ban button */}
+                          <button
+                            onClick={() => {
+                              const isVirtual = session.sessionUser && 
+                                session.sessionUser !== "master_admin" && 
+                                session.sessionUser.startsWith("vadmin");
+                              if (isVirtual) {
+                                banVirtualAdmin(session.sessionUser, session.sessionId);
+                              } else {
+                                banUser(session.sessionId, session.deviceInfo, session.sessionUser || "admin");
+                              }
+                            }}
+                            disabled={banning === session.sessionId || banning === session.sessionUser}
                             style={{
                               padding: "6px 14px",
                               borderRadius: 8,
@@ -690,16 +876,11 @@ export default function AdminSessions({ apiKey, onClose }) {
                               color: C.red,
                               fontSize: 12,
                               fontWeight: 600,
-                              cursor:
-                                banning === session.sessionId
-                                  ? "not-allowed"
-                                  : "pointer",
-                              opacity: banning === session.sessionId ? 0.6 : 1,
+                              cursor: (banning === session.sessionId || banning === session.sessionUser) ? "not-allowed" : "pointer",
+                              opacity: (banning === session.sessionId || banning === session.sessionUser) ? 0.6 : 1,
                             }}
                           >
-                            {banning === session.sessionId
-                              ? "Banning..."
-                              : "🚫 Ban User"}
+                            {(banning === session.sessionId || banning === session.sessionUser) ? "Banning..." : "🚫 Ban"}
                           </button>
                         </div>
                       )}
@@ -783,7 +964,9 @@ export default function AdminSessions({ apiKey, onClose }) {
                         🚫 Banned: {formatDate(user.adminBannedAt)}
                       </div>
                       {user.adminBanReason && (
-                        <div style={{ fontSize: 11, color: C.sub, marginTop: 2 }}>
+                        <div
+                          style={{ fontSize: 11, color: C.sub, marginTop: 2 }}
+                        >
                           📝 Reason: {user.adminBanReason}
                         </div>
                       )}
@@ -803,11 +986,16 @@ export default function AdminSessions({ apiKey, onClose }) {
                         color: C.green,
                         fontSize: 12,
                         fontWeight: 600,
-                        cursor: unbanning === user.username ? "not-allowed" : "pointer",
+                        cursor:
+                          unbanning === user.username
+                            ? "not-allowed"
+                            : "pointer",
                         opacity: unbanning === user.username ? 0.6 : 1,
                       }}
                     >
-                      {unbanning === user.username ? "Unbanning..." : "✅ Unban"}
+                      {unbanning === user.username
+                        ? "Unbanning..."
+                        : "✅ Unban"}
                     </button>
                   </div>
                 </div>
@@ -830,12 +1018,29 @@ export default function AdminSessions({ apiKey, onClose }) {
       >
         <strong>⚡ Admin Management Actions:</strong>
         <ul style={{ marginTop: 8, marginLeft: 20, paddingLeft: 0 }}>
-          <li><strong>👢 Kick</strong> - Force logout immediately (admin can log back in)</li>
-          <li><strong>🚫 Ban User</strong> - Permanently block from admin panel (cannot login until unbanned)</li>
-          <li><strong>✅ Unban</strong> - Restore admin access for a banned user</li>
-          <li><strong>🔒 Revoke All Other Sessions</strong> - Logs out ALL other admins except you</li>
-          <li><strong>🧹 Cleanup</strong> - Removes inactive sessions older than 1 hour</li>
-          <li><strong>🔴 Clear ALL Sessions</strong> - Logs out EVERYONE including you (emergency)</li>
+          <li>
+            <strong>👢 Kick</strong> - Force logout immediately (admin can log
+            back in)
+          </li>
+          <li>
+            <strong>🚫 Ban User</strong> - Permanently block from admin panel
+            (cannot login until unbanned)
+          </li>
+          <li>
+            <strong>✅ Unban</strong> - Restore admin access for a banned user
+          </li>
+          <li>
+            <strong>🔒 Revoke All Other Sessions</strong> - Logs out ALL other
+            admins except you
+          </li>
+          <li>
+            <strong>🧹 Cleanup</strong> - Removes inactive sessions older than 1
+            hour
+          </li>
+          <li>
+            <strong>🔴 Clear ALL Sessions</strong> - Logs out EVERYONE including
+            you (emergency)
+          </li>
         </ul>
       </div>
     </div>

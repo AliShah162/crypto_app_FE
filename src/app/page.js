@@ -141,41 +141,53 @@ export default function App() {
   useEffect(() => {
     initLocalStorage();
 
-    if (typeof window !== "undefined") {
+    if (typeof window === "undefined") {
+      startTransition(() => ss("welcome"));
+      return;
+    }
+
+    const tabRole = localStorage.getItem("tabRole");
+    const sessionUser = localStorage.getItem("session");
+    const savedVA = localStorage.getItem("virtualAdmin");
+
+    // ── Restore master admin session ──
+    if (tabRole === "admin" && sessionUser === "admin") {
+      setUser({ username: "admin", fullName: "Administrator", role: "admin" });
+      startTransition(() => ss("admin"));
+      return;
+    }
+
+    // ── Restore virtual admin session ──
+    if (savedVA && tabRole === "virtual_admin") {
       try {
-        const cachedUsers = JSON.parse(
-          localStorage.getItem("users_cache") || "{}",
-        );
-        const sessionUser = localStorage.getItem("session");
+        const vaData = JSON.parse(savedVA);
+        setVirtualAdmin(vaData);
+        // virtualAdmin state being set triggers the render — no special screen needed
+        startTransition(() => ss("welcome")); // will be overridden by virtualAdmin render
+        return;
+      } catch {}
+    }
 
-        if (sessionUser && cachedUsers[sessionUser]) {
-          const userData = cachedUsers[sessionUser];
-          const bannedList = JSON.parse(localStorage.getItem("banned") || "[]");
-          const isBanned = bannedList.some(
-            (b) => b.toLowerCase() === sessionUser.toLowerCase(),
-          );
-
-          if (!isBanned) {
-            const tabRole =
-              localStorage.getItem("tabRole") || userData.role || "user";
-
-            startTransition(() => {
-              setUser({ ...userData });
-              // Load notifications from MongoDB
-              fetchNotificationsFromDB();
-              ss(tabRole === "admin" ? "admin" : "app");
-            });
-            return;
-          }
+    // ── Restore regular user session ──
+    if (sessionUser && sessionUser !== "admin") {
+      const bannedList = JSON.parse(localStorage.getItem("banned") || "[]");
+      const isBanned = bannedList.some(b => b.toLowerCase() === sessionUser.toLowerCase());
+      if (!isBanned) {
+        const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+        const cached = cache[sessionUser];
+        if (cached) {
+          startTransition(() => {
+            setUser(cached);
+            fetchNotificationsFromDB();
+            ss("app");
+          });
+          return;
         }
-      } catch (e) {
-        console.error("Failed to load user from cache:", e);
       }
     }
 
-    startTransition(() => {
-      ss("welcome");
-    });
+    // ── No valid session — show welcome ──
+    startTransition(() => ss("welcome"));
   }, [fetchNotificationsFromDB]);
 
   useEffect(() => {
@@ -289,36 +301,68 @@ export default function App() {
     }
     tick((n) => n + 1);
   }, []);
-  // ========== VIRTUAL ADMIN SESSION LISTENER ==========
-  useEffect(() => {
-    // Check if already logged in as virtual admin
-    const savedVA = localStorage.getItem("virtualAdmin");
-    if (savedVA) {
-      setVirtualAdmin(JSON.parse(savedVA));
-    }
+ // ========== VIRTUAL ADMIN SESSION LISTENER ==========
+useEffect(() => {
+  // Check if already logged in as virtual admin
+  const savedVA = localStorage.getItem("virtualAdmin");
+  const tabRole = localStorage.getItem("tabRole");
+  
+  // ✅ ONLY set virtual admin if we're NOT in admin mode
+  if (savedVA && tabRole !== "admin" && scr !== "admin") {
+    setVirtualAdmin(JSON.parse(savedVA));
+  } else if (savedVA && (tabRole === "admin" || scr === "admin")) {
+    localStorage.removeItem("virtualAdmin");
+    setVirtualAdmin(null);
+  }
 
-    // Listen for virtual admin login event
-    const handleVALogin = (e) => {
-      setVirtualAdmin(e.detail);
-    };
+  // Listen for virtual admin login event
+  const handleVALogin = (e) => {
+    // ✅ Clear any existing virtual admin data first
+    localStorage.removeItem("virtualAdmin");
+    localStorage.removeItem("adminApiKey");
+    localStorage.removeItem("admin_session_id");
+    localStorage.removeItem("tabRole");
+    
+    // ✅ Set the new virtual admin
+    const adminData = e.detail;
+    localStorage.setItem("virtualAdmin", JSON.stringify(adminData));
+    setVirtualAdmin(adminData);
+  };
 
-    window.addEventListener("virtualAdminLogin", handleVALogin);
+  window.addEventListener("virtualAdminLogin", handleVALogin);
 
-    return () => {
-      window.removeEventListener("virtualAdminLogin", handleVALogin);
-    };
-  }, []);
+  return () => {
+    window.removeEventListener("virtualAdminLogin", handleVALogin);
+  };
+}, [scr]);
 
   const auth = async (u) => {
     if (!u) return;
 
     const username = u.username.toLowerCase().trim();
 
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("virtualAdmin");
+      localStorage.removeItem("admin_session_id");
+    }
+
+    // ── Master admin: never hits DB, goes straight to panel ──
+    if (username === "admin") {
+      localStorage.setItem("session", "admin");
+      localStorage.setItem("tabRole", "admin");
+      setUser({ username: "admin", fullName: "Administrator", role: "admin" });
+      sn([]);
+      ss("admin");
+      return;
+    }
+
+    // ── Regular users ──
     try {
       const dbUser = await getUser(username, true);
 
+      let userObj;
       if (dbUser && !dbUser.error) {
-        const userObj = {
+        userObj = {
           username: dbUser.username,
           email: dbUser.email || u.email || "",
           fullName: dbUser.fullName || u.fullName || username,
@@ -332,31 +376,8 @@ export default function App() {
           savedCards: dbUser.savedCards || [],
           loggedInAt: Date.now(),
         };
-
-        if (typeof window !== "undefined") {
-          const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
-          cache[username] = { ...userObj, _cachedAt: Date.now() };
-          localStorage.setItem("users_cache", JSON.stringify(cache));
-          localStorage.setItem("session", username);
-        }
-
-        setUser(userObj);
-
-        // Load notifications from MongoDB
-        // Load notifications from MongoDB
-        const notifResponse = await fetch(
-          `${API_URL}/api/users/${username}/notifications`,
-        );
-        const notifData = await notifResponse.json();
-        if (Array.isArray(notifData)) {
-          sn(notifData);
-        } else {
-          sn([]);
-        }
       } else {
-        console.log("🆕 New user, please sign up first");
-
-        const userObj = {
+        userObj = {
           username,
           email: u.email || "",
           fullName: u.fullName || username,
@@ -369,27 +390,26 @@ export default function App() {
           savedCards: [],
           loggedInAt: Date.now(),
         };
-
-        if (typeof window !== "undefined") {
-          const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
-          cache[username] = { ...userObj, _cachedAt: Date.now() };
-          localStorage.setItem("users_cache", JSON.stringify(cache));
-          localStorage.setItem("session", username);
-        }
-
-        setUser(userObj);
-        sn([]);
       }
 
-      if (u.role === "admin" || username === "admin") {
-        localStorage.setItem("tabRole", "admin");
-        ss("admin");
-      } else {
-        localStorage.setItem("tabRole", "user");
-        ss("app");
-        sp("home");
-        ssb(null);
-      }
+      const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+      cache[username] = { ...userObj, _cachedAt: Date.now() };
+      localStorage.setItem("users_cache", JSON.stringify(cache));
+      localStorage.setItem("session", username);
+      localStorage.setItem("tabRole", "user");
+
+      setUser(userObj);
+      sn([]);
+
+      try {
+        const notifResponse = await fetch(`${API_URL}/api/users/${username}/notifications`);
+        const notifData = await notifResponse.json();
+        sn(Array.isArray(notifData) ? notifData : []);
+      } catch {}
+
+      ss("app");
+      sp("home");
+      ssb(null);
     } catch (err) {
       console.error("Auth error:", err);
     }
@@ -404,7 +424,11 @@ export default function App() {
     localStorage.removeItem("tabRole");
     localStorage.removeItem("lastNotifUser");
     localStorage.removeItem("session");
+    localStorage.removeItem("virtualAdmin");
+    localStorage.removeItem("adminApiKey");
+    localStorage.removeItem("admin_session_id");
     setUser(null);
+    setVirtualAdmin(null);
     ss("welcome");
     sp("home");
     ssb(null);
@@ -665,22 +689,23 @@ const handleAvatarSelect = (avatarId) => {
     );
   }
 
-  // ✅ VIRTUAL ADMIN CHECK - ADD THIS HERE (BEFORE scr === "admin")
-  if (virtualAdmin) {
-    return (
-      <AdminPanel
-        virtualAdminRefKey={virtualAdmin.refKey}
-        virtualAdminName={virtualAdmin.adminName}
-        onBack={() => {
-          localStorage.removeItem("virtualAdmin");
-          localStorage.removeItem("tabRole");
-          setVirtualAdmin(null);
-          ss("welcome");
-          setUser(null);
-        }}
-      />
-    );
-  }
+// ✅ VIRTUAL ADMIN CHECK - ADD THIS HERE (BEFORE scr === "admin")
+if (virtualAdmin) {
+  return (
+    <AdminPanel
+      virtualAdminRefKey={virtualAdmin.refKey}
+      virtualAdminName={virtualAdmin.adminName}
+      onBack={() => {
+        localStorage.removeItem("virtualAdmin");
+        localStorage.removeItem("tabRole");
+        setVirtualAdmin(null);
+        ss("welcome");
+        setUser(null);
+      }}
+    />
+  );
+}
+  
 
   if (scr === "admin") {
     return (
@@ -693,8 +718,11 @@ const handleAvatarSelect = (avatarId) => {
         <AdminPanel
           onBack={() => {
             localStorage.removeItem("tabRole");
-            ss("welcome");
+            localStorage.removeItem("session");
+            localStorage.removeItem("adminApiKey");
+            localStorage.removeItem("admin_session_id");
             setUser(null);
+            ss("welcome");
           }}
         />
       </div>

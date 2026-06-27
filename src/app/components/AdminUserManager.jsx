@@ -138,6 +138,48 @@ export default function AdminUserManager({ apiKey, onClose }) {
     }
   };
 
+  // ================= CHANGE VIRTUAL ADMIN PASSWORD =================
+const changeVirtualAdminPassword = async (username) => {
+  const newPassword = prompt(`Enter new password for @${username}:`);
+  if (!newPassword) return;
+  
+  if (newPassword.length < 6) {
+    alert("Password must be at least 6 characters");
+    return;
+  }
+  
+  if (!confirm(`Change password for @${username} to "${newPassword}"?`)) return;
+  
+  setActionLoading(`password-${username}`);
+  try {
+    const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+    const response = await fetch(`${API_URL}/api/users/admin/change-virtual-admin-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey,
+      },
+      body: JSON.stringify({
+        username: username,
+        newPassword: newPassword,
+      }),
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      alert(`✅ Password for @${username} updated successfully!`);
+      await fetchAdmins();
+    } else {
+      alert(`❌ Failed: ${data.error}`);
+    }
+  } catch (error) {
+    alert(`❌ Error: ${error.message}`);
+  } finally {
+    setActionLoading(null);
+  }
+};
+
   useEffect(() => {
     fetchAdmins();
     fetchBannedAdmins();

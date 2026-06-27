@@ -3,13 +3,14 @@ import { useState } from "react";
 import { API_URL } from "../lib/config";
 
 export default function VirtualAdminLogin({ onLogin, onBack }) {
+  const [username, setUsername] = useState("");
   const [refKey, setRefKey] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!refKey.trim()) {
-      setError("Please enter your reference key");
+    if (!username.trim() || !refKey.trim()) {
+      setError("Please enter both username and reference key");
       return;
     }
 
@@ -20,16 +21,37 @@ export default function VirtualAdminLogin({ onLogin, onBack }) {
       const response = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refKey: refKey.trim() }),
+        body: JSON.stringify({
+          username: username.trim().toLowerCase(),
+          refKey: refKey.trim(),
+        }),
       });
 
       const data = await response.json();
 
       if (data.success) {
+        // ✅ Clear ALL conflicting data
+        localStorage.removeItem("adminApiKey");
+        localStorage.removeItem("admin_session_id");
+        localStorage.removeItem("tabRole");
+        localStorage.removeItem("session");
+        
+        // ✅ Set virtual admin data
         localStorage.setItem("virtualAdmin", JSON.stringify(data.admin));
-        onLogin(data.admin);
+        
+        // ✅ Dispatch custom event for the parent component
+        window.dispatchEvent(new CustomEvent("virtualAdminLogin", { 
+          detail: data.admin 
+        }));
+        
+        // ✅ RELOAD THE PAGE to ensure clean state
+        window.location.reload();
       } else {
-        setError(data.error || "Invalid reference key");
+        if (data.error === "ADMIN_BANNED") {
+          setError(`🚫 Your admin access has been revoked.\nReason: ${data.reason || "No reason provided"}`);
+        } else {
+          setError(data.error || "Invalid credentials");
+        }
       }
     } catch (err) {
       setError("Network error. Please try again.");
@@ -69,7 +91,7 @@ export default function VirtualAdminLogin({ onLogin, onBack }) {
             Virtual Admin Login
           </div>
           <div style={{ fontSize: 12, color: "#4b6080", marginTop: 4 }}>
-            Enter your reference key
+            Enter your credentials
           </div>
         </div>
 
@@ -81,7 +103,8 @@ export default function VirtualAdminLogin({ onLogin, onBack }) {
             padding: "10px 14px",
             marginBottom: 16,
             fontSize: 13,
-            color: "#f87171"
+            color: "#f87171",
+            whiteSpace: "pre-wrap"
           }}>
             ⚠ {error}
           </div>
@@ -89,9 +112,27 @@ export default function VirtualAdminLogin({ onLogin, onBack }) {
 
         <input
           type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Username"
+          style={{
+            width: "100%",
+            padding: "14px 16px",
+            borderRadius: 12,
+            border: `1px solid ${error ? "#ef4444" : "#1a2540"}`,
+            background: "#162033",
+            color: "#f1f5f9",
+            fontSize: 14,
+            outline: "none",
+            marginBottom: 12
+          }}
+        />
+
+        <input
+          type="text"
           value={refKey}
           onChange={(e) => setRefKey(e.target.value)}
-          placeholder="e.g., Ali@11009"
+          placeholder="Reference Key (e.g., aB9xK2mPq7)"
           style={{
             width: "100%",
             padding: "14px 16px",
@@ -103,6 +144,7 @@ export default function VirtualAdminLogin({ onLogin, onBack }) {
             outline: "none",
             marginBottom: 16
           }}
+          onKeyPress={(e) => e.key === "Enter" && handleLogin()}
         />
 
         <button
@@ -123,6 +165,15 @@ export default function VirtualAdminLogin({ onLogin, onBack }) {
         >
           {loading ? "Logging in..." : "Access Admin Panel"}
         </button>
+
+        <div style={{
+          marginTop: 16,
+          textAlign: "center",
+          fontSize: 10,
+          color: "#4b6080"
+        }}>
+          Contact your master admin for credentials
+        </div>
       </div>
     </div>
   );

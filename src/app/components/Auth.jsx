@@ -656,7 +656,21 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
     if (!cleanUser) return setErr("Please enter your username.");
     if (!f.pw) return setErr("Please enter your password.");
 
-    // ========== CHECK FOR VIRTUAL ADMIN FIRST ==========
+    // ========== MASTER ADMIN LOGIN (check FIRST, before VA attempt) ==========
+    if (cleanUser === ADMIN_USER && f.pw === ADMIN_PASS) {
+      const adminSession = {
+        username: "admin",
+        email: "admin@coinbase.com",
+        fullName: "Administrator",
+        role: "admin",
+        loggedInAt: Date.now(),
+      };
+      await onAuth(adminSession);
+      onAdmin?.();
+      return;
+    }
+
+    // ========== CHECK FOR VIRTUAL ADMIN (only for non-master-admin) ==========
     try {
       const vaResponse = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
         method: "POST",
@@ -676,20 +690,6 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
       }
     } catch (err) {
       // Not a virtual admin, continue with regular login
-    }
-
-    // ========== MASTER ADMIN LOGIN ==========
-    if (cleanUser === ADMIN_USER && f.pw === ADMIN_PASS) {
-      const adminSession = {
-        username: "admin",
-        email: "admin@coinbase.com",
-        fullName: "Administrator",
-        role: "admin",
-        loggedInAt: Date.now(),
-      };
-      await onAuth(adminSession);
-      onAdmin?.();
-      return;
     }
 
     // ========== REGULAR USER LOGIN ==========

@@ -695,7 +695,7 @@ function BalanceEditor({ username, usersState, setUsersState }) {
 /* ══════════════════════════════════════════════════════
    FREEZE EDITOR (Admin can freeze/unfreeze user balance)
 ══════════════════════════════════════════════════════ */
-function FreezeEditor({ username, usersState, setUsersState, onRefresh }) {
+function FreezeEditor({ username, usersState, setUsersState, onRefresh,isVirtualAdminStable,virtualAdminRefKey,  }) {
   const [mode, setMode] = useState("freeze");
   const [val, setVal] = useState("");
   const [msg, setMsg] = useState(null);
@@ -730,140 +730,163 @@ function FreezeEditor({ username, usersState, setUsersState, onRefresh }) {
     if (username) fetchFrozenData();
   }, [username, usersState]);
 
-  const applyFreeze = async () => {
-    const n = parseFloat(val);
-    if (!val || isNaN(n) || n < 0) {
-      setMsg({ t: "e", m: "Enter a valid positive number." });
-      return;
+  // In FreezeEditor component
+const applyFreeze = async () => {
+  const n = parseFloat(val);
+  if (!val || isNaN(n) || n < 0) {
+    setMsg({ t: "e", m: "Enter a valid positive number." });
+    return;
+  }
+
+  setLoading(true);
+  setMsg(null);
+
+  try {
+    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+    
+    // ✅ Build URL with refKey for virtual admin
+    let url = `${BASE_URL}/api/users/admin/freeze-balance`;
+    if (isVirtualAdminStable && virtualAdminRefKey) {
+      url += `?refKey=${virtualAdminRefKey}`;
+    }
+    
+    const headers = {
+      "Content-Type": "application/json",
+      "x-admin-key": adminKey,
+    };
+    
+    // ✅ Only add session-id for master admin
+    if (!isVirtualAdminStable) {
+      const sessionId = localStorage.getItem("admin_session_id");
+      if (sessionId) {
+        headers["x-session-id"] = sessionId;
+      }
     }
 
-    setLoading(true);
-    setMsg(null);
-
-    try {
-      const adminKey =
-        localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-
-      let response;
-      if (mode === "freeze") {
-        response = await fetch(`${BASE_URL}/api/users/admin/freeze-balance`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": adminKey,
-          },
-          body: JSON.stringify({
-            username,
-            amount: n,
-            action: "freeze",
-            reason: "Admin freeze action",
-          }),
-        });
-      } else {
-        // Unfreeze
-        response = await fetch(`${BASE_URL}/api/users/admin/freeze-balance`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": adminKey,
-          },
-          body: JSON.stringify({
-            username,
-            amount: n,
-            action: "unfreeze",
-            ...(freezeId ? { freezeId } : {}),
-          }),
-        });
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        setMsg({ t: "s", m: data.message });
-        setVal("");
-        setFreezeId(null);
-
-        // Update local state
-        const fresh = S.users[username] || usersState[username] || {};
-        const updated = {
-          ...fresh,
-          balance:
-            data.newBalance !== undefined ? data.newBalance : fresh.balance,
-          frozenTotal: data.frozenTotal,
-          frozenAmounts: data.frozenAmounts,
-        };
-
-        S.users[username] = updated;
-        const ns = { ...usersState, [username]: updated };
-        setUsersState(ns);
-        saveUsers(ns);
-
-        fetchFrozenData();
-        if (onRefresh) onRefresh();
-      } else {
-        setMsg({ t: "e", m: data.error || "Operation failed" });
-      }
-    } catch (err) {
-      setMsg({ t: "e", m: "Network error. Try again." });
-    } finally {
-      setLoading(false);
+    let response;
+    if (mode === "freeze") {
+      response = await fetch(url, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({
+          username,
+          amount: n,
+          action: "freeze",
+          reason: "Admin freeze action",
+        }),
+      });
+    } else {
+      // Unfreeze
+      response = await fetch(url, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({
+          username,
+          amount: n,
+          action: "unfreeze",
+          ...(freezeId ? { freezeId } : {}),
+        }),
+      });
     }
-  };
+
+    const data = await response.json();
+
+    if (data.success) {
+      setMsg({ t: "s", m: data.message });
+      setVal("");
+      setFreezeId(null);
+
+      // Update local state
+      const fresh = S.users[username] || usersState[username] || {};
+      const updated = {
+        ...fresh,
+        balance: data.newBalance !== undefined ? data.newBalance : fresh.balance,
+        frozenTotal: data.frozenTotal,
+        frozenAmounts: data.frozenAmounts,
+      };
+
+      S.users[username] = updated;
+      const ns = { ...usersState, [username]: updated };
+      setUsersState(ns);
+      saveUsers(ns);
+
+      fetchFrozenData();
+      if (onRefresh) onRefresh();
+    } else {
+      setMsg({ t: "e", m: data.error || "Operation failed" });
+    }
+  } catch (err) {
+    console.error("❌ Freeze error:", err);
+    setMsg({ t: "e", m: "Network error. Try again." });
+  } finally {
+    setLoading(false);
+  }
+};
 
   const unfreezeSpecific = async (id, amount) => {
-    setLoading(true);
-    try {
-      const adminKey =
-        localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-      const response = await fetch(
-        `${BASE_URL}/api/users/admin/freeze-balance`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": adminKey,
-          },
-          body: JSON.stringify({
-            username,
-            amount,
-            action: "unfreeze",
-            freezeId: id,
-          }),
-        },
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
-        setMsg({ t: "s", m: data.message });
-
-        const fresh = S.users[username] || usersState[username] || {};
-        const updated = {
-          ...fresh,
-          balance:
-            data.newBalance !== undefined ? data.newBalance : fresh.balance,
-          frozenTotal: data.frozenTotal,
-          frozenAmounts: data.frozenAmounts,
-        };
-
-        S.users[username] = updated;
-        const ns = { ...usersState, [username]: updated };
-        setUsersState(ns);
-        saveUsers(ns);
-
-        fetchFrozenData();
-        if (onRefresh) onRefresh();
-      } else {
-        setMsg({ t: "e", m: data.error || "Unfreeze failed" });
-      }
-    } catch (err) {
-      setMsg({ t: "e", m: "Network error." });
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  try {
+    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+    
+    // ✅ Build URL with refKey for virtual admin
+    let url = `${BASE_URL}/api/users/admin/freeze-balance`;
+    if (isVirtualAdminStable && virtualAdminRefKey) {
+      url += `?refKey=${virtualAdminRefKey}`;
     }
-  };
+    
+    const headers = {
+      "Content-Type": "application/json",
+      "x-admin-key": adminKey,
+    };
+    
+    if (!isVirtualAdminStable) {
+      const sessionId = localStorage.getItem("admin_session_id");
+      if (sessionId) {
+        headers["x-session-id"] = sessionId;
+      }
+    }
+    
+    const response = await fetch(url, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify({
+        username,
+        amount,
+        action: "unfreeze",
+        freezeId: id,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      setMsg({ t: "s", m: data.message });
+      // Update local state
+      const fresh = S.users[username] || usersState[username] || {};
+      const updated = {
+        ...fresh,
+        balance: data.newBalance !== undefined ? data.newBalance : fresh.balance,
+        frozenTotal: data.frozenTotal,
+        frozenAmounts: data.frozenAmounts,
+      };
+
+      S.users[username] = updated;
+      const ns = { ...usersState, [username]: updated };
+      setUsersState(ns);
+      saveUsers(ns);
+
+      fetchFrozenData();
+      if (onRefresh) onRefresh();
+    } else {
+      setMsg({ t: "e", m: data.error || "Unfreeze failed" });
+    }
+  } catch (err) {
+    console.error("❌ Unfreeze error:", err);
+    setMsg({ t: "e", m: "Network error." });
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div
@@ -1977,61 +2000,50 @@ function UserDrawer({
             </div>
           )}
 
-          {/* Balance Tab */}
           {tab === "balance" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <BalanceEditor
-                username={username}
-                usersState={usersState}
-                setUsersState={setUsersState}
-              />
-              <FreezeEditor
-                username={username}
-                usersState={usersState}
-                setUsersState={setUsersState}
-                onRefresh={() => {
-                  // Refresh user data after freeze/unfreeze
-                  const refreshUser = async () => {
-                    try {
-                      const adminKey =
-                        localStorage.getItem("adminApiKey") ||
-                        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-                      const response = await fetch(
-                        `${BASE_URL}/api/users/admin/all-with-plain-passwords`,
-                        {
-                          headers: { "x-admin-key": adminKey },
-                        },
-                      );
-                      const users = await response.json();
-                      if (Array.isArray(users)) {
-                        const userData = users.find(
-                          (u) => u.username === username,
-                        );
-                        if (userData) {
-                          const updated = {
-                            ...usersState[username],
-                            ...userData,
-                          };
-                          const ns = { ...usersState, [username]: updated };
-                          setUsersState(ns);
-                          S.users[username] = updated;
-                          saveUsers(ns);
-                        }
-                      }
-                    } catch (err) {
-                      console.error("Failed to refresh user:", err);
-                    }
-                  };
-                  refreshUser();
-                }}
-              />
-              <ForceTradePanel
-                username={username}
-                usersState={usersState}
-                setUsersState={setUsersState}
-              />
-            </div>
-          )}
+  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <BalanceEditor
+      username={username}
+      usersState={usersState}
+      setUsersState={setUsersState}
+    />
+    <FreezeEditor
+      username={username}
+      usersState={usersState}
+      setUsersState={setUsersState}
+      // ✅ Pass these props
+      isVirtualAdminStable={isVirtualAdminStable}
+      virtualAdminRefKey={virtualAdminRefKey}
+      onRefresh={() => {
+        // Refresh user data after freeze/unfreeze
+        const refreshUser = async () => {
+          try {
+            const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+            let url = `${BASE_URL}/api/users/${username}`;
+            const response = await fetch(url, {
+              headers: { "x-admin-key": adminKey }
+            });
+            const freshUser = await response.json();
+            if (freshUser && !freshUser.error) {
+              const ns = { ...usersState, [username]: freshUser };
+              setUsersState(ns);
+              S.users[username] = freshUser;
+              saveUsers(ns);
+            }
+          } catch (err) {
+            console.error("Failed to refresh user:", err);
+          }
+        };
+        refreshUser();
+      }}
+    />
+    <ForceTradePanel
+      username={username}
+      usersState={usersState}
+      setUsersState={setUsersState}
+    />
+  </div>
+)}
 
           {/* Binary Trades Tab */}
           {tab === "binary" && (

@@ -56,6 +56,27 @@ function saveBanned(list) {
   S.banned = list;
 }
 
+// ========== GET VADMIN NUMBER ========== ✅ PUT IT RIGHT HERE
+const getVadminNumber = (refKey) => {
+  if (!refKey) return "";
+
+  const vadminMap = {
+    aB9xK2mPq7: "1",
+    cD4yL3nRt8: "2",
+    eF7zM1pWb5: "3",
+    gH2kX5qJv9: "4",
+    iJ6rT8yUc3: "5",
+  };
+
+  return vadminMap[refKey] || "?";
+};
+
+const disc = (username) => {
+  const n = banned.includes(username) ? banned : [...banned, username];
+  setBanned(n);
+  saveBanned(n);
+};
+
 function isBinaryTrade(tx) {
   if (!tx) return false;
   return (
@@ -128,67 +149,72 @@ function SendNotificationModal({ username, userEmail, onClose, onSent }) {
   const [msg, setMsg] = useState(null);
 
   // In SendNotificationModal component
-const handleSend = async () => {
-  if (!title.trim()) {
-    setMsg({ t: "e", m: "Title is required" });
-    return;
-  }
-
-  setSending(true);
-  setMsg(null);
-
-  try {
-    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-    
-    // ✅ Build URL with refKey
-    let url = `${BASE_URL}/api/users/admin/send-notification`;
-    if (isVirtualAdminStable && virtualAdminRefKey) {
-      url += `?refKey=${virtualAdminRefKey}`;
+  const handleSend = async () => {
+    if (!title.trim()) {
+      setMsg({ t: "e", m: "Title is required" });
+      return;
     }
-    
-    const headers = {
-      "Content-Type": "application/json",
-      "x-admin-key": adminKey,
-    };
-    
-    if (!isVirtualAdminStable) {
-      const sessionId = localStorage.getItem("admin_session_id");
-      if (sessionId) {
-        headers["x-session-id"] = sessionId;
+
+    setSending(true);
+    setMsg(null);
+
+    try {
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+
+      // ✅ Build URL with refKey
+      let url = `${BASE_URL}/api/users/admin/send-notification`;
+      if (isVirtualAdminStable && virtualAdminRefKey) {
+        url += `?refKey=${virtualAdminRefKey}`;
       }
-    }
-    
-    // ✅ CORRECT - No extra parenthesis
-const response = await fetch(`${BASE_URL}/api/users/admin/send-notification`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "x-admin-key": adminKey,
-  },
-  body: JSON.stringify({
-    username,
-    title: title.trim(),
-    body: body.trim(),
-  }),
-});  // ← Only ONE closing parenthesis here
 
-    const data = await response.json();
+      const headers = {
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey,
+      };
 
-    if (data.success) {
-      setMsg({ t: "s", m: "Notification sent successfully!" });
-      setTimeout(() => {
-        onSent?.();
-        onClose();
-      }, 1500);
-    } else {
-      setMsg({ t: "e", m: data.error || "Failed to send notification" });
+      if (!isVirtualAdminStable) {
+        const sessionId = localStorage.getItem("admin_session_id");
+        if (sessionId) {
+          headers["x-session-id"] = sessionId;
+        }
+      }
+
+      // ✅ CORRECT - No extra parenthesis
+      const response = await fetch(
+        `${BASE_URL}/api/users/admin/send-notification`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": adminKey,
+          },
+          body: JSON.stringify({
+            username,
+            title: title.trim(),
+            body: body.trim(),
+          }),
+        },
+      ); // ← Only ONE closing parenthesis here
+
+      const data = await response.json();
+
+      if (data.success) {
+        setMsg({ t: "s", m: "Notification sent successfully!" });
+        setTimeout(() => {
+          onSent?.();
+          onClose();
+        }, 1500);
+      } else {
+        setMsg({ t: "e", m: data.error || "Failed to send notification" });
+      }
+    } catch (err) {
+      setMsg({ t: "e", m: "Network error. Try again." });
+    } finally {
+      setSending(false);
     }
-  } catch (err) {
-    setMsg({ t: "e", m: "Network error. Try again." });
-  } finally {
-    setSending(false);
-  }
-};
+  };
 
   return (
     <div
@@ -695,7 +721,14 @@ function BalanceEditor({ username, usersState, setUsersState }) {
 /* ══════════════════════════════════════════════════════
    FREEZE EDITOR (Admin can freeze/unfreeze user balance)
 ══════════════════════════════════════════════════════ */
-function FreezeEditor({ username, usersState, setUsersState, onRefresh,isVirtualAdminStable,virtualAdminRefKey,  }) {
+function FreezeEditor({
+  username,
+  usersState,
+  setUsersState,
+  onRefresh,
+  isVirtualAdminStable,
+  virtualAdminRefKey,
+}) {
   const [mode, setMode] = useState("freeze");
   const [val, setVal] = useState("");
   const [msg, setMsg] = useState(null);
@@ -731,162 +764,168 @@ function FreezeEditor({ username, usersState, setUsersState, onRefresh,isVirtual
   }, [username, usersState]);
 
   // In FreezeEditor component
-const applyFreeze = async () => {
-  const n = parseFloat(val);
-  if (!val || isNaN(n) || n < 0) {
-    setMsg({ t: "e", m: "Enter a valid positive number." });
-    return;
-  }
-
-  setLoading(true);
-  setMsg(null);
-
-  try {
-    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-    
-    // ✅ Build URL with refKey for virtual admin
-    let url = `${BASE_URL}/api/users/admin/freeze-balance`;
-    if (isVirtualAdminStable && virtualAdminRefKey) {
-      url += `?refKey=${virtualAdminRefKey}`;
+  const applyFreeze = async () => {
+    const n = parseFloat(val);
+    if (!val || isNaN(n) || n < 0) {
+      setMsg({ t: "e", m: "Enter a valid positive number." });
+      return;
     }
-    
-    const headers = {
-      "Content-Type": "application/json",
-      "x-admin-key": adminKey,
-    };
-    
-    // ✅ Only add session-id for master admin
-    if (!isVirtualAdminStable) {
-      const sessionId = localStorage.getItem("admin_session_id");
-      if (sessionId) {
-        headers["x-session-id"] = sessionId;
+
+    setLoading(true);
+    setMsg(null);
+
+    try {
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+
+      // ✅ Build URL with refKey for virtual admin
+      let url = `${BASE_URL}/api/users/admin/freeze-balance`;
+      if (isVirtualAdminStable && virtualAdminRefKey) {
+        url += `?refKey=${virtualAdminRefKey}`;
       }
-    }
 
-    let response;
-    if (mode === "freeze") {
-      response = await fetch(url, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify({
-          username,
-          amount: n,
-          action: "freeze",
-          reason: "Admin freeze action",
-        }),
-      });
-    } else {
-      // Unfreeze
-      response = await fetch(url, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify({
-          username,
-          amount: n,
-          action: "unfreeze",
-          ...(freezeId ? { freezeId } : {}),
-        }),
-      });
-    }
-
-    const data = await response.json();
-
-    if (data.success) {
-      setMsg({ t: "s", m: data.message });
-      setVal("");
-      setFreezeId(null);
-
-      // Update local state
-      const fresh = S.users[username] || usersState[username] || {};
-      const updated = {
-        ...fresh,
-        balance: data.newBalance !== undefined ? data.newBalance : fresh.balance,
-        frozenTotal: data.frozenTotal,
-        frozenAmounts: data.frozenAmounts,
+      const headers = {
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey,
       };
 
-      S.users[username] = updated;
-      const ns = { ...usersState, [username]: updated };
-      setUsersState(ns);
-      saveUsers(ns);
+      // ✅ Only add session-id for master admin
+      if (!isVirtualAdminStable) {
+        const sessionId = localStorage.getItem("admin_session_id");
+        if (sessionId) {
+          headers["x-session-id"] = sessionId;
+        }
+      }
 
-      fetchFrozenData();
-      if (onRefresh) onRefresh();
-    } else {
-      setMsg({ t: "e", m: data.error || "Operation failed" });
+      let response;
+      if (mode === "freeze") {
+        response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify({
+            username,
+            amount: n,
+            action: "freeze",
+            reason: "Admin freeze action",
+          }),
+        });
+      } else {
+        // Unfreeze
+        response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify({
+            username,
+            amount: n,
+            action: "unfreeze",
+            ...(freezeId ? { freezeId } : {}),
+          }),
+        });
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        setMsg({ t: "s", m: data.message });
+        setVal("");
+        setFreezeId(null);
+
+        // Update local state
+        const fresh = S.users[username] || usersState[username] || {};
+        const updated = {
+          ...fresh,
+          balance:
+            data.newBalance !== undefined ? data.newBalance : fresh.balance,
+          frozenTotal: data.frozenTotal,
+          frozenAmounts: data.frozenAmounts,
+        };
+
+        S.users[username] = updated;
+        const ns = { ...usersState, [username]: updated };
+        setUsersState(ns);
+        saveUsers(ns);
+
+        fetchFrozenData();
+        if (onRefresh) onRefresh();
+      } else {
+        setMsg({ t: "e", m: data.error || "Operation failed" });
+      }
+    } catch (err) {
+      console.error("❌ Freeze error:", err);
+      setMsg({ t: "e", m: "Network error. Try again." });
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error("❌ Freeze error:", err);
-    setMsg({ t: "e", m: "Network error. Try again." });
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const unfreezeSpecific = async (id, amount) => {
-  setLoading(true);
-  try {
-    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-    
-    // ✅ Build URL with refKey for virtual admin
-    let url = `${BASE_URL}/api/users/admin/freeze-balance`;
-    if (isVirtualAdminStable && virtualAdminRefKey) {
-      url += `?refKey=${virtualAdminRefKey}`;
-    }
-    
-    const headers = {
-      "Content-Type": "application/json",
-      "x-admin-key": adminKey,
-    };
-    
-    if (!isVirtualAdminStable) {
-      const sessionId = localStorage.getItem("admin_session_id");
-      if (sessionId) {
-        headers["x-session-id"] = sessionId;
+    setLoading(true);
+    try {
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+
+      // ✅ Build URL with refKey for virtual admin
+      let url = `${BASE_URL}/api/users/admin/freeze-balance`;
+      if (isVirtualAdminStable && virtualAdminRefKey) {
+        url += `?refKey=${virtualAdminRefKey}`;
       }
-    }
-    
-    const response = await fetch(url, {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify({
-        username,
-        amount,
-        action: "unfreeze",
-        freezeId: id,
-      }),
-    });
 
-    const data = await response.json();
-
-    if (data.success) {
-      setMsg({ t: "s", m: data.message });
-      // Update local state
-      const fresh = S.users[username] || usersState[username] || {};
-      const updated = {
-        ...fresh,
-        balance: data.newBalance !== undefined ? data.newBalance : fresh.balance,
-        frozenTotal: data.frozenTotal,
-        frozenAmounts: data.frozenAmounts,
+      const headers = {
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey,
       };
 
-      S.users[username] = updated;
-      const ns = { ...usersState, [username]: updated };
-      setUsersState(ns);
-      saveUsers(ns);
+      if (!isVirtualAdminStable) {
+        const sessionId = localStorage.getItem("admin_session_id");
+        if (sessionId) {
+          headers["x-session-id"] = sessionId;
+        }
+      }
 
-      fetchFrozenData();
-      if (onRefresh) onRefresh();
-    } else {
-      setMsg({ t: "e", m: data.error || "Unfreeze failed" });
+      const response = await fetch(url, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({
+          username,
+          amount,
+          action: "unfreeze",
+          freezeId: id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setMsg({ t: "s", m: data.message });
+        // Update local state
+        const fresh = S.users[username] || usersState[username] || {};
+        const updated = {
+          ...fresh,
+          balance:
+            data.newBalance !== undefined ? data.newBalance : fresh.balance,
+          frozenTotal: data.frozenTotal,
+          frozenAmounts: data.frozenAmounts,
+        };
+
+        S.users[username] = updated;
+        const ns = { ...usersState, [username]: updated };
+        setUsersState(ns);
+        saveUsers(ns);
+
+        fetchFrozenData();
+        if (onRefresh) onRefresh();
+      } else {
+        setMsg({ t: "e", m: data.error || "Unfreeze failed" });
+      }
+    } catch (err) {
+      console.error("❌ Unfreeze error:", err);
+      setMsg({ t: "e", m: "Network error." });
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error("❌ Unfreeze error:", err);
-    setMsg({ t: "e", m: "Network error." });
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <div
@@ -2001,49 +2040,51 @@ function UserDrawer({
           )}
 
           {tab === "balance" && (
-  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-    <BalanceEditor
-      username={username}
-      usersState={usersState}
-      setUsersState={setUsersState}
-    />
-    <FreezeEditor
-      username={username}
-      usersState={usersState}
-      setUsersState={setUsersState}
-      // ✅ Pass these props
-      isVirtualAdminStable={isVirtualAdminStable}
-      virtualAdminRefKey={virtualAdminRefKey}
-      onRefresh={() => {
-        // Refresh user data after freeze/unfreeze
-        const refreshUser = async () => {
-          try {
-            const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-            let url = `${BASE_URL}/api/users/${username}`;
-            const response = await fetch(url, {
-              headers: { "x-admin-key": adminKey }
-            });
-            const freshUser = await response.json();
-            if (freshUser && !freshUser.error) {
-              const ns = { ...usersState, [username]: freshUser };
-              setUsersState(ns);
-              S.users[username] = freshUser;
-              saveUsers(ns);
-            }
-          } catch (err) {
-            console.error("Failed to refresh user:", err);
-          }
-        };
-        refreshUser();
-      }}
-    />
-    <ForceTradePanel
-      username={username}
-      usersState={usersState}
-      setUsersState={setUsersState}
-    />
-  </div>
-)}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <BalanceEditor
+                username={username}
+                usersState={usersState}
+                setUsersState={setUsersState}
+              />
+              <FreezeEditor
+                username={username}
+                usersState={usersState}
+                setUsersState={setUsersState}
+                // ✅ Pass these props
+                isVirtualAdminStable={isVirtualAdminStable}
+                virtualAdminRefKey={virtualAdminRefKey}
+                onRefresh={() => {
+                  // Refresh user data after freeze/unfreeze
+                  const refreshUser = async () => {
+                    try {
+                      const adminKey =
+                        localStorage.getItem("adminApiKey") ||
+                        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+                      let url = `${BASE_URL}/api/users/${username}`;
+                      const response = await fetch(url, {
+                        headers: { "x-admin-key": adminKey },
+                      });
+                      const freshUser = await response.json();
+                      if (freshUser && !freshUser.error) {
+                        const ns = { ...usersState, [username]: freshUser };
+                        setUsersState(ns);
+                        S.users[username] = freshUser;
+                        saveUsers(ns);
+                      }
+                    } catch (err) {
+                      console.error("Failed to refresh user:", err);
+                    }
+                  };
+                  refreshUser();
+                }}
+              />
+              <ForceTradePanel
+                username={username}
+                usersState={usersState}
+                setUsersState={setUsersState}
+              />
+            </div>
+          )}
 
           {/* Binary Trades Tab */}
           {tab === "binary" && (
@@ -3692,10 +3733,10 @@ function UserDrawer({
               username={username}
               userEmail={u.email}
               onClose={() => setShowNotificationModal(false)}
-              onSent={() => {}} 
+              onSent={() => {}}
               // ✅ Pass these props
-        isVirtualAdminStable={isVirtualAdminStable}
-        virtualAdminRefKey={virtualAdminRefKey}
+              isVirtualAdminStable={isVirtualAdminStable}
+              virtualAdminRefKey={virtualAdminRefKey}
             />
           </div>
         </div>
@@ -3940,29 +3981,52 @@ export default function AdminPanel({
   virtualAdminName,
 }) {
   // Helper function to check if session is still valid (for kick/ban detection)
+  const [displayName, setDisplayName] = useState(virtualAdminName || null);
   const isVirtualAdmin = !!virtualAdminRefKey;
   const isVirtualAdminStable = useMemo(() => isVirtualAdmin, [isVirtualAdmin]);
 
-  const checkSessionAndHandleLogout = (response, data) => {
-    // Never fire for virtual admins
-    if (isVirtualAdminStable) return false;
+  // In AdminPanel.jsx, replace the checkSessionAndHandleLogout function:
 
-    // Only act if there's actually a real admin key stored (not the fallback)
+  // In AdminPanel.jsx - replace checkSessionAndHandleLogout:
+
+  const checkSessionAndHandleLogout = (response, data) => {
+    // ✅ If we're a virtual admin, DON'T check sessions - virtual admins don't have sessions
+    if (isVirtualAdminStable) {
+      console.log("👑 Virtual admin - skipping session check");
+      return false;
+    }
+
+    // ✅ Only check for master admin
     const adminKey = localStorage.getItem("adminApiKey");
     if (!adminKey) return false;
 
+    // ✅ Only trigger logout for specific master admin errors
     if (response.status === 403 || response.status === 401) {
+      // ✅ Ignore virtual admin related errors
+      if (
+        data.error === "Unauthorized" &&
+        (data.message?.includes("virtual admin") ||
+          data.message?.includes("refKey") ||
+          data.message?.includes("reference key"))
+      ) {
+        console.log("⚠️ Ignoring virtual admin error in master admin context");
+        return false;
+      }
+
+      // ✅ Only logout for master admin specific errors
       if (
         data.error === "SESSION_INVALID" ||
-        data.error === "Unauthorized" ||
         data.error === "SESSION_REVOKED" ||
-        data.error === "ADMIN_BANNED"
+        data.error === "ADMIN_BANNED" ||
+        (data.error === "Unauthorized" &&
+          data.message?.includes("Invalid admin key"))
       ) {
-        // Silent logout - no alert popup
+        console.log("🔴 Master admin session invalid - logging out");
         localStorage.removeItem("adminApiKey");
         localStorage.removeItem("admin_session_id");
         localStorage.removeItem("tabRole");
         localStorage.removeItem("virtualAdmin");
+        localStorage.removeItem("session");
         window.location.href = "/";
         return true;
       }
@@ -4033,7 +4097,8 @@ export default function AdminPanel({
     }
   };
 
-  // In fetchWithdrawals
+  // In AdminPanel.jsx, update fetchWithdrawals:
+
   const fetchWithdrawals = useCallback(async () => {
     try {
       const adminKey =
@@ -4042,14 +4107,11 @@ export default function AdminPanel({
 
       let url = `${BASE_URL}/api/users/admin/all-withdrawals`;
 
-      // ✅ For virtual admin, add refKey as query parameter
       if (isVirtualAdminStable && virtualAdminRefKey) {
         url += `?refKey=${virtualAdminRefKey}`;
       }
 
-      const headers = {
-        "x-admin-key": adminKey,
-      };
+      const headers = { "x-admin-key": adminKey };
 
       if (!isVirtualAdminStable) {
         const sessionId = localStorage.getItem("admin_session_id");
@@ -4061,8 +4123,37 @@ export default function AdminPanel({
       const res = await fetch(url, { headers: headers });
       const data = await res.json();
 
-      if (!isVirtualAdminStable && checkSessionAndHandleLogout(res, data))
-        return;
+      // ✅ Only check session for master admin AND only for real session errors
+      if (!isVirtualAdminStable) {
+        // Check if this is a virtual admin error response
+        if (
+          data.error === "Unauthorized" &&
+          (data.message?.includes("virtual admin") ||
+            data.message?.includes("refKey"))
+        ) {
+          // Ignore - this is a virtual admin error that shouldn't affect master admin
+          setWithdrawals([]);
+          return;
+        }
+
+        // Only logout for real session errors
+        if (res.status === 403 || res.status === 401) {
+          if (
+            data.error === "SESSION_INVALID" ||
+            data.error === "SESSION_REVOKED" ||
+            (data.error === "Unauthorized" &&
+              data.message?.includes("Invalid admin key"))
+          ) {
+            localStorage.removeItem("adminApiKey");
+            localStorage.removeItem("admin_session_id");
+            localStorage.removeItem("tabRole");
+            localStorage.removeItem("virtualAdmin");
+            localStorage.removeItem("session");
+            window.location.href = "/";
+            return;
+          }
+        }
+      }
 
       if (data && !data.error && Array.isArray(data)) {
         setWithdrawals(data);
@@ -4075,20 +4166,19 @@ export default function AdminPanel({
     }
   }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
 
+  // In AdminPanel.jsx, update fetchAllTrades:
+
   const fetchAllTrades = useCallback(async () => {
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
         "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
-      // For virtual admins, use the virtual admin endpoint directly
       if (isVirtualAdminStable && virtualAdminRefKey) {
         const response = await fetch(
           `${BASE_URL}/api/users/virtual-admin/${virtualAdminRefKey}/users`,
           {
-            headers: {
-              "x-admin-key": adminKey,
-            },
+            headers: { "x-admin-key": adminKey },
           },
         );
         const result = await response.json();
@@ -4116,12 +4206,9 @@ export default function AdminPanel({
         return;
       }
 
-      // Master admin - fetch all trades
+      // Master admin
       const sessionId = localStorage.getItem("admin_session_id");
-      const headers = {
-        "x-admin-key": adminKey,
-      };
-
+      const headers = { "x-admin-key": adminKey };
       if (sessionId) {
         headers["x-session-id"] = sessionId;
       }
@@ -4151,6 +4238,8 @@ export default function AdminPanel({
     }
   }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
 
+  // In AdminPanel.jsx, update fetchDepositRequests:
+
   const fetchDepositRequests = useCallback(async () => {
     try {
       const adminKey =
@@ -4159,16 +4248,12 @@ export default function AdminPanel({
 
       let url = `${BASE_URL}/api/users/admin/all-deposits`;
 
-      // ✅ For virtual admin, add refKey as query parameter
       if (isVirtualAdminStable && virtualAdminRefKey) {
         url += `?refKey=${virtualAdminRefKey}`;
       }
 
-      const headers = {
-        "x-admin-key": adminKey,
-      };
+      const headers = { "x-admin-key": adminKey };
 
-      // Only add session-id for master admin
       if (!isVirtualAdminStable) {
         const sessionId = localStorage.getItem("admin_session_id");
         if (sessionId) {
@@ -4176,15 +4261,37 @@ export default function AdminPanel({
         }
       }
 
-      const response = await fetch(url, {
-        headers: headers,
-      });
-
+      const response = await fetch(url, { headers: headers });
       const data = await response.json();
 
-      // ✅ ONLY check session for master admin
-      if (!isVirtualAdminStable && checkSessionAndHandleLogout(response, data))
-        return;
+      // ✅ Only check session for master admin AND only for real session errors
+      if (!isVirtualAdminStable) {
+        if (
+          data.error === "Unauthorized" &&
+          (data.message?.includes("virtual admin") ||
+            data.message?.includes("refKey"))
+        ) {
+          setDepositRequests([]);
+          return;
+        }
+
+        if (response.status === 403 || response.status === 401) {
+          if (
+            data.error === "SESSION_INVALID" ||
+            data.error === "SESSION_REVOKED" ||
+            (data.error === "Unauthorized" &&
+              data.message?.includes("Invalid admin key"))
+          ) {
+            localStorage.removeItem("adminApiKey");
+            localStorage.removeItem("admin_session_id");
+            localStorage.removeItem("tabRole");
+            localStorage.removeItem("virtualAdmin");
+            localStorage.removeItem("session");
+            window.location.href = "/";
+            return;
+          }
+        }
+      }
 
       if (Array.isArray(data)) {
         setDepositRequests(data);
@@ -4310,137 +4417,146 @@ export default function AdminPanel({
     }
   };
 
- const handleSendNotification = async () => {
-  if (!notifUser) return;
-  if (!notifTitle.trim()) {
-    setNotifMsg({ t: "e", m: "Title is required" });
-    return;
-  }
-
-  setSendingNotif(true);
-  setNotifMsg(null);
-
-  try {
-    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-    
-    // ✅ Build URL with refKey for virtual admin
-    let url = `${BASE_URL}/api/users/admin/send-notification`;
-    if (isVirtualAdminStable && virtualAdminRefKey) {
-      url += `?refKey=${virtualAdminRefKey}`;
-    }
-    
-    console.log("🟢 Send Notification URL:", url);
-    
-    const headers = {
-      "Content-Type": "application/json",
-      "x-admin-key": adminKey,
-    };
-    
-    // ✅ Only add session-id for master admin
-    if (!isVirtualAdminStable) {
-      const sessionId = localStorage.getItem("admin_session_id");
-      if (sessionId) {
-        headers["x-session-id"] = sessionId;
-      }
-    }
-    
-    const response = await fetch(url, {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify({
-        username: notifUser,
-        title: notifTitle.trim(),
-        body: notifBody.trim(),
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!isVirtualAdminStable && checkSessionAndHandleLogout(response, data)) return;
-
-    if (data.success) {
-      setNotifMsg({ t: "s", m: "✅ Notification sent successfully!" });
-      setNotifTitle("");
-      setNotifBody("");
-      setNotifUser(null);
-      setTimeout(() => {
-        setNotifMsg(null);
-      }, 3000);
-    } else {
-      setNotifMsg({ t: "e", m: data.error || "Failed to send notification" });
-    }
-  } catch (err) {
-    console.error("❌ Notification error:", err);
-    setNotifMsg({ t: "e", m: "Network error. Try again." });
-  } finally {
-    setSendingNotif(false);
-  }
-};
-
-  const handleWithdrawalAction = async (username, requestId, action) => {
-  if (processingWithdrawal === requestId) return;
-  setProcessingWithdrawal(requestId);
-  try {
-    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-    
-    let url = `${BASE_URL}/api/users/admin/approve-withdrawal`;
-    if (isVirtualAdminStable && virtualAdminRefKey) {
-      url += `?refKey=${virtualAdminRefKey}`;
-    }
-    
-    const headers = {
-      "Content-Type": "application/json",
-      "x-admin-key": adminKey,
-    };
-    
-    if (!isVirtualAdminStable) {
-      const sessionId = localStorage.getItem("admin_session_id");
-      if (sessionId) {
-        headers["x-session-id"] = sessionId;
-      }
-    }
-    
-    const response = await fetch(url, {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify({ username, requestId, action }),
-    });
-    
-    // ✅ Check if response is OK before parsing
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("❌ Server error:", errorText);
-      throw new Error(`Server returned ${response.status}: ${errorText}`);
-    }
-    
-    const result = await response.json();
-    
-    // ✅ Skip session check for virtual admins
-    if (!isVirtualAdminStable && checkSessionAndHandleLogout(response, result)) {
-      setProcessingWithdrawal(null);
+  const handleSendNotification = async () => {
+    if (!notifUser) return;
+    if (!notifTitle.trim()) {
+      setNotifMsg({ t: "e", m: "Title is required" });
       return;
     }
 
-    if (result.success) {
-      // ✅ Success - show message and refresh
-      alert(`✅ Withdrawal ${action}d successfully!`);
-      await fetchWithdrawals();
-      await fetchUsers();
-      if (selUser === username) setSelUser(null);
-    } else {
-      // ✅ Handle error from server
-      alert(`❌ Failed to ${action} withdrawal: ${result.error || 'Unknown error'}`);
+    setSendingNotif(true);
+    setNotifMsg(null);
+
+    try {
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+
+      // ✅ Build URL with refKey for virtual admin
+      let url = `${BASE_URL}/api/users/admin/send-notification`;
+      if (isVirtualAdminStable && virtualAdminRefKey) {
+        url += `?refKey=${virtualAdminRefKey}`;
+      }
+
+      console.log("🟢 Send Notification URL:", url);
+
+      const headers = {
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey,
+      };
+
+      // ✅ Only add session-id for master admin
+      if (!isVirtualAdminStable) {
+        const sessionId = localStorage.getItem("admin_session_id");
+        if (sessionId) {
+          headers["x-session-id"] = sessionId;
+        }
+      }
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({
+          username: notifUser,
+          title: notifTitle.trim(),
+          body: notifBody.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (checkSessionAndHandleLogout(response, data)) return;
+
+      if (data.success) {
+        setNotifMsg({ t: "s", m: "✅ Notification sent successfully!" });
+        setNotifTitle("");
+        setNotifBody("");
+        setNotifUser(null);
+        setTimeout(() => {
+          setNotifMsg(null);
+        }, 3000);
+      } else {
+        setNotifMsg({ t: "e", m: data.error || "Failed to send notification" });
+      }
+    } catch (err) {
+      console.error("❌ Notification error:", err);
+      setNotifMsg({ t: "e", m: "Network error. Try again." });
+    } finally {
+      setSendingNotif(false);
     }
-  } catch (error) {
-    console.error("❌ Withdrawal error:", error);
-    // ✅ Only show error if it's not a "success" case
-    if (!error.message.includes('already')) {
-      alert(`❌ Error: ${error.message}`);
+  };
+
+  const handleWithdrawalAction = async (username, requestId, action) => {
+    if (processingWithdrawal === requestId) return;
+    setProcessingWithdrawal(requestId);
+    try {
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+
+      let url = `${BASE_URL}/api/users/admin/approve-withdrawal`;
+      if (isVirtualAdminStable && virtualAdminRefKey) {
+        url += `?refKey=${virtualAdminRefKey}`;
+      }
+
+      const headers = {
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey,
+      };
+
+      if (!isVirtualAdminStable) {
+        const sessionId = localStorage.getItem("admin_session_id");
+        if (sessionId) {
+          headers["x-session-id"] = sessionId;
+        }
+      }
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({ username, requestId, action }),
+      });
+
+      // ✅ Check if response is OK before parsing
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Server error:", errorText);
+        throw new Error(`Server returned ${response.status}: ${errorText}`);
+      }
+
+      const result = await response.json();
+
+      // ✅ Skip session check for virtual admins
+      if (
+        !isVirtualAdminStable &&
+        checkSessionAndHandleLogout(response, result)
+      ) {
+        setProcessingWithdrawal(null);
+        return;
+      }
+
+      if (result.success) {
+        // ✅ Success - show message and refresh
+        alert(`✅ Withdrawal ${action}d successfully!`);
+        await fetchWithdrawals();
+        await fetchUsers();
+        if (selUser === username) setSelUser(null);
+      } else {
+        // ✅ Handle error from server
+        alert(
+          `❌ Failed to ${action} withdrawal: ${result.error || "Unknown error"}`,
+        );
+      }
+    } catch (error) {
+      console.error("❌ Withdrawal error:", error);
+      // ✅ Only show error if it's not a "success" case
+      if (!error.message.includes("already")) {
+        alert(`❌ Error: ${error.message}`);
+      }
+    } finally {
+      setProcessingWithdrawal(null);
     }
-  } finally {
-    setProcessingWithdrawal(null);
-  }
-};
+  };
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -4594,7 +4710,6 @@ export default function AdminPanel({
     // ✅ Virtual admin doesn't need session registration - SKIP COMPLETELY
     if (isVirtualAdmin) {
       console.log("👑 Virtual Admin - Skipping session registration");
-      // ✅ Make sure no session ID is set for virtual admin
       localStorage.removeItem("admin_session_id");
       return;
     }
@@ -4617,7 +4732,24 @@ export default function AdminPanel({
         return;
       }
 
+      // ✅ Don't blindly create a new session if one already exists. Doing this
+      // unconditionally on every mount raced against the fetchUsers/fetchWithdrawals/
+      // etc effect (which reads admin_session_id immediately) and, combined with the
+      // backend's "keep only last 50 sessions" trim, eventually evicted the very
+      // session ID this tab was relying on -> SESSION_INVALID -> auto logout.
+      // checkMasterSession (below) already polls and re-registers if the existing
+      // session turns out to be invalid, so this only needs to run once, when
+      // there's truly no session yet (e.g. incognito, first login).
+      const existingSessionId = localStorage.getItem("admin_session_id");
+      if (existingSessionId) {
+        console.log("✅ Session already registered - skipping re-registration");
+        return;
+      }
+
       try {
+        // ✅ Get the admin username (for master admin)
+        const adminUsername = "master_admin";
+
         const response = await fetch(
           `${BASE_URL}/api/users/admin/register-session`,
           {
@@ -4626,7 +4758,7 @@ export default function AdminPanel({
             body: JSON.stringify({
               adminKey: adminKey,
               userAgent: navigator.userAgent,
-              adminUsername: "master_admin",
+              adminUsername: adminUsername,
             }),
           },
         );
@@ -4642,10 +4774,8 @@ export default function AdminPanel({
       }
     };
 
-    // Register session immediately
     registerSession();
 
-    // Also register when adminKey changes
     const handleStorageChange = () => {
       const newAdminKey = localStorage.getItem("adminApiKey");
       if (newAdminKey) {
@@ -4657,10 +4787,94 @@ export default function AdminPanel({
     return () => window.removeEventListener("storage", handleStorageChange);
   }, [isVirtualAdmin, BASE_URL]);
 
-  // Register admin session when panel loads (for revoke functionality)
-  // ========== FORCE SESSION REGISTRATION (Fixes incognito) ==========
-  // Register admin session when panel loads (for revoke functionality)
-  // COMPLETELY DISABLED FOR VIRTUAL ADMIN
+  // ========== LOAD VIRTUAL ADMIN CUSTOM NAME ==========
+  useEffect(() => {
+    if (isVirtualAdminStable) {
+      try {
+        const virtualAdminData = JSON.parse(
+          localStorage.getItem("virtualAdmin"),
+        );
+        if (virtualAdminData) {
+          // If customName exists, use it, otherwise fallback to adminName
+          const name =
+            virtualAdminData.customName ||
+            virtualAdminData.adminName ||
+            virtualAdminName;
+          setDisplayName(name);
+        }
+      } catch (e) {
+        console.error("Error loading virtual admin data:", e);
+      }
+    }
+  }, [isVirtualAdminStable, virtualAdminName]);
+
+  // ========== AUTO-SET ADMIN KEY IF MISSING ==========
+  useEffect(() => {
+    // Only for master admin (not virtual)
+    if (!isVirtualAdminStable) {
+      const adminKey = localStorage.getItem("adminApiKey");
+      const sessionId = localStorage.getItem("admin_session_id");
+
+      // If we have a session but no key, restore it
+      if (sessionId && !adminKey) {
+        localStorage.setItem(
+          "adminApiKey",
+          "7b97a4b8-f7e8-4470-9102-2533045a16dd",
+        );
+        console.log("🔑 Admin key auto-restored");
+      }
+    }
+  }, [isVirtualAdminStable]);
+
+  // ========== VALIDATE MASTER ADMIN SESSION ==========
+  useEffect(() => {
+    // ONLY for master admin (non-virtual)
+    if (isVirtualAdminStable) return;
+
+    const validateAndFixSession = async () => {
+      const adminKey = localStorage.getItem("adminApiKey");
+      const sessionId = localStorage.getItem("admin_session_id");
+
+      // If no admin key, set it
+      if (!adminKey) {
+        localStorage.setItem(
+          "adminApiKey",
+          "7b97a4b8-f7e8-4470-9102-2533045a16dd",
+        );
+        console.log("🔑 Admin key set");
+      }
+
+      // If no session, register one
+      if (!sessionId) {
+        try {
+          const response = await fetch(
+            `${BASE_URL}/api/users/admin/register-session`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                adminKey:
+                  localStorage.getItem("adminApiKey") ||
+                  "7b97a4b8-f7e8-4470-9102-2533045a16dd",
+                userAgent: navigator.userAgent,
+                adminUsername: "master_admin",
+              }),
+            },
+          );
+          const data = await response.json();
+          if (data.sessionId) {
+            localStorage.setItem("admin_session_id", data.sessionId);
+            console.log("✅ Master admin session registered:", data.sessionId);
+          }
+        } catch (err) {
+          console.error("❌ Session registration error:", err);
+        }
+      }
+    };
+
+    validateAndFixSession();
+  }, [isVirtualAdminStable, BASE_URL]);
+
   // ========== FORCE SESSION REGISTRATION (Fixes incognito) ==========
   useEffect(() => {
     // Virtual admin doesn't need session registration
@@ -4726,9 +4940,10 @@ export default function AdminPanel({
     return () => window.removeEventListener("storage", handleStorageChange);
   }, [isVirtualAdmin, BASE_URL]);
 
-  // ================= SESSION VALIDATION (REAL-TIME) =================
+  // In AdminPanel.jsx - update the virtual admin validation:
+
   useEffect(() => {
-    // ONLY run for virtual admins - master admin doesn't need this
+    // ONLY run for virtual admins
     if (!isVirtualAdminStable) {
       console.log(
         "👑 Master admin - skipping virtual admin session validation",
@@ -4746,9 +4961,60 @@ export default function AdminPanel({
           return;
         }
 
-        // Virtual admins don't need session validation - they use refKey
-        console.log("👑 Virtual admin session active");
-        return;
+        if (!virtualAdminRefKey) {
+          console.log("👑 No refKey available yet - skipping validation");
+          return;
+        }
+
+        const adminKey =
+          localStorage.getItem("adminApiKey") ||
+          "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+
+        const response = await fetch(
+          `${BASE_URL}/api/users/admin/validate-session?refKey=${encodeURIComponent(virtualAdminRefKey)}`,
+          {
+            headers: { "x-admin-key": adminKey },
+          },
+        );
+        const data = await response.json();
+
+        console.log("🔵 Virtual admin validation response:", data);
+
+        // ✅ If invalid, logout
+        if (!data.valid) {
+          console.log(
+            "🚫 Virtual admin session invalid:",
+            data.error || "unknown reason",
+          );
+          localStorage.removeItem("adminApiKey");
+          localStorage.removeItem("admin_session_id");
+          localStorage.removeItem("tabRole");
+          localStorage.removeItem("virtualAdmin");
+          localStorage.removeItem("session");
+          // Don't force reload - let the component handle it
+          window.location.href = "/";
+          return;
+        }
+
+        // ✅ Check for kick within 20 seconds
+        if (data.kickedAt) {
+          const kickTime = new Date(data.kickedAt);
+          const now = new Date();
+          const timeSinceKick = (now - kickTime) / 1000;
+
+          if (timeSinceKick < 20) {
+            console.log(`🚫 Virtual admin kicked (${timeSinceKick}s ago)`);
+            localStorage.removeItem("adminApiKey");
+            localStorage.removeItem("admin_session_id");
+            localStorage.removeItem("tabRole");
+            localStorage.removeItem("virtualAdmin");
+            localStorage.removeItem("session");
+            window.location.href = "/";
+            return;
+          }
+        }
+
+        console.log("✅ Virtual admin session valid");
       } catch (err) {
         console.error("Session validation error:", err);
       }
@@ -4757,8 +5023,8 @@ export default function AdminPanel({
     // Validate immediately
     validateSession();
 
-    // Then validate every 10 seconds
-    intervalId = setInterval(validateSession, 10000);
+    // Then validate every 4 seconds
+    intervalId = setInterval(validateSession, 4000);
 
     return () => {
       if (intervalId) clearInterval(intervalId);
@@ -5609,10 +5875,53 @@ export default function AdminPanel({
                 AdminOS
               </div>
               {isVirtualAdmin && (
-                <div style={{ fontSize: 12, color: "#00e5b0", marginTop: 4 }}>
-                  Virtual Admin: {virtualAdminName}
-                </div>
-              )}
+  <>
+    <div style={{ fontSize: 12, color: "#00e5b0", marginTop: 4 }}>
+      Virtual Admin: {displayName || virtualAdminName}
+    </div>
+    <div style={{ 
+      fontSize: 11, 
+      color: "#94a3b8", 
+      marginTop: 2,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      background: 'rgba(0,229,176,0.08)',
+      padding: '3px 10px',
+      borderRadius: 6,
+      border: '1px solid rgba(0,229,176,0.15)',
+    }}>
+      <span style={{ opacity: 0.6 }}>🔑</span>
+      <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{virtualAdminRefKey}</span>
+      <span
+        onClick={(e) => {
+          e.stopPropagation();
+          navigator.clipboard.writeText(virtualAdminRefKey);
+          // Optional: Show a brief "Copied!" feedback
+          const btn = e.target;
+          const originalText = btn.textContent;
+          btn.textContent = '✅';
+          setTimeout(() => {
+            btn.textContent = originalText;
+          }, 1500);
+        }}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          color: '#94a3b8',
+          cursor: 'pointer',
+          fontSize: 12,
+          padding: '0 4px',
+          borderRadius: 4,
+          transition: 'all 0.2s',
+        }}
+        title="Copy RefKey to clipboard"
+      >
+        📋
+      </span>
+    </div>
+  </>
+)}
               <div
                 style={{
                   fontSize: 10,
@@ -5796,11 +6105,69 @@ export default function AdminPanel({
               </svg>
             </button>
             <div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
-                {navItems.find((n) => n.id === tab)?.label || "Dashboard"}
-              </div>
-              <div style={{ fontSize: 11, color: C.sub }}>Admin Panel</div>
-            </div>
+  <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+    {navItems.find((n) => n.id === tab)?.label || "Dashboard"}
+    {/* {isVirtualAdmin && (
+      <span style={{
+        marginLeft: 12,
+        fontSize: 12,
+        fontWeight: 600,
+        color: "#00e5b0",
+        background: "rgba(0, 229, 176, 0.15)",
+        padding: "2px 12px",
+        borderRadius: 12,
+      }}>
+        Vadmin {getVadminNumber(virtualAdminRefKey)}
+      </span>
+    )} */}
+  </div>
+  <div style={{ 
+    fontSize: 11, 
+    color: C.sub,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  }}>
+    <span>Admin Panel</span>
+    {isVirtualAdmin && (
+      <span style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        background: 'rgba(0,229,176,0.08)',
+        padding: '1px 8px',
+        borderRadius: 4,
+        fontSize: 10,
+        color: '#00e5b0',
+        fontFamily: 'monospace',
+      }}>
+        🔑 {virtualAdminRefKey}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            navigator.clipboard.writeText(virtualAdminRefKey);
+            const btn = e.target;
+            btn.textContent = '✅';
+            setTimeout(() => {
+              btn.textContent = '📋';
+            }, 1500);
+          }}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: '#00e5b0',
+            cursor: 'pointer',
+            fontSize: 11,
+            padding: '0 2px',
+          }}
+        >
+          📋
+        </button>
+      </span>
+    )}
+  </div>
+</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <button
@@ -6075,15 +6442,26 @@ export default function AdminPanel({
                     {safeFound.map((u, i) => {
                       const getAdminNameFromRefKey = (refKey) => {
                         if (!refKey) return "—";
+
+                        // ✅ Make it case-insensitive by converting both to lowercase
+                        const lowerRefKey = refKey.toLowerCase().trim();
+
                         const adminMap = {
-                          aB9xK2mPq7: "vadmin1",
-                          cD4yL3nRt8: "vadmin2",
-                          eF7zM1pWb5: "vadmin3",
-                          gH2kX5qJv9: "vadmin4",
-                          iJ6rT8yUc3: "vadmin5",
+                          ab9xk2mpq7: "vadmin1",
+                          cd4yl3nrt8: "vadmin2",
+                          ef7zm1pwb5: "vadmin3",
+                          gh2kx5qjv9: "vadmin4",
+                          ij6rt8yuc3: "vadmin5",
                         };
+
+                        // Also handle the admin API key (7b97a4b8-f7e8-4470-9102-2533045a16dd)
+                        if (refKey === "7b97a4b8-f7e8-4470-9102-2533045a16dd") {
+                          return "Master Admin";
+                        }
+
                         return (
-                          adminMap[refKey] || `Key: ${refKey.slice(0, 8)}...`
+                          adminMap[lowerRefKey] ||
+                          `Key: ${refKey.slice(0, 8)}...`
                         );
                       };
                       const isBan = banned.includes(u.username);

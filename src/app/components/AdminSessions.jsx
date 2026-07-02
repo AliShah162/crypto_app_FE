@@ -16,6 +16,26 @@ const C = {
   blue: "#3b82f6",
 };
 
+// ========== GET VADMIN NUMBER ==========
+const getVadminNumber = (sessionUser) => {
+  if (!sessionUser) return null;
+
+  // If it's master_admin, show "MASTER"
+  if (sessionUser === "master_admin") {
+    return "MASTER";
+  }
+
+  const vadminMap = {
+    vadmin1: "1",
+    vadmin2: "2",
+    vadmin3: "3",
+    vadmin4: "4",
+    vadmin5: "5",
+  };
+
+  return vadminMap[sessionUser] || null;
+};
+
 export default function AdminSessions({ apiKey, onClose }) {
   const [sessions, setSessions] = useState([]);
   const [bannedUsers, setBannedUsers] = useState([]);
@@ -26,6 +46,9 @@ export default function AdminSessions({ apiKey, onClose }) {
   const [unbanning, setUnbanning] = useState(null);
   const [showBanned, setShowBanned] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [renaming, setRenaming] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editingSessionId, setEditingSessionId] = useState(null);
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -47,66 +70,101 @@ export default function AdminSessions({ apiKey, onClose }) {
     }
   }, [apiKey]);
 
-  const fetchBannedUsers = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/users/admin/banned-users`, {
+const fetchBannedUsers = useCallback(async () => {
+  try {
+    const adminKey =
+      apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+
+    console.log("🔵 Fetching banned virtual admins with key:", adminKey);
+
+    const response = await fetch(`${API_URL}/api/users/admin/banned-virtual-admins`, {
+      headers: { "x-admin-key": adminKey },
+    });
+
+    console.log("🔵 Response status:", response.status);
+
+    const data = await response.json();
+    console.log("🔵 Response data:", data);
+
+    if (data.bannedVirtualAdmins && Array.isArray(data.bannedVirtualAdmins)) {
+      setBannedUsers(data.bannedVirtualAdmins);
+    } else {
+      setBannedUsers([]);
+    }
+  } catch (error) {
+    console.error("Failed to fetch banned users:", error);
+    setBannedUsers([]);
+  }
+}, [apiKey]);
+
+ // In AdminSessions.jsx - update revokeSession:
+
+const revokeSession = async (sessionId) => {
+  if (
+    !confirm(
+      "⚠️ Are you sure you want to revoke (kick) this admin session? The user will be logged out immediately.",
+    )
+  )
+    return;
+
+  setRevoking(sessionId);
+  try {
+    // Find the session to get the username
+    const sessionToRevoke = sessions.find(s => s.sessionId === sessionId);
+    const username = sessionToRevoke?.sessionUser;
+
+    const response = await fetch(
+      `${API_URL}/api/users/admin/sessions/${sessionId}`,
+      {
+        method: "DELETE",
         headers: {
           "x-admin-key":
             apiKey || localStorage.getItem("adminApiKey") || "admin123456",
+          "x-session-id": localStorage.getItem("admin_session_id") || "",
         },
-      });
-      const data = await response.json();
-      if (data.bannedUsers && Array.isArray(data.bannedUsers)) {
-        setBannedUsers(data.bannedUsers);
       }
-    } catch (error) {
-      console.error("Failed to fetch banned users:", error);
-    }
-  }, [apiKey]);
-
-  const revokeSession = async (sessionId) => {
-    if (
-      !confirm(
-        "⚠️ Are you sure you want to revoke (kick) this admin session? The user will be logged out immediately.",
-      )
-    )
-      return;
-
-    setRevoking(sessionId);
-    try {
-      const response = await fetch(
-        `${API_URL}/api/users/admin/sessions/${sessionId}`,
-        {
-          method: "DELETE",
-          headers: {
-            "x-admin-key":
-              apiKey || localStorage.getItem("adminApiKey") || "admin123456",
-            "x-session-id": localStorage.getItem("admin_session_id") || "",
-          },
-        },
-      );
-      const data = await response.json();
-      if (data.success) {
-        if (sessionId === currentSessionId) {
-          alert("⚠️ You have kicked yourself! You will be logged out now.");
-          localStorage.removeItem("adminApiKey");
-          localStorage.removeItem("admin_session_id");
-          window.location.href = "/";
-          return;
-        }
-        await fetchSessions();
-        alert("✅ Session revoked successfully");
-      } else {
-        alert(
-          "❌ Failed to revoke session: " + (data.error || "Unknown error"),
+    );
+    const data = await response.json();
+    if (data.success) {
+      // ✅ If this was a virtual admin, mark them as kicked
+      if (username && username.startsWith("vadmin")) {
+        const kickResponse = await fetch(
+          `${API_URL}/api/users/admin/kick-virtual-admin`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "admin123456",
+            },
+            body: JSON.stringify({ username }),
+          }
         );
+        const kickData = await kickResponse.json();
+        if (!kickData.success) {
+          console.warn("⚠️ Failed to mark virtual admin as kicked:", kickData.error);
+        }
       }
-    } catch (error) {
-      alert("❌ Error revoking session");
-    } finally {
-      setRevoking(null);
+
+      if (sessionId === currentSessionId) {
+        alert("⚠️ You have kicked yourself! You will be logged out now.");
+        localStorage.removeItem("adminApiKey");
+        localStorage.removeItem("admin_session_id");
+        window.location.href = "/";
+        return;
+      }
+      await fetchSessions();
+      alert("✅ Session revoked successfully");
+    } else {
+      alert(
+        "❌ Failed to revoke session: " + (data.error || "Unknown error"),
+      );
     }
-  };
+  } catch (error) {
+    alert("❌ Error revoking session");
+  } finally {
+    setRevoking(null);
+  }
+};
 
   const banUser = async (sessionId, deviceInfo, username) => {
     if (
@@ -292,136 +350,298 @@ export default function AdminSessions({ apiKey, onClose }) {
     }
   };
 
-  // ================= KICK VIRTUAL ADMIN =================
-  const kickVirtualAdmin = async (username, sessionId) => {
-    if (!confirm(`⚠️ Kick virtual admin @${username}?\n\nThey will be logged out immediately but can log back in.`)) return;
+ // ================= KICK VIRTUAL ADMIN =================
+const kickVirtualAdmin = async (username, sessionId) => {
+  if (
+    !confirm(
+      `⚠️ Kick virtual admin @${username}?\n\nThey will be logged out immediately but can log back in.`,
+    )
+  )
+    return;
 
-    setRevoking(sessionId || username);
-    try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
-      
-      // 1. Invalidate their session
-      if (sessionId) {
-        await fetch(`${API_URL}/api/users/admin/sessions/${sessionId}`, {
-          method: "DELETE",
-          headers: {
-            "x-admin-key": adminKey,
-            "x-session-id": localStorage.getItem("admin_session_id") || "",
-          },
-        });
-      }
-      
-      // 2. Also mark their VirtualAdmin as inactive temporarily
-      const response = await fetch(`${API_URL}/api/users/admin/kick-virtual-admin`, {
+  setRevoking(sessionId || username);
+  try {
+    const adminKey =
+      apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+
+    // ✅ 1. Remove their sessions first (this logs them out)
+    const userSessions = sessions.filter(
+      (s) => s.sessionUser === username && s.isActive !== false
+    );
+
+    for (const session of userSessions) {
+      await fetch(`${API_URL}/api/users/admin/sessions/${session.sessionId}`, {
+        method: "DELETE",
+        headers: {
+          "x-admin-key": adminKey,
+          "x-session-id": localStorage.getItem("admin_session_id") || "",
+        },
+      });
+    }
+
+    // ✅ 2. Record the kick (but DON'T deactivate the account)
+    const response = await fetch(
+      `${API_URL}/api/users/admin/kick-virtual-admin`,
+      {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-admin-key": adminKey,
         },
         body: JSON.stringify({ username }),
-      });
-      
+      }
+    );
+
+    const data = await response.json();
+    if (data.success) {
+      alert(`✅ Virtual admin @${username} has been kicked out!`);
+      await fetchSessions();
+      await fetchBannedUsers();
+    } else {
+      alert(`❌ Failed: ${data.error}`);
+    }
+  } catch (error) {
+    alert(`❌ Error: ${error.message}`);
+  } finally {
+    setRevoking(null);
+  }
+};
+
+ // In AdminSessions.jsx - replace the kickAllUserSessions function:
+
+const kickAllUserSessions = async (username) => {
+  if (
+    !confirm(
+      `⚠️ Kick ALL active sessions for @${username}?\n\nThis will log them out from ALL devices immediately.`,
+    )
+  )
+    return;
+
+  setRevoking(username);
+  try {
+    const adminKey =
+      apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+
+    // Get all active sessions for this user
+    const userSessions = sessions.filter(
+      (s) => s.sessionUser === username && s.isActive !== false,
+    );
+
+    if (userSessions.length === 0) {
+      alert(`No active sessions found for @${username}`);
+      setRevoking(null);
+      return;
+    }
+
+    // Revoke each session one by one
+    let revokedCount = 0;
+    for (const session of userSessions) {
+      const response = await fetch(
+        `${API_URL}/api/users/admin/sessions/${session.sessionId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "x-admin-key": adminKey,
+            "x-session-id": localStorage.getItem("admin_session_id") || "",
+          },
+        }
+      );
       const data = await response.json();
       if (data.success) {
-        alert(`✅ Virtual admin @${username} has been kicked out!`);
-        await fetchSessions();
-        await fetchBannedUsers();
-      } else {
-        alert(`❌ Failed: ${data.error}`);
+        revokedCount++;
       }
-    } catch (error) {
-      alert(`❌ Error: ${error.message}`);
-    } finally {
-      setRevoking(null);
     }
-  };
 
-  // ================= BAN VIRTUAL ADMIN =================
-  const banVirtualAdmin = async (username, sessionId) => {
-    const reason = prompt("Enter reason for banning this virtual admin:", "Unauthorized access / Security concern");
-    if (reason === null) return;
-    
-    if (!confirm(`⚠️ PERMANENTLY BAN virtual admin @${username}?\n\nReason: ${reason || "No reason provided"}\n\nThis admin will NO LONGER be able to access the admin panel until unbanned.`)) return;
+    // ✅ CRITICAL: If this is a virtual admin, mark them as kicked
+    if (username && username.startsWith("vadmin")) {
+      const kickResponse = await fetch(
+        `${API_URL}/api/users/admin/kick-virtual-admin`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": adminKey,
+          },
+          body: JSON.stringify({ username }),
+        }
+      );
+      const kickData = await kickResponse.json();
+      if (!kickData.success) {
+        console.warn("⚠️ Failed to mark virtual admin as kicked:", kickData.error);
+      } else {
+        console.log(`✅ Virtual admin @${username} marked as kicked`);
+      }
+    }
 
-    setBanning(sessionId || username);
-    try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
-      
-      const response = await fetch(`${API_URL}/api/users/admin/ban-virtual-admin`, {
+    alert(`✅ Successfully kicked ${revokedCount} session(s) for @${username}`);
+    await fetchSessions();
+
+    // If current user is kicked, redirect to login
+    if (username === "master_admin") {
+      alert("⚠️ You have kicked yourself! You will be logged out now.");
+      localStorage.removeItem("adminApiKey");
+      localStorage.removeItem("admin_session_id");
+      window.location.href = "/";
+      return;
+    }
+  } catch (error) {
+    console.error("Error kicking all sessions:", error);
+    alert("❌ Error kicking sessions");
+  } finally {
+    setRevoking(null);
+  }
+};
+
+// ================= BAN VIRTUAL ADMIN =================
+const banVirtualAdmin = async (username, sessionId) => {
+  const reason = prompt(
+    "Enter reason for banning this virtual admin:",
+    "Unauthorized access / Security concern",
+  );
+  if (reason === null) return;
+
+  if (
+    !confirm(
+      `⚠️ PERMANENTLY BAN virtual admin @${username}?\n\nReason: ${reason || "No reason provided"}\n\nThis admin will NO LONGER be able to access the admin panel until unbanned.`,
+    )
+  )
+    return;
+
+  setBanning(sessionId || username);
+  try {
+    const adminKey =
+      apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+
+    // ✅ 1. First, immediately REMOVE ALL their sessions
+    const userSessions = sessions.filter(
+      (s) => s.sessionUser === username && s.isActive !== false
+    );
+
+    let removedCount = 0;
+    for (const session of userSessions) {
+      const response = await fetch(
+        `${API_URL}/api/users/admin/sessions/${session.sessionId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "x-admin-key": adminKey,
+            "x-session-id": localStorage.getItem("admin_session_id") || "",
+          },
+        }
+      );
+      if (response.ok) {
+        removedCount++;
+      }
+    }
+
+    // ✅ 2. Then ban the virtual admin in the database
+    const response = await fetch(
+      `${API_URL}/api/users/admin/ban-virtual-admin`,
+      {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-admin-key": adminKey,
           "x-session-id": localStorage.getItem("admin_session_id") || "",
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           username,
           banReason: reason,
-          sessionId: sessionId 
+          sessionId: sessionId,
         }),
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        alert(`✅ Virtual admin @${username} has been BANNED!`);
-        await fetchSessions();
-        await fetchBannedUsers();
-      } else {
-        alert(`❌ Failed: ${data.error}`);
       }
-    } catch (error) {
-      alert(`❌ Error: ${error.message}`);
-    } finally {
-      setBanning(null);
+    );
+
+    const data = await response.json();
+    if (data.success) {
+      alert(`✅ Virtual admin @${username} has been BANNED!`);
+      alert(`✅ ${removedCount} active sessions removed!`);
+      // ✅ Force refresh sessions and banned list
+      await fetchSessions();
+      await fetchBannedUsers();
+      // ✅ Switch to banned tab to show the banned user
+      setShowBanned(true);
+    } else {
+      alert(`❌ Failed: ${data.error}`);
     }
-  };
+  } catch (error) {
+    console.error("❌ Ban error:", error);
+    alert(`❌ Error: ${error.message}`);
+  } finally {
+    setBanning(null);
+  }
+};
 
-  // ================= UNBAN VIRTUAL ADMIN =================
-  const unbanVirtualAdmin = async (username) => {
-    if (!confirm(`✅ Unban virtual admin @${username}?\n\nThey will be able to access the admin panel again.`)) return;
+ // ================= UNBAN VIRTUAL ADMIN =================
+const unbanVirtualAdmin = async (username) => {
+  if (
+    !confirm(
+      `✅ Unban virtual admin @${username}?\n\nThey will be able to access the admin panel again.`,
+    )
+  )
+    return;
 
-    setUnbanning(username);
-    try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
-      const response = await fetch(`${API_URL}/api/users/admin/unban-virtual-admin`, {
+  setUnbanning(username);
+  try {
+    const adminKey =
+      apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+    
+    // ✅ CORRECT ENDPOINT for virtual admin
+    const response = await fetch(
+      `${API_URL}/api/users/admin/unban-virtual-admin`,
+      {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-admin-key": adminKey,
         },
         body: JSON.stringify({ username }),
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        alert(`✅ Virtual admin @${username} has been UNBANNED!`);
-        await fetchSessions();
-        await fetchBannedUsers();
-      } else {
-        alert(`❌ Failed: ${data.error}`);
       }
-    } catch (error) {
-      alert(`❌ Error: ${error.message}`);
-    } finally {
-      setUnbanning(null);
-    }
-  };
+    );
 
-  // ================= CHANGE VIRTUAL ADMIN PASSWORD =================
-  const changeVirtualAdminPassword = async (username) => {
-    const newPassword = prompt(`Enter new password for virtual admin @${username}:\n(Password must be at least 6 characters)`);
-    if (!newPassword) return;
-    
-    if (newPassword.length < 6) {
-      alert("Password must be at least 6 characters");
-      return;
-    }
-    
-    if (!confirm(`Change password for virtual admin @${username} to "${newPassword}"?`)) return;
+    console.log("🔵 Unban response status:", response.status);
+    const data = await response.json();
+    console.log("🔵 Unban response data:", data);
 
-    try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
-      const response = await fetch(`${API_URL}/api/users/admin/change-virtual-admin-password`, {
+    if (data.success) {
+      alert(`✅ Virtual admin @${username} has been UNBANNED!`);
+      await fetchSessions();
+      await fetchBannedUsers();
+    } else {
+      alert(`❌ Failed: ${data.error}`);
+    }
+  } catch (error) {
+    console.error("❌ Unban error:", error);
+    alert(`❌ Error: ${error.message}`);
+  } finally {
+    setUnbanning(null);
+  }
+};
+
+const changeVirtualAdminPassword = async (username) => {
+  const newPassword = prompt(
+    `Enter new password for virtual admin @${username}:\n(Password must be at least 6 characters)`,
+  );
+  if (!newPassword) return;
+
+  if (newPassword.length < 6) {
+    alert("Password must be at least 6 characters");
+    return;
+  }
+
+  if (
+    !confirm(
+      `Change password for virtual admin @${username} to "${newPassword}"?`,
+    )
+  )
+    return;
+
+  try {
+    const adminKey =
+      apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+    const response = await fetch(
+      `${API_URL}/api/users/admin/change-virtual-admin-password`,
+      {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -431,28 +651,40 @@ export default function AdminSessions({ apiKey, onClose }) {
           username: username,
           newPassword: newPassword,
         }),
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        alert(`✅ Password for virtual admin @${username} updated successfully!\nThey will need to use this new password to login.`);
-        await fetchSessions();
-      } else {
-        alert(`❌ Failed: ${data.error}`);
-      }
-    } catch (error) {
-      alert(`❌ Error: ${error.message}`);
-    }
-  };
+      },
+    );
 
+    const data = await response.json();
+    if (data.success) {
+      // ✅ Show the new refKey and how many users were updated
+      alert(
+        `✅ Password for virtual admin @${username} updated successfully!\n\n` +
+        `New Password: ${data.newPassword}\n` +
+        `New Reference Key: ${data.newRefKey}\n` +
+        `Users Migrated: ${data.usersUpdated || 0}\n\n` +
+        `⚠️ IMPORTANT: The admin must use "${data.newPassword}" as their password to login.\n` +
+        `All users under this admin have been migrated to the new refKey.`
+      );
+      await fetchSessions();
+      await fetchBannedUsers();
+    } else {
+      alert(`❌ Failed: ${data.error}`);
+    }
+  } catch (error) {
+    alert(`❌ Error: ${error.message}`);
+  }
+};
   // ================= USE EFFECTS =================
   useEffect(() => {
-    let sessionId = localStorage.getItem("admin_session_id");
-    if (!sessionId) {
-      sessionId = Date.now().toString() + Math.random().toString(36);
-      localStorage.setItem("admin_session_id", sessionId);
-    }
-    setCurrentSessionId(sessionId);
+    // ✅ Just read whatever real session ID already exists. Never invent one
+    // here — a client-generated ID (Date.now() + random) was never registered
+    // with the backend, and writing it into the shared "admin_session_id" key
+    // clobbers the real session AdminPanel registered, so the next background
+    // fetch/poll gets SESSION_INVALID and force-logs the master admin out.
+    // The real registration flow lives in AdminPanel.jsx; this component should
+    // only ever read the id, never create or overwrite it.
+    const sessionId = localStorage.getItem("admin_session_id");
+    setCurrentSessionId(sessionId || null);
     fetchSessions();
     fetchBannedUsers();
     return () => {};
@@ -475,7 +707,156 @@ export default function AdminSessions({ apiKey, onClose }) {
     const days = Math.floor(hours / 24);
     return `${days} day${days > 1 ? "s" : ""} ago`;
   };
+  // ================= GET DISPLAY NAME =================
+  const getDisplayName = (session) => {
+    // ✅ Check if customName exists and is not empty
+    if (session.customName && session.customName.trim() !== "") {
+      return session.customName;
+    }
 
+    // ✅ If it's master_admin, show "Master Admin"
+    if (session.sessionUser === "master_admin") {
+      return "Master Admin 🛡️";
+    }
+
+    // ✅ If it's a virtual admin, show their username
+    if (session.sessionUser && session.sessionUser.startsWith("vadmin")) {
+      return session.sessionUser;
+    }
+
+    // Fallback to device info
+    return session.deviceInfo || "Unknown Device";
+  };
+
+  const renameSession = async (sessionId) => {
+    if (!editName.trim()) {
+      alert("Please enter a name");
+      return;
+    }
+
+    try {
+      setRenaming(sessionId);
+      const adminKey =
+        apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+
+      const response = await fetch(
+        `${API_URL}/api/users/admin/rename-session`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": adminKey,
+            "x-session-id": localStorage.getItem("admin_session_id") || "",
+          },
+          body: JSON.stringify({
+            sessionId: sessionId,
+            customName: editName.trim(),
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        // ✅ Force refresh immediately
+        await fetchSessions();
+
+        // ✅ Clear editing state
+        setEditingSessionId(null);
+        setEditName("");
+
+        // ✅ Show success message
+        alert("✅ Session renamed successfully!");
+      } else {
+        alert("❌ Failed to rename: " + data.error);
+      }
+    } catch (error) {
+      console.error("🔴 Rename error:", error);
+      alert("❌ Error renaming session");
+    } finally {
+      setRenaming(null);
+    }
+  };
+
+  // ================= RENAME SESSIONS BY IP =================
+const renameSessionsByIP = async (ipAddress) => {
+  if (!editName.trim()) {
+    alert("Please enter a name");
+    return;
+  }
+
+  // ✅ Get the session user from the editing session
+  const currentSession = sessions.find(s => s.sessionId === editingSessionId);
+  if (!currentSession) {
+    alert("Session not found");
+    return;
+  }
+
+  // ✅ Count ONLY active sessions for THIS user with this IP
+  const sessionsToRename = sessions.filter(
+    (s) => s.sessionUser === currentSession.sessionUser && 
+           s.ipAddress === ipAddress && 
+           s.isActive !== false
+  );
+
+  if (sessionsToRename.length === 1) {
+    // Only one session, just rename it directly
+    await renameSession(editingSessionId);
+    return;
+  }
+
+  // Multiple sessions for this user - ask user
+  if (
+    !confirm(
+      `📱 Found ${sessionsToRename.length} active sessions for @${currentSession.sessionUser} from IP (${ipAddress}).\n\n` +
+        `Do you want to rename ALL of them to "${editName.trim()}"?\n\n` +
+        `Click "OK" to rename all, or "Cancel" to rename just this one.`,
+    )
+  ) {
+    // User chose to rename only this one
+    await renameSession(editingSessionId);
+    return;
+  }
+
+  // User wants to rename all
+  try {
+    setRenaming(ipAddress);
+    const adminKey =
+      apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+
+    const response = await fetch(
+      `${API_URL}/api/users/admin/rename-sessions-by-ip`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey,
+          "x-session-id": localStorage.getItem("admin_session_id") || "",
+        },
+        body: JSON.stringify({
+          ipAddress: ipAddress,
+          customName: editName.trim(),
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert(`✅ Renamed ${data.renamedCount} sessions successfully!`);
+      await fetchSessions();
+      setEditingSessionId(null);
+      setEditName("");
+    } else {
+      alert("❌ Failed to rename sessions: " + data.error);
+    }
+  } catch (error) {
+    console.error("🔴 Rename by IP error:", error);
+    alert("❌ Error renaming sessions");
+  } finally {
+    setRenaming(null);
+  }
+};
   const isCurrentSession = (sessionId) => sessionId === currentSessionId;
 
   return (
@@ -717,12 +1098,60 @@ export default function AdminSessions({ apiKey, onClose }) {
                           <div>
                             <div
                               style={{
-                                fontSize: 14,
-                                fontWeight: 700,
-                                color: C.text,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
                               }}
                             >
-                              {session.deviceInfo || "Unknown Device"}
+                              <span
+                                style={{
+                                  fontSize: 14,
+                                  fontWeight: 700,
+                                  color: C.text,
+                                }}
+                              >
+                                {getDisplayName(session)}
+                              </span>
+                              {getVadminNumber(session.sessionUser) && (
+                                <span
+                                  style={{
+                                    background:
+                                      session.sessionUser === "master_admin"
+                                        ? "rgba(255, 215, 0, 0.2)" // Gold for master
+                                        : C.accent + "20",
+                                    color:
+                                      session.sessionUser === "master_admin"
+                                        ? "#ffd700" // Gold for master
+                                        : C.accent,
+                                    padding: "1px 10px",
+                                    borderRadius: 12,
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    border: `1px solid ${
+                                      session.sessionUser === "master_admin"
+                                        ? "rgba(255, 215, 0, 0.3)"
+                                        : C.accent + "30"
+                                    }`,
+                                  }}
+                                >
+                                  {session.sessionUser === "master_admin"
+                                    ? "👑 MASTER"
+                                    : `Vadmin ${getVadminNumber(session.sessionUser)}`}
+                                </span>
+                              )}
+                              {session.customName && (
+                                <span
+                                  style={{
+                                    fontSize: 9,
+                                    color: C.accent,
+                                    background: `${C.accent}20`,
+                                    padding: "2px 8px",
+                                    borderRadius: 10,
+                                  }}
+                                >
+                                  ✏️ Custom
+                                </span>
+                              )}
                             </div>
                             <div
                               style={{
@@ -731,7 +1160,14 @@ export default function AdminSessions({ apiKey, onClose }) {
                                 fontFamily: "monospace",
                               }}
                             >
-                              User: {session.sessionUser || "admin"}
+                              {session.sessionUser
+                                ? `User: ${session.sessionUser}`
+                                : "User: admin"}
+                              {session.customName && session.deviceInfo && (
+                                <span style={{ marginLeft: 8, color: "#888" }}>
+                                  (Device: {session.deviceInfo})
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -751,6 +1187,37 @@ export default function AdminSessions({ apiKey, onClose }) {
                           >
                             {session.ipAddress}
                           </span>
+                          {sessions.filter(
+                            (s) =>
+                              s.sessionUser === session.sessionUser &&
+                              s.isActive !== false,
+                          ).length > 1 && (
+                            <span
+                              style={{
+                                position: "absolute",
+                                top: -6,
+                                right: -6,
+                                background: C.gold,
+                                color: "#fff",
+                                fontSize: 9,
+                                borderRadius: "50%",
+                                width: 18,
+                                height: 18,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {
+                                sessions.filter(
+                                  (s) =>
+                                    s.sessionUser === session.sessionUser &&
+                                    s.isActive !== false,
+                                ).length
+                              }
+                            </span>
+                          )}
                         </div>
 
                         {/* Login & Last Active */}
@@ -806,23 +1273,126 @@ export default function AdminSessions({ apiKey, onClose }) {
                         </div>
                       </div>
 
-                      {/* Action Buttons - Kick, Change Password, Ban */}
                       {!isCurrentSession(session.sessionId) && (
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          {/* Kick button */}
+                        <div
+                          style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
+                        >
+                          {/* Rename button */}
+                          {editingSessionId === session.sessionId ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: 6,
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <input
+                                type="text"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                placeholder="Enter name..."
+                                style={{
+                                  padding: "4px 8px",
+                                  borderRadius: 6,
+                                  border: `1px solid ${C.accent}`,
+                                  background: "#fff",
+                                  color: C.text,
+                                  fontSize: 12,
+                                  width: 120,
+                                  outline: "none",
+                                }}
+                                autoFocus
+                                onKeyPress={(e) =>
+                                  e.key === "Enter" &&
+                                  renameSessionsByIP(session.ipAddress)
+                                }
+                              />
+                              <button
+                                onClick={() =>
+                                  renameSessionsByIP(session.ipAddress)
+                                }
+                                disabled={
+                                  renaming === session.sessionId ||
+                                  renaming === session.ipAddress
+                                }
+                                style={{
+                                  padding: "4px 10px",
+                                  borderRadius: 6,
+                                  border: "none",
+                                  background: C.green,
+                                  color: "#fff",
+                                  fontSize: 11,
+                                  cursor:
+                                    renaming === session.sessionId ||
+                                    renaming === session.ipAddress
+                                      ? "not-allowed"
+                                      : "pointer",
+                                  opacity:
+                                    renaming === session.sessionId ||
+                                    renaming === session.ipAddress
+                                      ? 0.6
+                                      : 1,
+                                }}
+                              >
+                                {renaming === session.sessionId ||
+                                renaming === session.ipAddress
+                                  ? "⏳"
+                                  : "Save"}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingSessionId(null);
+                                  setEditName("");
+                                }}
+                                style={{
+                                  padding: "4px 10px",
+                                  borderRadius: 6,
+                                  border: `1px solid ${C.border}`,
+                                  background: "transparent",
+                                  color: C.sub,
+                                  fontSize: 11,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+  onClick={() => {
+    setEditingSessionId(session.sessionId);
+    setEditName(session.customName || "");
+  }}
+  style={{
+    padding: "6px 14px",
+    borderRadius: 8,
+    border: `1px solid ${C.accent}`,
+    background: `${C.accent}10`,
+    color: C.accent,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+  }}
+>
+  ✏️ Rename
+</button>
+                          )}
+
+                          {/* Kick button - Now kicks ALL sessions for this user */}
                           <button
                             onClick={() => {
-                              // Check if this is a virtual admin session
-                              const isVirtual = session.sessionUser && 
-                                session.sessionUser !== "master_admin" && 
+                              const isVirtual =
+                                session.sessionUser &&
+                                session.sessionUser !== "master_admin" &&
                                 session.sessionUser.startsWith("vadmin");
-                              if (isVirtual) {
-                                kickVirtualAdmin(session.sessionUser, session.sessionId);
-                              } else {
-                                revokeSession(session.sessionId);
-                              }
+
+                              // Kick ALL sessions for this user
+                              kickAllUserSessions(session.sessionUser);
                             }}
-                            disabled={revoking === session.sessionId || revoking === session.sessionUser}
+                            disabled={
+                              revoking === session.sessionId ||
+                              revoking === session.sessionUser
+                            }
                             style={{
                               padding: "6px 14px",
                               borderRadius: 8,
@@ -831,16 +1401,29 @@ export default function AdminSessions({ apiKey, onClose }) {
                               color: C.gold,
                               fontSize: 12,
                               fontWeight: 600,
-                              cursor: (revoking === session.sessionId || revoking === session.sessionUser) ? "not-allowed" : "pointer",
-                              opacity: (revoking === session.sessionId || revoking === session.sessionUser) ? 0.6 : 1,
+                              cursor:
+                                revoking === session.sessionId ||
+                                revoking === session.sessionUser
+                                  ? "not-allowed"
+                                  : "pointer",
+                              opacity:
+                                revoking === session.sessionId ||
+                                revoking === session.sessionUser
+                                  ? 0.6
+                                  : 1,
                             }}
                           >
-                            {(revoking === session.sessionId || revoking === session.sessionUser) ? "Revoking..." : "👢 Kick"}
+                            {revoking === session.sessionId ||
+                            revoking === session.sessionUser
+                              ? "Kicking..."
+                              : "👢 Kick All"}
                           </button>
 
                           {/* Change Password button */}
                           <button
-                            onClick={() => changeVirtualAdminPassword(session.sessionUser)}
+                            onClick={() =>
+                              changeVirtualAdminPassword(session.sessionUser)
+                            }
                             style={{
                               padding: "6px 14px",
                               borderRadius: 8,
@@ -858,16 +1441,27 @@ export default function AdminSessions({ apiKey, onClose }) {
                           {/* Ban button */}
                           <button
                             onClick={() => {
-                              const isVirtual = session.sessionUser && 
-                                session.sessionUser !== "master_admin" && 
+                              const isVirtual =
+                                session.sessionUser &&
+                                session.sessionUser !== "master_admin" &&
                                 session.sessionUser.startsWith("vadmin");
                               if (isVirtual) {
-                                banVirtualAdmin(session.sessionUser, session.sessionId);
+                                banVirtualAdmin(
+                                  session.sessionUser,
+                                  session.sessionId,
+                                );
                               } else {
-                                banUser(session.sessionId, session.deviceInfo, session.sessionUser || "admin");
+                                banUser(
+                                  session.sessionId,
+                                  session.deviceInfo,
+                                  session.sessionUser || "admin",
+                                );
                               }
                             }}
-                            disabled={banning === session.sessionId || banning === session.sessionUser}
+                            disabled={
+                              banning === session.sessionId ||
+                              banning === session.sessionUser
+                            }
                             style={{
                               padding: "6px 14px",
                               borderRadius: 8,
@@ -876,11 +1470,22 @@ export default function AdminSessions({ apiKey, onClose }) {
                               color: C.red,
                               fontSize: 12,
                               fontWeight: 600,
-                              cursor: (banning === session.sessionId || banning === session.sessionUser) ? "not-allowed" : "pointer",
-                              opacity: (banning === session.sessionId || banning === session.sessionUser) ? 0.6 : 1,
+                              cursor:
+                                banning === session.sessionId ||
+                                banning === session.sessionUser
+                                  ? "not-allowed"
+                                  : "pointer",
+                              opacity:
+                                banning === session.sessionId ||
+                                banning === session.sessionUser
+                                  ? 0.6
+                                  : 1,
                             }}
                           >
-                            {(banning === session.sessionId || banning === session.sessionUser) ? "Banning..." : "🚫 Ban"}
+                            {banning === session.sessionId ||
+                            banning === session.sessionUser
+                              ? "Banning..."
+                              : "🚫 Ban"}
                           </button>
                         </div>
                       )}
@@ -901,105 +1506,112 @@ export default function AdminSessions({ apiKey, onClose }) {
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {bannedUsers.map((user) => (
-                <div
-                  key={user.username}
-                  style={{
-                    background: `${C.red}08`,
-                    borderRadius: 14,
-                    border: `1px solid ${C.red}`,
-                    padding: "16px 20px",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      flexWrap: "wrap",
-                      gap: 12,
-                    }}
-                  >
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          marginBottom: 8,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: "50%",
-                            background: C.red,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 18,
-                            fontWeight: 700,
-                            color: "#fff",
-                          }}
-                        >
-                          {user.username?.[0]?.toUpperCase() || "?"}
-                        </div>
-                        <div>
-                          <div
-                            style={{
-                              fontSize: 16,
-                              fontWeight: 700,
-                              color: C.text,
-                            }}
-                          >
-                            @{user.username}
-                          </div>
-                          <div style={{ fontSize: 11, color: C.sub }}>
-                            {user.email}
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>
-                        🚫 Banned: {formatDate(user.adminBannedAt)}
-                      </div>
-                      {user.adminBanReason && (
-                        <div
-                          style={{ fontSize: 11, color: C.sub, marginTop: 2 }}
-                        >
-                          📝 Reason: {user.adminBanReason}
-                        </div>
-                      )}
-                      <div style={{ fontSize: 10, color: C.sub, marginTop: 2 }}>
-                        Role was: Admin (demoted to User)
-                      </div>
-                    </div>
+   {bannedUsers.map((user) => (
+  <div
+    key={user.username}
+    style={{
+      background: `${C.red}08`,
+      borderRadius: 14,
+      border: `1px solid ${C.red}`,
+      padding: "16px 20px",
+    }}
+  >
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        flexWrap: "wrap",
+        gap: 12,
+      }}
+    >
+      <div style={{ flex: 1 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            marginBottom: 8,
+          }}
+        >
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              background: C.red,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 18,
+              fontWeight: 700,
+              color: "#fff",
+            }}
+          >
+            {user.username?.[0]?.toUpperCase() || "?"}
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: C.text,
+              }}
+            >
+              @{user.username}
+              {user.isVirtualAdmin && (
+                <span style={{ marginLeft: 8, color: C.accent, fontSize: 11 }}>
+                  🛡️ Virtual Admin
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: C.sub }}>
+              {user.email || user.adminEmail || "Virtual Admin"}
+            </div>
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>
+          🚫 Banned: {formatDate(user.bannedAt || user.adminBannedAt)}
+        </div>
+        {user.banReason && (
+          <div
+            style={{ fontSize: 11, color: C.sub, marginTop: 2 }}
+          >
+            📝 Reason: {user.banReason}
+          </div>
+        )}
+        <div style={{ fontSize: 10, color: C.sub, marginTop: 2 }}>
+          {user.isVirtualAdmin ? "Virtual Admin" : "Role was: Admin (demoted to User)"}
+        </div>
+      </div>
 
-                    <button
-                      onClick={() => unbanUser(user.username)}
-                      disabled={unbanning === user.username}
-                      style={{
-                        padding: "6px 14px",
-                        borderRadius: 8,
-                        border: `1px solid ${C.green}`,
-                        background: `${C.green}10`,
-                        color: C.green,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor:
-                          unbanning === user.username
-                            ? "not-allowed"
-                            : "pointer",
-                        opacity: unbanning === user.username ? 0.6 : 1,
-                      }}
-                    >
-                      {unbanning === user.username
-                        ? "Unbanning..."
-                        : "✅ Unban"}
-                    </button>
-                  </div>
-                </div>
-              ))}
+      <button
+      onClick={() => {
+        // ✅ Check if it's a virtual admin
+        if (user.isVirtualAdmin || user.username.startsWith('vadmin')) {
+          unbanVirtualAdmin(user.username);  // ← Call this for virtual admins
+        } else {
+          unbanUser(user.username);          // ← Call this for regular admins
+        }
+      }}
+      disabled={unbanning === user.username}
+      style={{
+        padding: "6px 14px",
+        borderRadius: 8,
+        border: `1px solid ${C.green}`,
+        background: `${C.green}10`,
+        color: C.green,
+        fontSize: 12,
+        fontWeight: 600,
+        cursor: unbanning === user.username ? "not-allowed" : "pointer",
+        opacity: unbanning === user.username ? 0.6 : 1,
+      }}
+    >
+      {unbanning === user.username ? "Unbanning..." : "✅ Unban"}
+    </button>
+    </div>
+  </div>
+))}
             </div>
           )}
         </>

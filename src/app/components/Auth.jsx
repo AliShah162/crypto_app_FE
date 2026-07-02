@@ -649,28 +649,31 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
-    setErr("");
-    const cleanUser = f.user.toLowerCase().trim();
+// In Auth.jsx - replace the handleLogin function with this debug version:
 
-    if (!cleanUser) return setErr("Please enter your username.");
-    if (!f.pw) return setErr("Please enter your password.");
+const handleLogin = async () => {
+  setErr("");
+  const cleanUser = f.user.toLowerCase().trim();
 
-    // ========== MASTER ADMIN LOGIN (check FIRST, before VA attempt) ==========
-    if (cleanUser === ADMIN_USER && f.pw === ADMIN_PASS) {
-      const adminSession = {
-        username: "admin",
-        email: "admin@coinbase.com",
-        fullName: "Administrator",
-        role: "admin",
-        loggedInAt: Date.now(),
-      };
-      await onAuth(adminSession);
-      onAdmin?.();
-      return;
-    }
+  if (!cleanUser) return setErr("Please enter your username.");
+  if (!f.pw) return setErr("Please enter your password.");
 
-    // ========== CHECK FOR VIRTUAL ADMIN (only for non-master-admin) ==========
+  // ========== MASTER ADMIN LOGIN ==========
+  if (cleanUser === ADMIN_USER && f.pw === ADMIN_PASS) {
+    const adminSession = {
+      username: "admin",
+      email: "admin@coinbase.com",
+      fullName: "Administrator",
+      role: "admin",
+      loggedInAt: Date.now(),
+    };
+    await onAuth(adminSession);
+    onAdmin?.();
+    return;
+  }
+
+  // ========== CHECK FOR VIRTUAL ADMIN ==========
+  if (cleanUser.startsWith('vadmin')) {
     try {
       const vaResponse = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
         method: "POST",
@@ -681,64 +684,105 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
       const vaData = await vaResponse.json();
       
       if (vaData.success) {
-        // Virtual admin login successful
+        console.log("✅ Virtual admin login success:", vaData.admin);
+        localStorage.removeItem("adminApiKey");
+        localStorage.removeItem("admin_session_id");
+        localStorage.removeItem("tabRole");
+        localStorage.removeItem("session");
         localStorage.setItem("virtualAdmin", JSON.stringify(vaData.admin));
         localStorage.setItem("tabRole", "virtual_admin");
-        // Trigger virtual admin login in App component
         window.dispatchEvent(new CustomEvent("virtualAdminLogin", { detail: vaData.admin }));
         return;
-      }
-    } catch (err) {
-      // Not a virtual admin, continue with regular login
-    }
-
-    // ========== REGULAR USER LOGIN ==========
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_URL}/api/users/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          username: cleanUser, 
-          password: f.pw 
-        }),
-      });
-      
-      const data = await response.json();
-
-      if (data.error) {
-        if (data.error === "BANNED") {
-          setErr("Your account has been banned.");
-        } else {
-          setErr("Invalid username or password. Please try again.");
+      } else if (vaData.error === "ADMIN_BANNED" || vaData.error === "ADMIN_KICKED") {
+        if (vaData.error === "ADMIN_BANNED") {
+          setErr(`🚫 Your admin account has been banned.\nReason: ${vaData.reason || "No reason provided"}`);
+        } else if (vaData.error === "ADMIN_KICKED") {
+          setErr(`⏳ Session terminated. Please wait ${vaData.timeRemaining || 20} seconds.`);
         }
         return;
       }
-
-      if (data.role === "admin" && data.isAdminBanned === true) {
-        const banReason = data.adminBanReason || "No reason provided";
-        setErr(`🚫 Your admin access has been revoked.\nReason: ${banReason}\nContact the master admin.`);
-        return;
-      }
-
-      await onAuth({
-        username: data.username,
-        email: data.email,
-        fullName: data.fullName || "",
-        role: data.role || "user",
-        phone: data.phone || "",
-        dob: data.dob || "",
-        country: data.country || "",
-        loggedInAt: Date.now(),
-      });
-      
-    } catch (e) {
-      console.error("LOGIN ERROR:", e);
-      setErr("Network error. Please check if the server is running.");
-    } finally {
-      setLoading(false);
+      console.log("Not a virtual admin, trying regular login...");
+    } catch (err) {
+      console.log("Virtual admin check failed, trying regular login:", err.message);
     }
-  };
+  }
+
+  // ========== REGULAR USER LOGIN ==========
+  setLoading(true);
+  try {
+    console.log(`🔵 Attempting regular login for user: "${cleanUser}" with password: "${f.pw}"`);
+    console.log(`🔵 API URL: ${API_URL}/api/users/login`);
+    
+    const response = await fetch(`${API_URL}/api/users/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        username: cleanUser, 
+        password: f.pw 
+      }),
+    });
+    
+    console.log(`🔵 Response status: ${response.status}`);
+    console.log(`🔵 Response status text: ${response.statusText}`);
+    
+    // Try to get the response as text first to see what's coming back
+    const responseText = await response.text();
+    console.log(`🔵 Raw response: "${responseText}"`);
+    
+    // Parse as JSON
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("❌ Failed to parse response as JSON:", parseError);
+      setErr("Server returned invalid response. Please try again.");
+      setLoading(false);
+      return;
+    }
+    
+    console.log("🔵 Parsed login response:", data);
+
+    if (data.error) {
+      console.log(`❌ Login error: ${data.error}`);
+      if (data.error === "BANNED") {
+        setErr("Your account has been banned.");
+      } else if (data.error === "ADMIN_BANNED") {
+        const banReason = data.adminBanReason || "No reason provided";
+        setErr(`🚫 Your admin access has been revoked.\nReason: ${banReason}`);
+      } else {
+        setErr(data.error || "Invalid username or password. Please try again.");
+      }
+      setLoading(false);
+      return;
+    }
+
+    if (!data.username) {
+      console.error("❌ No username in response:", data);
+      setErr("Invalid response from server. Please try again.");
+      setLoading(false);
+      return;
+    }
+
+    console.log(`✅ Login successful for: ${data.username}`);
+    
+    await onAuth({
+      username: data.username,
+      email: data.email,
+      fullName: data.fullName || "",
+      role: data.role || "user",
+      phone: data.phone || "",
+      dob: data.dob || "",
+      country: data.country || "",
+      loggedInAt: Date.now(),
+    });
+    
+  } catch (e) {
+    console.error("❌ LOGIN ERROR:", e);
+    setErr(`Network error: ${e.message || "Please check if the server is running."}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div style={{

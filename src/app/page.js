@@ -301,32 +301,32 @@ export default function App() {
     }
     tick((n) => n + 1);
   }, []);
- // ========== VIRTUAL ADMIN SESSION LISTENER ==========
+ // In page.js - update the virtual admin useEffect:
+
 useEffect(() => {
   // Check if already logged in as virtual admin
   const savedVA = localStorage.getItem("virtualAdmin");
   const tabRole = localStorage.getItem("tabRole");
   
-  // ✅ ONLY set virtual admin if we're NOT in admin mode
-  if (savedVA && tabRole !== "admin" && scr !== "admin") {
-    setVirtualAdmin(JSON.parse(savedVA));
-  } else if (savedVA && (tabRole === "admin" || scr === "admin")) {
-    localStorage.removeItem("virtualAdmin");
-    setVirtualAdmin(null);
+  // ✅ ONLY set virtual admin if we're in virtual admin mode
+  if (savedVA && tabRole === "virtual_admin") {
+    try {
+      const vaData = JSON.parse(savedVA);
+      setVirtualAdmin(vaData);
+      console.log("✅ Restored virtual admin session:", vaData.username);
+    } catch (e) {
+      console.error("Error parsing virtual admin data:", e);
+      localStorage.removeItem("virtualAdmin");
+      setVirtualAdmin(null);
+    }
   }
 
   // Listen for virtual admin login event
   const handleVALogin = (e) => {
-    // ✅ Clear any existing virtual admin data first
-    localStorage.removeItem("virtualAdmin");
-    localStorage.removeItem("adminApiKey");
-    localStorage.removeItem("admin_session_id");
-    localStorage.removeItem("tabRole");
-    
-    // ✅ Set the new virtual admin
+    console.log("🎯 Virtual admin login event received:", e.detail);
     const adminData = e.detail;
-    localStorage.setItem("virtualAdmin", JSON.stringify(adminData));
     setVirtualAdmin(adminData);
+    // The render will show AdminPanel because virtualAdmin is not null
   };
 
   window.addEventListener("virtualAdminLogin", handleVALogin);
@@ -334,86 +334,66 @@ useEffect(() => {
   return () => {
     window.removeEventListener("virtualAdminLogin", handleVALogin);
   };
-}, [scr]);
+}, []);
 
-  const auth = async (u) => {
-    if (!u) return;
+  // In page.js - replace the auth function:
 
-    const username = u.username.toLowerCase().trim();
+const auth = async (u) => {
+  if (!u) return;
 
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("virtualAdmin");
+  const username = u.username.toLowerCase().trim();
+
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("virtualAdmin");
+    if (username !== "admin") {
       localStorage.removeItem("admin_session_id");
     }
+  }
 
-    // ── Master admin: never hits DB, goes straight to panel ──
-    if (username === "admin") {
-      localStorage.setItem("session", "admin");
-      localStorage.setItem("tabRole", "admin");
-      setUser({ username: "admin", fullName: "Administrator", role: "admin" });
-      sn([]);
-      ss("admin");
-      return;
-    }
+  // ── Master admin ──
+  if (username === "admin") {
+    const adminKey = u.adminKey || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+    localStorage.setItem("adminApiKey", adminKey);
+    localStorage.setItem("session", "admin");
+    localStorage.setItem("tabRole", "admin");
+    setUser({ username: "admin", fullName: "Administrator", role: "admin" });
+    sn([]);
+    ss("admin");
+    return;
+  }
 
-    // ── Regular users ──
-    try {
-      const dbUser = await getUser(username, true);
-
-      let userObj;
-      if (dbUser && !dbUser.error) {
-        userObj = {
-          username: dbUser.username,
-          email: dbUser.email || u.email || "",
-          fullName: dbUser.fullName || u.fullName || username,
-          role: dbUser.role || u.role || "user",
-          phone: dbUser.phone || u.phone || "",
-          country: dbUser.country || u.country || "—",
-          creditScore: dbUser.creditScore ?? 50,
-          isBanned: dbUser.isBanned ?? false,
-          balance: dbUser.balance ?? 0,
-          transactions: dbUser.transactions || [],
-          savedCards: dbUser.savedCards || [],
-          loggedInAt: Date.now(),
-        };
-      } else {
-        userObj = {
-          username,
-          email: u.email || "",
-          fullName: u.fullName || username,
-          role: u.role || "user",
-          phone: u.phone || "",
-          country: u.country || "—",
-          balance: 0,
-          creditScore: 50,
-          transactions: [],
-          savedCards: [],
-          loggedInAt: Date.now(),
-        };
-      }
-
-      const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
-      cache[username] = { ...userObj, _cachedAt: Date.now() };
-      localStorage.setItem("users_cache", JSON.stringify(cache));
-      localStorage.setItem("session", username);
-      localStorage.setItem("tabRole", "user");
-
-      setUser(userObj);
-      sn([]);
-
-      try {
-        const notifResponse = await fetch(`${API_URL}/api/users/${username}/notifications`);
-        const notifData = await notifResponse.json();
-        sn(Array.isArray(notifData) ? notifData : []);
-      } catch {}
-
-      ss("app");
-      sp("home");
-      ssb(null);
-    } catch (err) {
-      console.error("Auth error:", err);
-    }
-  };
+  // ── Regular users ──
+  try {
+    // Save user to localStorage cache
+    const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+    cache[username] = {
+      ...u,
+      _cachedAt: Date.now()
+    };
+    localStorage.setItem("users_cache", JSON.stringify(cache));
+    
+    // Set session
+    localStorage.setItem("session", username);
+    localStorage.removeItem("tabRole"); // Remove any admin role
+    
+    // Update state
+    setUser(u);
+    
+    // ✅ CRITICAL: Navigate to app
+    ss("app");
+    sp("home");
+    ssb(null);
+    
+    // Fetch notifications
+    fetchNotificationsFromDB();
+    
+    console.log(`✅ User ${username} logged in successfully`);
+    
+  } catch (err) {
+    console.error("Auth error:", err);
+    setErr("Failed to authenticate. Please try again.");
+  }
+};
 
   const adm = () => {
     localStorage.setItem("tabRole", "admin");

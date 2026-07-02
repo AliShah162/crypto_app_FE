@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { T, COINS, PE, f2, usd } from "../lib/store";
 import { PB } from "../components/UI";
 import { API_URL } from "../lib/config";
+import { formatIndianTime } from '../lib/timezone';
 
 /* ── Candlestick Chart ─────────────────────────────────────── */
 function CChart({ coin, px }) {
@@ -133,54 +134,53 @@ function OrderConfirmation({ order, onClose }) {
   const profit = (order.amount * order.profitPercent) / 100;
 
   const rows = [
-    {
-      label: "Currency",
-      value: `${order.coin}/USDT`,
-      color: T.text,
-      key: "currency",
-    },
-    {
-      label: "Order No.",
-      value: (
-        <span style={{ fontFamily: "monospace", fontSize: 11, color: T.acc }}>
-          {order.orderNumber}
-        </span>
-      ),
-      color: null,
-      key: "orderNo",
-    },
-    {
-      label: "Order Amount",
-      value: `$${order.amount}`,
-      color: T.gold,
-      key: "orderAmount",
-    },
-    { label: "Profit Amount", value: "0", color: T.dim, key: "profitAmount" },
-    {
-      label: "Direction",
-      value: isUp ? "Buy Up ↑" : "Buy Down ↓",
-      color: isUp ? T.green : T.red,
-      key: "direction",
-    },
-    {
-      label: "Scale",
-      value: `${order.profitPercent}%`,
-      color: T.blue,
-      key: "scale",
-    },
-    {
-      label: "Duration",
-      value: `${order.timeSeconds}s`,
-      color: T.text,
-      key: "duration",
-    },
-    {
-      label: "Order Time",
-      value: order.orderTime,
-      color: T.dim,
-      key: "orderTime",
-    },
-  ];
+  {
+    label: "Order No.",
+    value: (
+      <span style={{ fontFamily: "monospace", fontSize: 11, color: T.acc }}>
+        {order.orderNumber}
+      </span>
+    ),
+    color: null,
+    key: "orderNo",
+  },
+  {
+    label: "Order Amount",
+    value: `$${order.amount}`,
+    color: T.gold,
+    key: "orderAmount",
+  },
+  { 
+    label: "Profit Amount", 
+    value: "0", 
+    color: T.dim, 
+    key: "profitAmount" 
+  },
+  {
+    label: "Direction",
+    value: isUp ? "Buy Up ↑" : "Buy Down ↓",
+    color: isUp ? T.green : T.red,
+    key: "direction",
+  },
+  {
+    label: "Scale",
+    value: `${order.profitPercent}%`,
+    color: T.blue,
+    key: "scale",
+  },
+  {
+    label: "Duration",
+    value: `${order.timeSeconds}s`,
+    color: T.text,
+    key: "duration",
+  },
+  {
+    label: "Order Time",
+    value: order.orderTime || formatIndianTime(order.startTime),
+    color: T.dim,
+    key: "orderTimeDisplay",  // ✅ Changed to unique key
+  },
+];
 
   return (
     <div
@@ -370,8 +370,10 @@ export default function TradePage({ nav, px, onTrade, coin }) {
     startTime: new Date().toISOString(),
   };
 
-  // FIRE ALL API CALLS IN PARALLEL - NO WAITING
-  setPlaced({ ...orderData, orderTime: new Date().toLocaleString() });
+  // ✅ Use the utility function for Indian time
+  const orderTime = formatIndianTime(new Date());
+
+  setPlaced({ ...orderData, orderTime: orderTime });
   setShow(true);
   setAmount("");
 
@@ -396,7 +398,8 @@ export default function TradePage({ nav, px, onTrade, coin }) {
         status: "pending",
         profitAmount: 0,
         date: new Date().toISOString(),
-        formattedDate: new Date().toLocaleString(),
+        // ✅ Use the utility function for Indian time
+        formattedDate: formatIndianTime(new Date()),
       }),
     }),
     fetch(`${API_URL}/api/users/${sessionUser}/notifications`, {

@@ -36,15 +36,42 @@ export default function VirtualAdminLogin({ onLogin, onBack }) {
         localStorage.removeItem("tabRole");
         localStorage.removeItem("session");
         
-        // ✅ Set virtual admin data
-        localStorage.setItem("virtualAdmin", JSON.stringify(data.admin));
+        // ✅ Store virtual admin data
+        localStorage.setItem("virtualAdmin", JSON.stringify({
+          ...data.admin,
+          username: data.admin.username,
+          customName: data.admin.customName || null,
+        }));
         
-        // ✅ Dispatch custom event for the parent component
+        // ✅ CREATE A SESSION FOR THE VIRTUAL ADMIN
+        try {
+          const sessionResponse = await fetch(`${API_URL}/api/users/admin/register-session`, {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json" 
+            },
+            body: JSON.stringify({
+              adminKey: "7b97a4b8-f7e8-4470-9102-2533045a16dd",
+              userAgent: navigator.userAgent,
+              adminUsername: data.admin.username, // ✅ Use virtual admin's username
+            }),
+          });
+          const sessionData = await sessionResponse.json();
+          if (sessionData.sessionId) {
+            localStorage.setItem("admin_session_id", sessionData.sessionId);
+            console.log("✅ Virtual admin session created:", sessionData.sessionId);
+            console.log("✅ Session user:", sessionData.sessionUser);
+          }
+        } catch (err) {
+          console.error("❌ Failed to create virtual admin session:", err);
+        }
+        
+        // ✅ Dispatch custom event
         window.dispatchEvent(new CustomEvent("virtualAdminLogin", { 
           detail: data.admin 
         }));
         
-        // ✅ RELOAD THE PAGE to ensure clean state
+        // ✅ RELOAD THE PAGE
         window.location.reload();
       } else {
         if (data.error === "ADMIN_BANNED") {

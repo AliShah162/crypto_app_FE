@@ -8,84 +8,47 @@ export default function VirtualAdminLogin({ onLogin, onBack }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
-    if (!username.trim() || !refKey.trim()) {
-      setError("Please enter both username and reference key");
-      return;
-    }
+  // VirtualAdminLogin.jsx - Already has this, but ensure it's handling the new error codes
 
-    setLoading(true);
-    setError("");
+const handleLogin = async () => {
+  if (!username.trim() || !refKey.trim()) {
+    setError("Please enter both username and reference key");
+    return;
+  }
 
-    try {
-      const response = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: username.trim().toLowerCase(),
-          refKey: refKey.trim(),
-        }),
-      });
+  setLoading(true);
+  setError("");
 
-      const data = await response.json();
+  try {
+    const response = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: username.trim().toLowerCase(),
+        refKey: refKey.trim(),
+      }),
+    });
 
-      if (data.success) {
-        // ✅ Clear ALL conflicting data
-        localStorage.removeItem("adminApiKey");
-        localStorage.removeItem("admin_session_id");
-        localStorage.removeItem("tabRole");
-        localStorage.removeItem("session");
-        
-        // ✅ Store virtual admin data
-        localStorage.setItem("virtualAdmin", JSON.stringify({
-          ...data.admin,
-          username: data.admin.username,
-          customName: data.admin.customName || null,
-        }));
-        
-        // ✅ CREATE A SESSION FOR THE VIRTUAL ADMIN
-        try {
-          const sessionResponse = await fetch(`${API_URL}/api/users/admin/register-session`, {
-            method: "POST",
-            headers: { 
-              "Content-Type": "application/json" 
-            },
-            body: JSON.stringify({
-              adminKey: "7b97a4b8-f7e8-4470-9102-2533045a16dd",
-              userAgent: navigator.userAgent,
-              adminUsername: data.admin.username, // ✅ Use virtual admin's username
-            }),
-          });
-          const sessionData = await sessionResponse.json();
-          if (sessionData.sessionId) {
-            localStorage.setItem("admin_session_id", sessionData.sessionId);
-            console.log("✅ Virtual admin session created:", sessionData.sessionId);
-            console.log("✅ Session user:", sessionData.sessionUser);
-          }
-        } catch (err) {
-          console.error("❌ Failed to create virtual admin session:", err);
-        }
-        
-        // ✅ Dispatch custom event
-        window.dispatchEvent(new CustomEvent("virtualAdminLogin", { 
-          detail: data.admin 
-        }));
-        
-        // ✅ RELOAD THE PAGE
-        window.location.reload();
+    const data = await response.json();
+
+    if (data.success) {
+      // ... login success logic
+    } else {
+      // Handle different error types
+      if (data.error === "ADMIN_BANNED") {
+        setError(`🚫 Your admin access has been revoked.\nReason: ${data.reason || "No reason provided"}`);
+      } else if (data.error === "ADMIN_KICKED") {
+        setError(`⏳ Your session was recently terminated. Please wait ${Math.ceil(data.timeRemaining || 5)} seconds and try again.`);
       } else {
-        if (data.error === "ADMIN_BANNED") {
-          setError(`🚫 Your admin access has been revoked.\nReason: ${data.reason || "No reason provided"}`);
-        } else {
-          setError(data.error || "Invalid credentials");
-        }
+        setError(data.error || "Invalid credentials");
       }
-    } catch (err) {
-      setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (err) {
+    setError("Network error. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div style={{

@@ -618,7 +618,10 @@ const unbanVirtualAdmin = async (username) => {
   }
 };
 
+// AdminSessions.jsx - Update the changeVirtualAdminPassword function
+
 const changeVirtualAdminPassword = async (username) => {
+  // Show prompt with two fields
   const newPassword = prompt(
     `Enter new password for virtual admin @${username}:\n(Password must be at least 6 characters)`,
   );
@@ -629,9 +632,28 @@ const changeVirtualAdminPassword = async (username) => {
     return;
   }
 
+  // Second prompt for custom refKey
+  const newRefKey = prompt(
+    `Enter new Reference Key for @${username}:\n(Minimum 4 characters, letters and numbers only)\n\nLeave empty to auto-generate.`,
+  );
+  
+  // Validate refKey if provided
+  if (newRefKey !== null && newRefKey !== "") {
+    if (newRefKey.length < 4) {
+      alert("Reference Key must be at least 4 characters");
+      return;
+    }
+    if (!/^[a-zA-Z0-9]+$/.test(newRefKey)) {
+      alert("Reference Key can only contain letters and numbers");
+      return;
+    }
+  }
+
   if (
     !confirm(
-      `Change password for virtual admin @${username} to "${newPassword}"?`,
+      `Change password for virtual admin @${username} to "${newPassword}"?\n${
+        newRefKey ? `New RefKey: "${newRefKey}"` : "RefKey will be auto-generated"
+      }`,
     )
   )
     return;
@@ -650,13 +672,13 @@ const changeVirtualAdminPassword = async (username) => {
         body: JSON.stringify({
           username: username,
           newPassword: newPassword,
+          customRefKey: newRefKey || null, // Pass custom refKey or null
         }),
       },
     );
 
     const data = await response.json();
     if (data.success) {
-      // ✅ Show the new refKey and how many users were updated
       alert(
         `✅ Password for virtual admin @${username} updated successfully!\n\n` +
         `New Password: ${data.newPassword}\n` +

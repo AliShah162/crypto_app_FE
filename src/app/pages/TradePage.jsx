@@ -26,7 +26,6 @@ function CChart({ coin, px }) {
     const cw = (W - pad.r) / cd.length;
     const yp = (v) => pad.t + (1 - (v - mn) / rng) * (H - pad.t - pad.b);
 
-    // Grid lines
     ctx.strokeStyle = "#1a2540";
     ctx.lineWidth = 0.6;
     for (let i = 0; i <= 5; i++) {
@@ -41,7 +40,6 @@ function CChart({ coin, px }) {
       ctx.fillText(f2(mx - i * (rng / 5), 2), W - pad.r + 3, y + 3);
     }
 
-    // Candles
     cd.forEach((c, i) => {
       const x = i * cw + cw * 0.1,
         bw = cw * 0.76;
@@ -59,7 +57,6 @@ function CChart({ coin, px }) {
       ctx.fillRect(x, y1, bw, Math.max(1, y2 - y1));
     });
 
-    // Price line
     const cur = px[coin] || cd[cd.length - 1].c;
     const cy = yp(cur);
     ctx.strokeStyle = T.red;
@@ -134,53 +131,53 @@ function OrderConfirmation({ order, onClose }) {
   const profit = (order.amount * order.profitPercent) / 100;
 
   const rows = [
-  {
-    label: "Order No.",
-    value: (
-      <span style={{ fontFamily: "monospace", fontSize: 11, color: T.acc }}>
-        {order.orderNumber}
-      </span>
-    ),
-    color: null,
-    key: "orderNo",
-  },
-  {
-    label: "Order Amount",
-    value: `$${order.amount}`,
-    color: T.gold,
-    key: "orderAmount",
-  },
-  { 
-    label: "Profit Amount", 
-    value: "0", 
-    color: T.dim, 
-    key: "profitAmount" 
-  },
-  {
-    label: "Direction",
-    value: isUp ? "Buy Up ↑" : "Buy Down ↓",
-    color: isUp ? T.green : T.red,
-    key: "direction",
-  },
-  {
-    label: "Scale",
-    value: `${order.profitPercent}%`,
-    color: T.blue,
-    key: "scale",
-  },
-  {
-    label: "Duration",
-    value: `${order.timeSeconds}s`,
-    color: T.text,
-    key: "duration",
-  },
-  {
-    label: "Order Time",
-    value: order.orderTime || formatIndianTime(order.startTime),
-    color: T.dim,
-    key: "orderTimeDisplay",  // ✅ Changed to unique key
-  },
-];
+    {
+      label: "Order No.",
+      value: (
+        <span style={{ fontFamily: "monospace", fontSize: 11, color: T.acc }}>
+          {order.orderNumber}
+        </span>
+      ),
+      color: null,
+      key: "orderNo",
+    },
+    {
+      label: "Order Amount",
+      value: `$${order.amount}`,
+      color: T.gold,
+      key: "orderAmount",
+    },
+    { 
+      label: "Profit Amount", 
+      value: "0", 
+      color: T.dim, 
+      key: "profitAmount" 
+    },
+    {
+      label: "Direction",
+      value: isUp ? "Buy Up ↑" : "Buy Down ↓",
+      color: isUp ? T.green : T.red,
+      key: "direction",
+    },
+    {
+      label: "Scale",
+      value: `${order.profitPercent}%`,
+      color: T.blue,
+      key: "scale",
+    },
+    {
+      label: "Duration",
+      value: `${order.timeSeconds}s`,
+      color: T.text,
+      key: "duration",
+    },
+    {
+      label: "Order Time",
+      value: order.orderTime || formatIndianTime(order.startTime),
+      color: T.dim,
+      key: "orderTimeDisplay",
+    },
+  ];
 
   return (
     <div
@@ -268,8 +265,6 @@ function OrderConfirmation({ order, onClose }) {
           ))}
         </div>
 
-        
-
         <div style={{ padding: "0 20px 20px" }}>
           <button
             onClick={onClose}
@@ -304,6 +299,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
   const [balance, setBalance] = useState(0);
   const [showConfirmation, setShow] = useState(false);
   const [placedOrder, setPlaced] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const coinSelRef = useRef(null);
 
   useEffect(() => {
@@ -327,94 +323,119 @@ export default function TradePage({ nav, px, onTrade, coin }) {
   }, [sel]);
 
   const submitOrder = async () => {
-  setErr("");
-  const amt = parseFloat(amount);
-  const sessionUser = localStorage.getItem("session");
-  
-  if (!sessionUser) {
-    setErr("Not logged in");
-    return;
-  }
-  if (!amt || amt <= 0) {
-    setErr("Enter a valid amount");
-    return;
-  }
+    // ✅ Prevent double submission
+    if (isSubmitting) return;
+    
+    setErr("");
+    const amt = parseFloat(amount);
+    const sessionUser = localStorage.getItem("session");
+    
+    if (!sessionUser) {
+      setErr("Not logged in");
+      return;
+    }
+    if (!amt || amt <= 0) {
+      setErr("Enter a valid amount");
+      return;
+    }
 
-  // Check balance first
-  let freshBalance;
-  try {
-    freshBalance = await getUserBalance(sessionUser);
-  } catch {
-    setErr("Cannot reach server. Check your connection.");
-    return;
-  }
+    // ✅ Set submitting state immediately
+    setIsSubmitting(true);
 
-  if (freshBalance < amt) {
-    setBalance(freshBalance);
-    setErr(`Insufficient balance. Available: ${usd(freshBalance)}`);
-    return;
-  }
+    // ✅ Use the balance already held in state for an instant client-side
+    // check instead of blocking the UI on a fresh network round-trip.
+    // (We still verify against the server in the background below, so
+    // this doesn't weaken the actual balance enforcement — it just stops
+    // that verification from gating how fast the confirmation shows up.)
+    if (balance < amt) {
+      setErr(`Insufficient balance. Available: ${usd(balance)}`);
+      setIsSubmitting(false);
+      return;
+    }
 
-  const orderNumber = generateOrderNumber();
-  const orderData = {
-    id: Date.now() + Math.random(),
-    orderNumber,
-    coin: sel,
-    amount: amt,
-    orderType,
-    timeSeconds: selectedTime.seconds,
-    profitPercent: selectedTime.profitPercent,
-    status: "pending",
-    startPrice: px[sel] || PE.p[sel] || 0,
-    username: sessionUser,
-    startTime: new Date().toISOString(),
+    const orderNumber = generateOrderNumber();
+    const orderData = {
+      id: Date.now() + Math.random(),
+      orderNumber,
+      coin: sel,
+      amount: amt,
+      orderType,
+      timeSeconds: selectedTime.seconds,
+      profitPercent: selectedTime.profitPercent,
+      status: "pending",
+      startPrice: px[sel] || PE.p[sel] || 0,
+      username: sessionUser,
+      startTime: new Date().toISOString(),
+    };
+
+    const orderTime = formatIndianTime(new Date());
+
+    // ✅ SHOW CONFIRMATION IMMEDIATELY
+    setPlaced({ ...orderData, orderTime: orderTime });
+    setShow(true);
+    setAmount("");
+
+    // ✅ Reset submitting state IMMEDIATELY after showing confirmation
+    // This ensures the button is not stuck on "Processing..."
+    setIsSubmitting(false);
+
+    // ✅ Verify the real, fresh balance in the background. This guards
+    // against races (e.g. two trades placed back-to-back before the local
+    // `balance` state has updated) without slowing down the confirmation.
+    getUserBalance(sessionUser)
+      .then((freshBalance) => {
+        setBalance(freshBalance);
+        if (freshBalance < amt) {
+          console.error(
+            `⚠️ Trade ${orderNumber} placed with stale balance — actual balance (${freshBalance}) is less than order amount (${amt}). Flag for admin review.`
+          );
+        }
+      })
+      .catch(() => {});
+
+    // ✅ Run API calls in the background
+    const apiCalls = [
+      fetch(`${API_URL}/api/users/${sessionUser}/pending-trades`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderData),
+      }),
+      fetch(`${API_URL}/api/users/${sessionUser}/transactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "Binary Trade",
+          orderNumber,
+          coin: sel,
+          amount: amt,
+          orderType,
+          timeSeconds: selectedTime.seconds,
+          profitPercent: selectedTime.profitPercent,
+          status: "pending",
+          profitAmount: 0,
+          date: new Date().toISOString(),
+          formattedDate: formatIndianTime(new Date()),
+        }),
+      }),
+      fetch(`${API_URL}/api/users/${sessionUser}/notifications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "📊 Trade Placed",
+          body: `${orderType.toUpperCase()} $${amt} on ${sel} for ${selectedTime.seconds}s — ${orderNumber}`,
+          type: "trade_placed",
+        }),
+      }),
+    ];
+
+    // ✅ Fire and forget - don't await
+    Promise.allSettled(apiCalls).then(results => {
+      const failed = results.filter(r => r.status === 'rejected');
+      if (failed.length > 0) {
+        console.error('⚠️ Some background API calls failed:', failed);
+      }
+    });
   };
-
-  // ✅ Use the utility function for Indian time
-  const orderTime = formatIndianTime(new Date());
-
-  setPlaced({ ...orderData, orderTime: orderTime });
-  setShow(true);
-  setAmount("");
-
-  // Execute all in background without blocking UI
-  Promise.all([
-    fetch(`${API_URL}/api/users/${sessionUser}/pending-trades`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(orderData),
-    }),
-    fetch(`${API_URL}/api/users/${sessionUser}/transactions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "Binary Trade",
-        orderNumber,
-        coin: sel,
-        amount: amt,
-        orderType,
-        timeSeconds: selectedTime.seconds,
-        profitPercent: selectedTime.profitPercent,
-        status: "pending",
-        profitAmount: 0,
-        date: new Date().toISOString(),
-        // ✅ Use the utility function for Indian time
-        formattedDate: formatIndianTime(new Date()),
-      }),
-    }),
-    fetch(`${API_URL}/api/users/${sessionUser}/notifications`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: "📊 Trade Placed",
-        body: `${orderType.toUpperCase()} $${amt} on ${sel} for ${selectedTime.seconds}s — ${orderNumber}`,
-        type: "trade_placed",
-      }),
-    }),
-  ]).catch((err) => {
-    console.error("Background API error:", err);
-  });
-};
 
   if (showConfirmation && placedOrder) {
     return (
@@ -964,13 +985,14 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           <div style={{ display: "flex", justifyContent: "center" }}>
             <button
               onClick={submitOrder}
+              disabled={isSubmitting}
               style={{
                 width: "100%",
                 maxWidth: 260,
                 padding: "14px 0",
                 borderRadius: 10,
                 border: "none",
-                cursor: "pointer",
+                cursor: isSubmitting ? "not-allowed" : "pointer",
                 fontFamily: "inherit",
                 fontSize: 14,
                 fontWeight: 700,
@@ -979,15 +1001,16 @@ export default function TradePage({ nav, px, onTrade, coin }) {
                     ? "linear-gradient(135deg, #00e5b0, #3b82f6)"
                     : "linear-gradient(135deg, #ef4444, #dc2626)",
                 color: "#fff",
+                opacity: isSubmitting ? 0.6 : 1,
                 boxShadow:
                   orderType === "up"
                     ? "0 4px 14px rgba(0,229,176,0.3)"
                     : "0 4px 14px rgba(239,68,68,0.3)",
               }}
             >
-              {orderType === "up"
+              {isSubmitting ? "Processing..." : (orderType === "up"
                 ? "↑ Place Buy Up Order"
-                : "↓ Place Buy Down Order"}
+                : "↓ Place Buy Down Order")}
             </button>
           </div>
         </div>

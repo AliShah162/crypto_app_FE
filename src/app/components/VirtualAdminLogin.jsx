@@ -32,7 +32,12 @@ const handleLogin = async () => {
     const data = await response.json();
 
     if (data.success) {
-      // ... login success logic
+      // ✅ Store this tab's own sessionId so it's tracked as a distinct
+      // session (and so this specific tab can be targeted for kick/logout)
+      if (data.sessionId) {
+        localStorage.setItem("admin_session_id", data.sessionId);
+      }
+      onLogin(data.admin);
     } else {
       // Handle different error types
       if (data.error === "ADMIN_BANNED") {

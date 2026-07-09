@@ -1807,6 +1807,12 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
           }}
         >
           {[
+             // ✅ ADD THIS - Level at the top
+    { 
+      l: "Level", 
+      v: `Level ${liveUser.level || 1}`, 
+      c: (liveUser.level || 1) === 2 ? T.gold : T.green 
+    },
             { l: "Binary Trades", v: String(binaryTradesCount) },
             {
               l: "Deposits",

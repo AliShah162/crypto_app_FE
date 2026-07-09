@@ -530,6 +530,7 @@ export function EditSub({ back, user, re }) {
   );
 }
 
+// ✅ ADD THIS - Binary History Component (unchanged)
 export function BinaryHistorySub({ back, user, re }) {
   const [BinaryHistoryComponent, setBinaryHistoryComponent] = useState(null);
 

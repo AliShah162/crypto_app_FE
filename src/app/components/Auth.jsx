@@ -741,8 +741,24 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
 
       <PB lbl={loading ? "Signing in…" : "Sign In"} onClick={handleLogin} />
       
-      <div style={{ marginTop: 16, textAlign: "center", fontSize: 10, color: T.dim }}>
-        Virtual admins: use your username and reference key as password
+      
+
+      
+  {/* ✅ OPTION 1 - Help text for Indian users */}
+      <div style={{ 
+        marginTop: 12, 
+        textAlign: "center", 
+        fontSize: 10, 
+        color: T.dim,
+        background: "rgba(0,229,176,0.05)",
+        padding: "8px 12px",
+        borderRadius: 8,
+        border: "1px solid rgba(0,229,176,0.1)",
+        maxWidth: "100%",
+        wordWrap: "break-word",
+        lineHeight: 1.4
+      }}>
+        ⚡ If the app is slow to load, close it, wait 5 seconds, and try again.
       </div>
     </div>
   );

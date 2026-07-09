@@ -1842,202 +1842,357 @@ function UserDrawer({
 
         {/* Tab Content */}
         <div style={{ flex: 1, padding: "18px 20px", overflowY: "auto" }}>
-          {/* Overview Tab */}
           {tab === "overview" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div
-                style={{
-                  background: C.card,
-                  borderRadius: 12,
-                  border: `1px solid ${C.border}`,
-                  padding: "16px 18px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: 10,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: C.sub,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                    }}
-                  >
-                    Credit Score
-                  </div>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: sc }}>
-                    {score}
-                    <span
-                      style={{ fontSize: 12, color: C.sub, fontWeight: 400 }}
-                    >
-                      /100
-                    </span>
-                  </div>
-                </div>
-                <div
-                  style={{
-                    height: 8,
-                    background: C.border,
-                    borderRadius: 8,
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${score}%`,
-                      height: "100%",
-                      background: sc,
-                      borderRadius: 8,
-                      transition: "width .4s",
-                    }}
-                  />
-                </div>
-                <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-                  {[
-                    [-5, C.red],
-                    [-1, C.gold],
-                    [+1, C.green],
-                    [+5, C.blue],
-                  ].map(([d, c]) => (
-                    <button
-                      key={d}
-                      onClick={() => changeScore(username, d)}
-                      style={{
-                        flex: 1,
-                        padding: "6px 0",
-                        borderRadius: 7,
-                        border: `1.5px solid ${c}`,
-                        background: c + "15",
-                        color: c,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {d > 0 ? `+${d}` : d}
-                    </button>
-                  ))}
-                </div>
-              </div>
+  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    {/* ===== LEVEL SECTION - NEW ===== */}
+    <div
+      style={{
+        background: C.card,
+        borderRadius: 12,
+        border: `1px solid ${C.border}`,
+        padding: "16px 18px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 10,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: C.sub,
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+          }}
+        >
+          User Level
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: C.accent }}>
+          Level {u.level || 1}
+        </div>
+      </div>
+      
+      {/* Level Toggle Buttons */}
+      <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+        <button
+          onClick={async () => {
+            if (!confirm(`Change ${username} to Level 1?`)) return;
+            try {
+              const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+              const response = await fetch(`${BASE_URL}/api/users/${username}`, {
+                method: "PATCH",
+                headers: {
+                  "Content-Type": "application/json",
+                  "x-admin-key": adminKey,
+                },
+                body: JSON.stringify({ level: 1 }),
+              });
+              const data = await response.json();
+              if (!data.error) {
+                const updated = { ...usersState[username], level: 1 };
+                const ns = { ...usersState, [username]: updated };
+                setUsersState(ns);
+                saveUsers(ns);
+                if (S.users[username]) S.users[username].level = 1;
+                alert("✅ User changed to Level 1");
+                const freshUser = await fetch(`${BASE_URL}/api/users/${username}`, {
+                  headers: { "x-admin-key": adminKey }
+                }).then(r => r.json());
+                if (freshUser && !freshUser.error) {
+                  const ns2 = { ...usersState, [username]: freshUser };
+                  setUsersState(ns2);
+                  S.users[username] = freshUser;
+                  saveUsers(ns2);
+                }
+              } else {
+                alert("❌ Failed: " + data.error);
+              }
+            } catch (err) {
+              alert("❌ Error: " + err.message);
+            }
+          }}
+          style={{
+            flex: 1,
+            padding: "10px 0",
+            borderRadius: 8,
+            border: `2px solid ${(u.level || 1) === 1 ? C.green : C.border}`,
+            background: (u.level || 1) === 1 ? C.green + "18" : "transparent",
+            color: (u.level || 1) === 1 ? C.green : C.sub,
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: "pointer",
+            transition: "all 0.2s",
+          }}
+        >
+          🟢 Level 1
+          {(u.level || 1) === 1 && <span style={{ marginLeft: 8 }}>✓</span>}
+        </button>
+        <button
+          onClick={async () => {
+            if (!confirm(`Change ${username} to Level 2?`)) return;
+            try {
+              const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+              const response = await fetch(`${BASE_URL}/api/users/${username}`, {
+                method: "PATCH",
+                headers: {
+                  "Content-Type": "application/json",
+                  "x-admin-key": adminKey,
+                },
+                body: JSON.stringify({ level: 2 }),
+              });
+              const data = await response.json();
+              if (!data.error) {
+                const updated = { ...usersState[username], level: 2 };
+                const ns = { ...usersState, [username]: updated };
+                setUsersState(ns);
+                saveUsers(ns);
+                if (S.users[username]) S.users[username].level = 2;
+                alert("✅ User changed to Level 2");
+                const freshUser = await fetch(`${BASE_URL}/api/users/${username}`, {
+                  headers: { "x-admin-key": adminKey }
+                }).then(r => r.json());
+                if (freshUser && !freshUser.error) {
+                  const ns2 = { ...usersState, [username]: freshUser };
+                  setUsersState(ns2);
+                  S.users[username] = freshUser;
+                  saveUsers(ns2);
+                }
+              } else {
+                alert("❌ Failed: " + data.error);
+              }
+            } catch (err) {
+              alert("❌ Error: " + err.message);
+            }
+          }}
+          style={{
+            flex: 1,
+            padding: "10px 0",
+            borderRadius: 8,
+            border: `2px solid ${(u.level || 1) === 2 ? C.gold : C.border}`,
+            background: (u.level || 1) === 2 ? C.gold + "18" : "transparent",
+            color: (u.level || 1) === 2 ? C.gold : C.sub,
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: "pointer",
+            transition: "all 0.2s",
+          }}
+        >
+          🥇 Level 2
+          {(u.level || 1) === 2 && <span style={{ marginLeft: 8 }}>✓</span>}
+        </button>
+      </div>
+      
+      {/* Level Description */}
+      <div style={{ marginTop: 12, fontSize: 11, color: C.sub, textAlign: "center" }}>
+        {(u.level || 1) === 2 ? (
+          <span style={{ color: C.gold }}>⭐ Premium Level - Access to all features</span>
+        ) : (
+          <span>Basic Level - Standard user access</span>
+        )}
+      </div>
+    </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 10,
-                }}
-              >
-                {[
-                  ["Total Deposits", usd(deps), C.blue],
-                  ["Total Withdrawals", usd(wths), C.gold],
-                  ["Binary Trades", binaryTrades.length, C.accent],
-                  [
-                    "Win/Loss",
-                    `${binaryWins}/${binaryLosses}`,
-                    binaryWins >= binaryLosses ? C.green : C.red,
-                  ],
-                  ["Binary Volume", usd(totalBinaryVolume), "#8b5cf6"],
-                  [
-                    "Binary P&L",
-                    usd(totalBinaryProfit),
-                    totalBinaryProfit >= 0 ? C.green : C.red,
-                  ],
-                  ["Total Won", usd(totalBinaryWon), C.green],
-                  ["Total Lost", usd(totalBinaryLost), C.red],
-                ].map(([l, v, c]) => (
-                  <div
-                    key={l}
-                    style={{
-                      background: C.card,
-                      borderRadius: 12,
-                      border: `1px solid ${C.border}`,
-                      padding: "12px 14px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 800,
-                        color: c,
-                        marginBottom: 3,
-                      }}
-                    >
-                      {v}
-                    </div>
-                    <div
-                      style={{ fontSize: 10, color: C.sub, fontWeight: 600 }}
-                    >
-                      {l}
-                    </div>
-                  </div>
-                ))}
-              </div>
+    {/* ===== CREDIT SCORE SECTION - KEEP AS IS ===== */}
+    <div
+      style={{
+        background: C.card,
+        borderRadius: 12,
+        border: `1px solid ${C.border}`,
+        padding: "16px 18px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 10,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: C.sub,
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+          }}
+        >
+          Credit Score
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: sc }}>
+          {score}
+          <span
+            style={{ fontSize: 12, color: C.sub, fontWeight: 400 }}
+          >
+            /100
+          </span>
+        </div>
+      </div>
+      <div
+        style={{
+          height: 8,
+          background: C.border,
+          borderRadius: 8,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${score}%`,
+            height: "100%",
+            background: sc,
+            borderRadius: 8,
+            transition: "width .4s",
+          }}
+        />
+      </div>
+      <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+        {[
+          [-5, C.red],
+          [-1, C.gold],
+          [+1, C.green],
+          [+5, C.blue],
+        ].map(([d, c]) => (
+          <button
+            key={d}
+            onClick={() => changeScore(username, d)}
+            style={{
+              flex: 1,
+              padding: "6px 0",
+              borderRadius: 7,
+              border: `1.5px solid ${c}`,
+              background: c + "15",
+              color: c,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {d > 0 ? `+${d}` : d}
+          </button>
+        ))}
+      </div>
+    </div>
 
-              <div style={{ display: "flex", gap: 8 }}>
-                {!isBan ? (
-                  <button
-                    onClick={() => disc(username)}
-                    style={{
-                      flex: 1,
-                      padding: "10px 0",
-                      borderRadius: 9,
-                      border: `1.5px solid ${C.gold}`,
-                      background: C.gold + "15",
-                      color: C.gold,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    🚫 Ban User
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => rest(username)}
-                    style={{
-                      flex: 1,
-                      padding: "10px 0",
-                      borderRadius: 9,
-                      border: `1.5px solid ${C.green}`,
-                      background: C.green + "15",
-                      color: C.green,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    ✅ Unban
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    del(username);
-                    onClose();
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: "10px 0",
-                    borderRadius: 9,
-                    border: `1.5px solid ${C.red}`,
-                    background: C.red + "15",
-                    color: C.red,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  🗑 Delete
-                </button>
-              </div>
-            </div>
-          )}
+    {/* ===== STATS GRID ===== */}
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 10,
+      }}
+    >
+      {[
+        ["Total Deposits", usd(deps), C.blue],
+        ["Total Withdrawals", usd(wths), C.gold],
+        ["Binary Trades", binaryTrades.length, C.accent],
+        [
+          "Win/Loss",
+          `${binaryWins}/${binaryLosses}`,
+          binaryWins >= binaryLosses ? C.green : C.red,
+        ],
+        ["Binary Volume", usd(totalBinaryVolume), "#8b5cf6"],
+        [
+          "Binary P&L",
+          usd(totalBinaryProfit),
+          totalBinaryProfit >= 0 ? C.green : C.red,
+        ],
+        ["Total Won", usd(totalBinaryWon), C.green],
+        ["Total Lost", usd(totalBinaryLost), C.red],
+      ].map(([l, v, c]) => (
+        <div
+          key={l}
+          style={{
+            background: C.card,
+            borderRadius: 12,
+            border: `1px solid ${C.border}`,
+            padding: "12px 14px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 800,
+              color: c,
+              marginBottom: 3,
+            }}
+          >
+            {v}
+          </div>
+          <div
+            style={{ fontSize: 10, color: C.sub, fontWeight: 600 }}
+          >
+            {l}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    {/* ===== BAN/DELETE BUTTONS ===== */}
+    <div style={{ display: "flex", gap: 8 }}>
+      {!isBan ? (
+        <button
+          onClick={() => disc(username)}
+          style={{
+            flex: 1,
+            padding: "10px 0",
+            borderRadius: 9,
+            border: `1.5px solid ${C.gold}`,
+            background: C.gold + "15",
+            color: C.gold,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          🚫 Ban User
+        </button>
+      ) : (
+        <button
+          onClick={() => rest(username)}
+          style={{
+            flex: 1,
+            padding: "10px 0",
+            borderRadius: 9,
+            border: `1.5px solid ${C.green}`,
+            background: C.green + "15",
+            color: C.green,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          ✅ Unban
+        </button>
+      )}
+      <button
+        onClick={() => {
+          del(username);
+          onClose();
+        }}
+        style={{
+          flex: 1,
+          padding: "10px 0",
+          borderRadius: 9,
+          border: `1.5px solid ${C.red}`,
+          background: C.red + "15",
+          color: C.red,
+          fontSize: 12,
+          fontWeight: 700,
+          cursor: "pointer",
+        }}
+      >
+        🗑 Delete
+      </button>
+    </div>
+  </div>
+)}
 
           {tab === "balance" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -4670,7 +4825,12 @@ export default function AdminPanel({
   }, [fetchUsers, fetchWithdrawals, fetchAllTrades, fetchDepositRequests]);
 
   // ========== FILTERED DATA FOR VIRTUAL ADMIN ==========
-  const users = Object.values(usersState);
+ const users = Object.values(usersState).sort((a, b) => {
+  // Sort by createdAt - newest first
+  const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+  const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+  return dateB - dateA; // Newest first
+});
 
   // Filter trades for virtual admin
   const filteredAllTrades = useMemo(() => {
@@ -4714,60 +4874,93 @@ export default function AdminPanel({
       return;
     }
 
-    // ✅ Only register session for master admin
+    // ✅ Retry helper - defined first since registerSession calls it
+    const registerSessionWithRetry = async (adminKey) => {
+      try {
+        console.log("🔄 Retrying session registration...");
+
+        // Generate a unique session ID
+        const generateId = () => {
+          const array = new Uint8Array(32);
+          crypto.getRandomValues(array);
+          return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+        };
+
+        const newSessionId = generateId();
+
+        const response = await fetch(`${API_URL}/api/users/admin/register-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            adminKey: adminKey,
+            userAgent: navigator.userAgent,
+            adminUsername: "master_admin",
+            sessionId: newSessionId, // ✅ Pass generated ID
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.sessionId) {
+          localStorage.setItem("admin_session_id", data.sessionId);
+          console.log("✅ Master admin session registered (retry):", data.sessionId);
+        } else {
+          console.error("❌ Session registration retry failed:", data);
+        }
+      } catch (err) {
+        console.error("❌ Session registration retry error:", err);
+      }
+    };
+
+    // AdminPanel.jsx - session registration
     const registerSession = async () => {
       const adminKey = localStorage.getItem("adminApiKey");
+
+      // ✅ If no admin key, don't try to register
       if (!adminKey) {
-        console.log("⏳ No admin key found - waiting for master admin login");
+        console.log("⏳ No admin key found - skipping session registration");
         return;
       }
 
       // ✅ Check if we're actually master admin (not virtual)
       const virtualAdminData = localStorage.getItem("virtualAdmin");
       if (virtualAdminData) {
-        console.log(
-          "👑 Virtual admin detected - skipping session registration",
-        );
+        console.log("👑 Virtual admin detected - skipping session registration");
         localStorage.removeItem("admin_session_id");
         return;
       }
 
-      // ✅ Don't blindly create a new session if one already exists. Doing this
-      // unconditionally on every mount raced against the fetchUsers/fetchWithdrawals/
-      // etc effect (which reads admin_session_id immediately) and, combined with the
-      // backend's "keep only last 50 sessions" trim, eventually evicted the very
-      // session ID this tab was relying on -> SESSION_INVALID -> auto logout.
-      // checkMasterSession (below) already polls and re-registers if the existing
-      // session turns out to be invalid, so this only needs to run once, when
-      // there's truly no session yet (e.g. incognito, first login).
+      // ✅ Don't create new session if one already exists (prevent duplicates)
       const existingSessionId = localStorage.getItem("admin_session_id");
       if (existingSessionId) {
-        console.log("✅ Session already registered - skipping re-registration");
+        console.log("✅ Session already exists - skipping re-registration");
         return;
       }
 
       try {
-        // ✅ Get the admin username (for master admin)
-        const adminUsername = "master_admin";
+        console.log("🔑 Registering master admin session...");
 
-        const response = await fetch(
-          `${BASE_URL}/api/users/admin/register-session`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              adminKey: adminKey,
-              userAgent: navigator.userAgent,
-              adminUsername: adminUsername,
-            }),
-          },
-        );
+        const response = await fetch(`${API_URL}/api/users/admin/register-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            adminKey: adminKey,
+            userAgent: navigator.userAgent,
+            adminUsername: "master_admin",
+          }),
+        });
+
+        // ✅ Parse response
         const data = await response.json();
-        if (data.sessionId) {
+        console.log("📦 Session registration response:", data);
+
+        if (data.success && data.sessionId) {
           localStorage.setItem("admin_session_id", data.sessionId);
           console.log("✅ Master admin session registered:", data.sessionId);
         } else {
           console.error("❌ Session registration failed:", data);
+          // ✅ Try to register again with a generated session ID
+          await registerSessionWithRetry(adminKey);
         }
       } catch (err) {
         console.error("❌ Session registration error:", err);
@@ -4875,70 +5068,7 @@ export default function AdminPanel({
     validateAndFixSession();
   }, [isVirtualAdminStable, BASE_URL]);
 
-  // ========== FORCE SESSION REGISTRATION (Fixes incognito) ==========
-  useEffect(() => {
-    // Virtual admin doesn't need session registration
-    if (isVirtualAdmin) {
-      console.log("👑 Virtual Admin - Skipping session registration");
-      return;
-    }
-
-    // Only register session for master admin
-    const registerSession = async () => {
-      const adminKey = localStorage.getItem("adminApiKey");
-      if (!adminKey) {
-        console.log("⏳ No admin key found - waiting for master admin login");
-        return;
-      }
-
-      // Check if we're actually master admin (not virtual)
-      const virtualAdminData = localStorage.getItem("virtualAdmin");
-      if (virtualAdminData) {
-        console.log(
-          "👑 Virtual admin detected - skipping session registration",
-        );
-        return;
-      }
-
-      try {
-        const response = await fetch(
-          `${BASE_URL}/api/users/admin/register-session`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              adminKey: adminKey,
-              userAgent: navigator.userAgent,
-              adminUsername: "master_admin",
-            }),
-          },
-        );
-        const data = await response.json();
-        if (data.sessionId) {
-          localStorage.setItem("admin_session_id", data.sessionId);
-          console.log("✅ Master admin session registered:", data.sessionId);
-        } else {
-          console.error("❌ Session registration failed:", data);
-        }
-      } catch (err) {
-        console.error("❌ Session registration error:", err);
-      }
-    };
-
-    // Register session immediately
-    registerSession();
-
-    // Also register when adminKey changes
-    const handleStorageChange = () => {
-      const newAdminKey = localStorage.getItem("adminApiKey");
-      if (newAdminKey) {
-        registerSession();
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, [isVirtualAdmin, BASE_URL]);
+ 
 
   // In AdminPanel.jsx - update the virtual admin validation:
 

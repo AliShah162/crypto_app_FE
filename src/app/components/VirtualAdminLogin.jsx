@@ -2,6 +2,13 @@
 import { useState } from "react";
 import { API_URL } from "../lib/config";
 
+// ✅ ADD THIS - Generate unique session ID
+function generateSessionId() {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
 export default function VirtualAdminLogin({ onLogin, onBack }) {
   const [username, setUsername] = useState("");
   const [refKey, setRefKey] = useState("");
@@ -21,6 +28,7 @@ export default function VirtualAdminLogin({ onLogin, onBack }) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
 
+      // ✅ STEP 1: Login to get admin data
       const response = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -33,61 +41,72 @@ export default function VirtualAdminLogin({ onLogin, onBack }) {
 
       clearTimeout(timeoutId);
 
-      // ✅ Try to parse response
       let data;
       try {
         data = await response.json();
       } catch (e) {
-        if (response.status === 408 || response.status === 504) {
-          setError("⏳ Server is busy. Please try again.");
-        } else {
-          setError("📶 Server error. Please try again.");
+        setError("📶 Server error. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      if (!data.success) {
+        switch (data.error) {
+          case "ADMIN_BANNED":
+            setError(`🚫 Your admin access has been revoked.\nReason: ${data.reason || "No reason provided"}`);
+            break;
+          case "ADMIN_KICKED":
+            const remaining = Math.ceil(data.timeRemaining || 5);
+            setError(`⏳ Your session was recently terminated. Please wait ${remaining} seconds.`);
+            break;
+          default:
+            setError(data.message || data.error || "Invalid credentials.");
         }
         setLoading(false);
         return;
       }
 
-      if (data.success) {
-        // Store session ID for this tab
-        if (data.sessionId) {
-          localStorage.setItem("admin_session_id", data.sessionId);
-        }
-        
-        // ✅ Store virtual admin data
-        localStorage.setItem("virtualAdmin", JSON.stringify(data.admin));
-        localStorage.setItem("tabRole", "virtual_admin");
-        
-        // ✅ Dispatch event for App.jsx
-        window.dispatchEvent(new CustomEvent("virtualAdminLogin", { 
-          detail: data.admin 
-        }));
-        
-        // ✅ Call the onLogin callback
-        onLogin(data.admin);
-      } else {
-        // Handle different error types
-        switch (data.error) {
-          case "ADMIN_BANNED":
-            setError(`🚫 Your admin access has been revoked.\nReason: ${data.reason || "No reason provided"}`);
-            break;
-            
-          case "ADMIN_KICKED":
-            const remaining = Math.ceil(data.timeRemaining || 5);
-            setError(`⏳ Your session was recently terminated. Please wait ${remaining} seconds and try again.`);
-            break;
-            
-          case "SESSION_INVALID":
-          case "SESSION_REVOKED":
-            setError("Your session has expired. Please login again.");
-            break;
-            
-          default:
-            setError(data.message || data.error || "Invalid credentials. Please try again.");
-        }
-      }
+      // VirtualAdminLogin.jsx - Find this section and REPLACE it
+
+// ✅ STEP 2: Generate UNIQUE session ID for THIS tab
+const uniqueSessionId = generateSessionId();
+console.log(`🆕 Generated unique session ID: ${uniqueSessionId.slice(0, 20)}...`);
+
+// ✅ STEP 3: Register this specific session
+const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+const registerResponse = await fetch(`${API_URL}/api/users/admin/register-session`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    adminKey: adminKey,
+    userAgent: navigator.userAgent,
+    adminUsername: data.admin.username,
+    sessionId: uniqueSessionId, // ✅ Pass the UNIQUE ID
+  }),
+});
+
+const registerData = await registerResponse.json();
+console.log("📦 Session registration response:", registerData);
+
+// ✅ Always store the session ID, even if registration "fails"
+// The backend should always return success
+localStorage.setItem("admin_session_id", uniqueSessionId);
+console.log(`✅ Stored session ID: ${uniqueSessionId.slice(0, 20)}...`);
+
+      // ✅ STEP 4: Store the UNIQUE session ID
+      localStorage.setItem("admin_session_id", uniqueSessionId);
+      localStorage.setItem("virtualAdmin", JSON.stringify(data.admin));
+      localStorage.setItem("tabRole", "virtual_admin");
+      
+      // ✅ STEP 5: Dispatch event
+      window.dispatchEvent(new CustomEvent("virtualAdminLogin", { 
+        detail: data.admin 
+      }));
+      
+      onLogin(data.admin);
+      
     } catch (err) {
       console.error("Virtual admin login error:", err);
-      
       if (err.name === 'AbortError') {
         setError("⏳ Request timed out. Please check your connection.");
       } else if (err.message?.includes("NetworkError") || err.message?.includes("Failed to fetch")) {

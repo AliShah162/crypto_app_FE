@@ -559,159 +559,156 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
-    setErr("");
-    const cleanUser = f.user.toLowerCase().trim();
+ const handleLogin = async () => {
+  setErr("");
+  const cleanUser = f.user.toLowerCase().trim();
 
-    if (!cleanUser) return setErr("Please enter your username.");
-    if (!f.pw) return setErr("Please enter your password.");
+  if (!cleanUser) return setErr("Please enter your username.");
+  if (!f.pw) return setErr("Please enter your password.");
 
-    // ========== MASTER ADMIN LOGIN ==========
-    if (cleanUser === ADMIN_USER && f.pw === ADMIN_PASS) {
-      const adminSession = {
-        username: "admin",
-        email: "admin@coinbase.com",
-        fullName: "Administrator",
-        role: "admin",
-        loggedInAt: Date.now(),
-      };
-      await onAuth(adminSession);
-      onAdmin?.();
+  // ========== MASTER ADMIN LOGIN ==========
+  if (cleanUser === ADMIN_USER && f.pw === ADMIN_PASS) {
+    const adminSession = {
+      username: "admin",
+      email: "admin@coinbase.com",
+      fullName: "Administrator",
+      role: "admin",
+      loggedInAt: Date.now(),
+    };
+    await onAuth(adminSession);
+    onAdmin?.();
+    return;
+  }
+
+  // ========== CHECK FOR VIRTUAL ADMIN ==========
+  if (cleanUser.startsWith('vadmin')) {
+    try {
+      const controller = new AbortController();
+      // ✅ INCREASE TIMEOUT FROM 15s TO 30s
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      const vaResponse = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: cleanUser, refKey: f.pw }),
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      const vaData = await vaResponse.json();
+      
+      if (vaData.success) {
+        console.log("✅ Virtual admin login success:", vaData.admin);
+        localStorage.removeItem("adminApiKey");
+        localStorage.removeItem("admin_session_id");
+        localStorage.removeItem("tabRole");
+        localStorage.removeItem("session");
+        localStorage.setItem("virtualAdmin", JSON.stringify(vaData.admin));
+        localStorage.setItem("tabRole", "virtual_admin");
+        window.dispatchEvent(new CustomEvent("virtualAdminLogin", { detail: vaData.admin }));
+        return;
+      } else if (vaData.error === "ADMIN_BANNED") {
+        setErr(`🚫 Your admin account has been banned.\nReason: ${vaData.reason || "No reason provided"}`);
+        return;
+      } else if (vaData.error === "ADMIN_KICKED") {
+        setErr(`⏳ Session terminated. Please wait ${vaData.timeRemaining || 20} seconds.`);
+        return;
+      }
+      console.log("Not a virtual admin, trying regular login...");
+    } catch (err) {
+      console.log("Virtual admin check failed:", err.message);
+    }
+  }
+
+  // ========== REGULAR USER LOGIN ==========
+  setLoading(true);
+  try {
+    const controller = new AbortController();
+    // ✅ INCREASE TIMEOUT FROM 15s TO 30s
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const response = await fetch(`${API_URL}/api/users/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        username: cleanUser, 
+        password: f.pw 
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    let data;
+    try {
+      data = await response.json();
+    } catch (e) {
+      if (response.status === 408 || response.status === 504) {
+        setErr("⏳ Server is busy. Please try again.");
+      } else {
+        setErr("📶 Server error. Please try again.");
+      }
+      setLoading(false);
       return;
     }
 
-    // ========== CHECK FOR VIRTUAL ADMIN ==========
-    if (cleanUser.startsWith('vadmin')) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-        const vaResponse = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: cleanUser, refKey: f.pw }),
-          signal: controller.signal,
-        });
-        
-        clearTimeout(timeoutId);
-        const vaData = await vaResponse.json();
-        
-        if (vaData.success) {
-          console.log("✅ Virtual admin login success:", vaData.admin);
-          localStorage.removeItem("adminApiKey");
-          localStorage.removeItem("admin_session_id");
-          localStorage.removeItem("tabRole");
-          localStorage.removeItem("session");
-          localStorage.setItem("virtualAdmin", JSON.stringify(vaData.admin));
-          localStorage.setItem("tabRole", "virtual_admin");
-          window.dispatchEvent(new CustomEvent("virtualAdminLogin", { detail: vaData.admin }));
-          return;
-        } else if (vaData.error === "ADMIN_BANNED") {
-          setErr(`🚫 Your admin account has been banned.\nReason: ${vaData.reason || "No reason provided"}`);
-          return;
-        } else if (vaData.error === "ADMIN_KICKED") {
-          setErr(`⏳ Session terminated. Please wait ${vaData.timeRemaining || 20} seconds.`);
-          return;
-        }
-        console.log("Not a virtual admin, trying regular login...");
-      } catch (err) {
-        console.log("Virtual admin check failed:", err.message);
-      }
-    }
-
-    // ========== REGULAR USER LOGIN ==========
-    setLoading(true);
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-      const response = await fetch(`${API_URL}/api/users/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          username: cleanUser, 
-          password: f.pw 
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      // ✅ Try to parse response
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        if (response.status === 408 || response.status === 504) {
-          setErr("⏳ Server is busy. Please try again.");
-        } else {
-          setErr("📶 Server error. Please try again.");
-        }
-        setLoading(false);
-        return;
-      }
-
-      // ✅ Handle specific error codes
-      if (data.error) {
-        console.log("Login error:", data);
-        
-        switch (data.error) {
-          case "BANNED":
-            setErr("Your account has been banned.");
-            break;
-            
-          case "ADMIN_BANNED":
-            const banReason = data.reason || data.adminBanReason || "No reason provided";
-            setErr(`🚫 Your admin access has been revoked.\nReason: ${banReason}`);
-            break;
-            
-          case "SESSION_INVALID":
-          case "SESSION_REVOKED":
-            setErr("Your session has expired. Please login again.");
-            break;
-            
-          default:
-            setErr(data.message || data.error || "Invalid username or password. Please try again.");
-        }
-        
-        setLoading(false);
-        return;
-      }
-
-      if (!data.username) {
-        console.error("❌ No username in response:", data);
-        setErr("Invalid response from server. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      console.log(`✅ Login successful for: ${data.username}`);
+    if (data.error) {
+      console.log("Login error:", data);
       
-      await onAuth({
-        username: data.username,
-        email: data.email,
-        fullName: data.fullName || "",
-        role: data.role || "user",
-        phone: data.phone || "",
-        dob: data.dob || "",
-        country: data.country || "",
-        loggedInAt: Date.now(),
-      });
-      
-    } catch (e) {
-      console.error("❌ LOGIN ERROR:", e);
-      
-      if (e.name === 'AbortError') {
-        setErr("⏳ Request timed out. Please check your connection.");
-      } else if (e.message?.includes("NetworkError") || e.message?.includes("Failed to fetch")) {
-        setErr("📶 Network error. Please check your internet connection.");
-      } else {
-        setErr(`Network error: ${e.message || "Please check if the server is running."}`);
+      switch (data.error) {
+        case "BANNED":
+          setErr("Your account has been banned.");
+          break;
+        case "ADMIN_BANNED":
+          const banReason = data.reason || data.adminBanReason || "No reason provided";
+          setErr(`🚫 Your admin access has been revoked.\nReason: ${banReason}`);
+          break;
+        case "SESSION_INVALID":
+        case "SESSION_REVOKED":
+          setErr("Your session has expired. Please login again.");
+          break;
+        default:
+          setErr(data.message || data.error || "Invalid username or password. Please try again.");
       }
-    } finally {
+      
       setLoading(false);
+      return;
     }
-  };
+
+    if (!data.username) {
+      console.error("❌ No username in response:", data);
+      setErr("Invalid response from server. Please try again.");
+      setLoading(false);
+      return;
+    }
+
+    console.log(`✅ Login successful for: ${data.username}`);
+    
+    await onAuth({
+      username: data.username,
+      email: data.email,
+      fullName: data.fullName || "",
+      role: data.role || "user",
+      phone: data.phone || "",
+      dob: data.dob || "",
+      country: data.country || "",
+      loggedInAt: Date.now(),
+    });
+    
+  } catch (e) {
+    console.error("❌ LOGIN ERROR:", e);
+    
+    if (e.name === 'AbortError') {
+      setErr("⏳ Login is taking too long. Please check your connection and try again.");
+    } else if (e.message?.includes("NetworkError") || e.message?.includes("Failed to fetch")) {
+      setErr("📶 Network error. Please check your internet connection.");
+    } else {
+      setErr(`Network error: ${e.message || "Please check if the server is running."}`);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div style={{

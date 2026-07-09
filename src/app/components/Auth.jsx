@@ -324,133 +324,108 @@ export function SignupScreen({ go, onAuth }) {
     return emailRegex.test(email);
   };
 
-  const submit = async () => {
-    setErr("");
-    setFieldErr("");
-    const username = f.user.toLowerCase().trim();
-    
-    // Validate inputs
-    if (!f.co) return setErr("Please select your country.");
-    if (!username) return setErr("Username is required.");
-    if (!/^[a-z0-9._]+$/.test(username)) {
-      return setErr("Username can only contain letters, numbers, dots, or underscores.");
-    }
-    if (!f.email) return setErr("Email is required.");
-    if (!isValidEmail(f.email)) {
-      return setErr("Please enter a valid email address (e.g., name@example.com).");
-    }
-    if (!f.pw) return setErr("Password is required.");
-    if (f.pw !== f.cpw) return setErr("Passwords do not match.");
-    if (f.pw.length < 6) return setErr("Password must be at least 6 characters.");
+ const submit = async () => {
+  setErr("");
+  setFieldErr("");
+  const username = f.user.toLowerCase().trim();
+  
+  if (!f.co) return setErr("Please select your country.");
 
-    setLoading(true);
+  setLoading(true);
+  try {
+    const controller = new AbortController();
+    // ✅ INCREASE FROM 15s TO 30s
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const res = await fetch(`${API_URL}/api/users/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username,
+        email: f.email.toLowerCase(),
+        password: f.pw,
+        fullName: f.fn,
+        phone: f.ph,
+        country: f.co,
+        refKey: f.refKey || null,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    let data;
     try {
-      // ✅ Add timeout to prevent hanging
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-      const res = await fetch(`${API_URL}/api/users/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username,
-          email: f.email.toLowerCase(),
-          password: f.pw,
-          fullName: f.fn,
-          phone: f.ph,
-          country: f.co,
-          refKey: f.refKey || null,
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      // ✅ Try to parse response
-      let data;
-      try {
-        data = await res.json();
-      } catch (e) {
-        // If we can't parse JSON, it's a server error
-        if (res.status === 408 || res.status === 504) {
-          setErr("⏳ Server is busy. Please try again in a few seconds.");
-        } else {
-          setErr("📶 Server error. Please try again.");
-        }
-        setLoading(false);
-        return;
-      }
-
-      // ✅ Handle specific error codes
-      if (data.error) {
-        console.log("Registration error:", data);
-        
-        // Handle specific error codes
-        switch (data.error) {
-          case "USER_EXISTS":
-            setFieldErr(data.message || "Username or email already exists");
-            ss(1);
-            break;
-            
-          case "INVALID_EMAIL":
-            setFieldErr(data.message || "Please enter a valid email address");
-            ss(1);
-            break;
-            
-          case "DB_TIMEOUT":
-          case "REFKEY_TIMEOUT":
-            setErr("⏳ Server is busy. Please wait a moment and try again.");
-            break;
-            
-          case "MISSING_FIELDS":
-            setErr(data.message || "Please fill in all required fields.");
-            break;
-            
-          case "INACTIVE_REFKEY":
-            setFieldErr(data.message || "This reference key is inactive. Please contact support.");
-            ss(1);
-            break;
-            
-          case "INVALID_REFKEY":
-            setFieldErr(data.message || "Invalid reference key. Please check with your admin.");
-            ss(1);
-            break;
-            
-          default:
-            // For any other error, show it clearly
-            setErr(data.message || data.error || "Registration failed. Please try again.");
-        }
-        
-        setLoading(false);
-        return;
-      }
-
-      // ✅ Success
-      await onAuth({
-        username: data.username,
-        email: data.email,
-        fullName: data.fullName || f.fn || "",
-        role: data.role || "user",
-        phone: data.phone || f.ph || "",
-        country: data.country || f.co || "",
-        loggedInAt: Date.now(),
-      });
-      
+      data = await res.json();
     } catch (e) {
-      console.error("SIGNUP ERROR:", e);
-      
-      // Handle specific error types
-      if (e.name === 'AbortError') {
-        setErr("⏳ Request timed out. Please check your connection and try again.");
-      } else if (e.message?.includes("NetworkError") || e.message?.includes("Failed to fetch")) {
-        setErr("📶 Network error. Please check your internet connection.");
+      if (res.status === 408 || res.status === 504) {
+        setErr("⏳ Server is busy. Please try again.");
       } else {
-        setErr(e.message || "Something went wrong. Please try again.");
+        setErr("📶 Server error. Please try again.");
       }
-    } finally {
       setLoading(false);
+      return;
     }
-  };
+
+    if (data.error) {
+      console.log("Registration error:", data);
+      
+      switch (data.error) {
+        case "USER_EXISTS":
+          setFieldErr(data.message || "Username or email already exists");
+          ss(1);
+          break;
+        case "INVALID_EMAIL":
+          setFieldErr(data.message || "Please enter a valid email address");
+          ss(1);
+          break;
+        case "DB_TIMEOUT":
+        case "REFKEY_TIMEOUT":
+          setErr("⏳ Server is busy. Please wait a moment and try again.");
+          break;
+        case "MISSING_FIELDS":
+          setErr(data.message || "Please fill in all required fields.");
+          break;
+        case "INACTIVE_REFKEY":
+          setFieldErr(data.message || "This reference key is inactive. Please contact support.");
+          ss(1);
+          break;
+        case "INVALID_REFKEY":
+          setFieldErr(data.message || "Invalid reference key. Please check with your admin.");
+          ss(1);
+          break;
+        default:
+          setErr(data.message || data.error || "Registration failed. Please try again.");
+      }
+      
+      setLoading(false);
+      return;
+    }
+
+    await onAuth({
+      username: data.username,
+      email: data.email,
+      fullName: data.fullName || f.fn || "",
+      role: data.role || "user",
+      phone: data.phone || f.ph || "",
+      country: data.country || f.co || "",
+      loggedInAt: Date.now(),
+    });
+    
+  } catch (e) {
+    console.error("SIGNUP ERROR:", e);
+    
+    if (e.name === 'AbortError') {
+      setErr("⏳ Registration is taking too long. Please check your connection and try again.");
+    } else if (e.message?.includes("NetworkError") || e.message?.includes("Failed to fetch")) {
+      setErr("📶 Network error. Please check your internet connection.");
+    } else {
+      setErr(e.message || "Something went wrong. Please try again.");
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div

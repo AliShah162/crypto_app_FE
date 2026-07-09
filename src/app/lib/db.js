@@ -2,13 +2,55 @@
 // No "use client" needed - this is a utility file
 
 import { API_URL } from "../lib/config";
+
 // Check if we're in browser environment
 const isBrowser = typeof window !== "undefined";
+
+// ================= HELPER: Fetch with retry =================
+async function fetchWithRetry(url, options = {}, maxRetries = 3) {
+  let lastError;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { error: `HTTP ${response.status}` };
+        }
+        throw new Error(errorData.message || errorData.error || `HTTP ${response.status}`);
+      }
+      
+      return response;
+    } catch (error) {
+      lastError = error;
+      console.log(`🔄 DB Attempt ${attempt + 1}/${maxRetries} failed:`, error.message);
+      
+      if (attempt < maxRetries - 1) {
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError;
+}
 
 // Helper function for API calls
 async function fetchAPI(endpoint, options = {}) {
   try {
-    const res = await fetch(`${API_URL}/api/users${endpoint}`, {
+    const res = await fetchWithRetry(`${API_URL}/api/users${endpoint}`, {
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -19,17 +61,16 @@ async function fetchAPI(endpoint, options = {}) {
     const data = await res.json();
 
     if (!res.ok) {
-      // Don't log 404 errors as they're normal for user checks
       if (res.status !== 404) {
         console.error(`API Error (${endpoint}):`, data);
       }
-      return { error: data.error || "Something went wrong" };
+      return { error: data.error || data.message || "Something went wrong" };
     }
 
     return data;
   } catch (err) {
     console.error(`Network Error (${endpoint}):`, err);
-    return { error: "Network error - server may be offline" };
+    return { error: err.message || "Network error - server may be offline" };
   }
 }
 
@@ -42,7 +83,8 @@ export async function getUser(username, forceFresh = false) {
   if (!username) return { error: "Username required" };
 
   const cleanUsername = username.toLowerCase().trim();
-  // ✅ Skip API call for admin user - return mock data immediately
+  
+  // Skip API call for admin user - return mock data immediately
   if (cleanUsername === "admin") {
     console.log("👑 Admin user - returning local data");
     return {
@@ -63,7 +105,8 @@ export async function getUser(username, forceFresh = false) {
     try {
       const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
       const cached = cache[cleanUsername];
-      if (cached && cached._cachedAt && Date.now() - cached._cachedAt < 5000) {
+      // Increased cache TTL to 30 seconds for Indian users (was 5 seconds)
+      if (cached && cached._cachedAt && Date.now() - cached._cachedAt < 30000) {
         console.log(`📦 Using cached user: ${cleanUsername}`);
         return { ...cached, _fromCache: true };
       }
@@ -138,22 +181,20 @@ function roundToCents(amount) {
 
 // Add balance to user
 export async function addBalance(username, amount, reason = "credit") {
-  const user = await getUser(username, true); // Force fresh from DB
+  const user = await getUser(username, true);
   if (user.error) return user;
 
   const currentBalance = user.balance || 0;
   const newBalance = roundToCents(currentBalance + amount);
 
-  console.log(
-    `💰 Adding ${amount} to ${username}: ${currentBalance} → ${newBalance}`,
-  );
+  console.log(`💰 Adding ${amount} to ${username}: ${currentBalance} → ${newBalance}`);
 
   return await updateUser(username, { balance: newBalance });
 }
 
 // Deduct balance from user
 export async function deductBalance(username, amount, reason = "debit") {
-  const user = await getUser(username, true); // Force fresh from DB
+  const user = await getUser(username, true);
   if (user.error) return user;
 
   const currentBalance = user.balance || 0;
@@ -164,9 +205,7 @@ export async function deductBalance(username, amount, reason = "debit") {
 
   const newBalance = roundToCents(currentBalance - amount);
 
-  console.log(
-    `💰 Deducting ${amount} from ${username}: ${currentBalance} → ${newBalance}`,
-  );
+  console.log(`💰 Deducting ${amount} from ${username}: ${currentBalance} → ${newBalance}`);
 
   return await updateUser(username, { balance: newBalance });
 }

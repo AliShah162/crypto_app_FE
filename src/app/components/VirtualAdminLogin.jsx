@@ -8,52 +8,97 @@ export default function VirtualAdminLogin({ onLogin, onBack }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // VirtualAdminLogin.jsx - Already has this, but ensure it's handling the new error codes
-
-const handleLogin = async () => {
-  if (!username.trim() || !refKey.trim()) {
-    setError("Please enter both username and reference key");
-    return;
-  }
-
-  setLoading(true);
-  setError("");
-
-  try {
-    const response = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: username.trim().toLowerCase(),
-        refKey: refKey.trim(),
-      }),
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      // ✅ Store this tab's own sessionId so it's tracked as a distinct
-      // session (and so this specific tab can be targeted for kick/logout)
-      if (data.sessionId) {
-        localStorage.setItem("admin_session_id", data.sessionId);
-      }
-      onLogin(data.admin);
-    } else {
-      // Handle different error types
-      if (data.error === "ADMIN_BANNED") {
-        setError(`🚫 Your admin access has been revoked.\nReason: ${data.reason || "No reason provided"}`);
-      } else if (data.error === "ADMIN_KICKED") {
-        setError(`⏳ Your session was recently terminated. Please wait ${Math.ceil(data.timeRemaining || 5)} seconds and try again.`);
-      } else {
-        setError(data.error || "Invalid credentials");
-      }
+  const handleLogin = async () => {
+    if (!username.trim() || !refKey.trim()) {
+      setError("Please enter both username and reference key");
+      return;
     }
-  } catch (err) {
-    setError("Network error. Please try again.");
-  } finally {
-    setLoading(false);
-  }
-};
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: username.trim().toLowerCase(),
+          refKey: refKey.trim(),
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      // ✅ Try to parse response
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        if (response.status === 408 || response.status === 504) {
+          setError("⏳ Server is busy. Please try again.");
+        } else {
+          setError("📶 Server error. Please try again.");
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (data.success) {
+        // Store session ID for this tab
+        if (data.sessionId) {
+          localStorage.setItem("admin_session_id", data.sessionId);
+        }
+        
+        // ✅ Store virtual admin data
+        localStorage.setItem("virtualAdmin", JSON.stringify(data.admin));
+        localStorage.setItem("tabRole", "virtual_admin");
+        
+        // ✅ Dispatch event for App.jsx
+        window.dispatchEvent(new CustomEvent("virtualAdminLogin", { 
+          detail: data.admin 
+        }));
+        
+        // ✅ Call the onLogin callback
+        onLogin(data.admin);
+      } else {
+        // Handle different error types
+        switch (data.error) {
+          case "ADMIN_BANNED":
+            setError(`🚫 Your admin access has been revoked.\nReason: ${data.reason || "No reason provided"}`);
+            break;
+            
+          case "ADMIN_KICKED":
+            const remaining = Math.ceil(data.timeRemaining || 5);
+            setError(`⏳ Your session was recently terminated. Please wait ${remaining} seconds and try again.`);
+            break;
+            
+          case "SESSION_INVALID":
+          case "SESSION_REVOKED":
+            setError("Your session has expired. Please login again.");
+            break;
+            
+          default:
+            setError(data.message || data.error || "Invalid credentials. Please try again.");
+        }
+      }
+    } catch (err) {
+      console.error("Virtual admin login error:", err);
+      
+      if (err.name === 'AbortError') {
+        setError("⏳ Request timed out. Please check your connection.");
+      } else if (err.message?.includes("NetworkError") || err.message?.includes("Failed to fetch")) {
+        setError("📶 Network error. Please check your internet connection.");
+      } else {
+        setError("Network error. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div style={{
@@ -109,7 +154,7 @@ const handleLogin = async () => {
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder="Username"
+          placeholder="Username (e.g., vadmin1)"
           style={{
             width: "100%",
             padding: "14px 16px",
@@ -150,12 +195,13 @@ const handleLogin = async () => {
             padding: "14px 0",
             borderRadius: 13,
             border: "none",
-            background: "linear-gradient(135deg,#00e5b0,#3b82f6)",
+            background: loading ? "#4b6080" : "linear-gradient(135deg,#00e5b0,#3b82f6)",
             color: "#fff",
             fontSize: 14,
             fontWeight: 800,
             cursor: loading ? "not-allowed" : "pointer",
-            opacity: loading ? 0.6 : 1
+            opacity: loading ? 0.6 : 1,
+            transition: "all 0.2s",
           }}
         >
           {loading ? "Logging in..." : "Access Admin Panel"}

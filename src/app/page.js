@@ -113,10 +113,17 @@ export default function App() {
     if (!sessionUser || sessionUser === "admin") return [];
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
       const response = await fetch(
         `${API_URL}/api/users/${sessionUser}/notifications`,
+        { signal: controller.signal }
       );
+      
+      clearTimeout(timeoutId);
       const data = await response.json();
+      
       if (Array.isArray(data)) {
         sn(data);
         return data;
@@ -127,7 +134,7 @@ export default function App() {
     return [];
   }, []);
 
-   useEffect(() => {
+  useEffect(() => {
     const handleAvatarUpdate = () => {
       const savedAvatar = localStorage.getItem("userAvatar");
       if (savedAvatar) {
@@ -162,8 +169,7 @@ export default function App() {
       try {
         const vaData = JSON.parse(savedVA);
         setVirtualAdmin(vaData);
-        // virtualAdmin state being set triggers the render — no special screen needed
-        startTransition(() => ss("welcome")); // will be overridden by virtualAdmin render
+        startTransition(() => ss("welcome"));
         return;
       } catch {}
     }
@@ -288,112 +294,118 @@ export default function App() {
     if (typeof window !== "undefined") {
       const sessionUser = localStorage.getItem("session");
       if (sessionUser) {
-        const freshUser = await fetch(
-          `${API_URL}/api/users/${sessionUser}`,
-        ).then((r) => r.json());
-        if (freshUser && !freshUser.error) {
-          const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
-          cache[sessionUser] = { ...freshUser, _cachedAt: Date.now() };
-          localStorage.setItem("users_cache", JSON.stringify(cache));
-          setUser(freshUser);
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
+          
+          const freshUser = await fetch(
+            `${API_URL}/api/users/${sessionUser}`,
+            { signal: controller.signal }
+          ).then((r) => r.json());
+          
+          clearTimeout(timeoutId);
+          
+          if (freshUser && !freshUser.error) {
+            const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+            cache[sessionUser] = { ...freshUser, _cachedAt: Date.now() };
+            localStorage.setItem("users_cache", JSON.stringify(cache));
+            setUser(freshUser);
+          }
+        } catch (err) {
+          console.error("Refresh user error:", err);
         }
       }
     }
     tick((n) => n + 1);
   }, []);
- // In page.js - update the virtual admin useEffect:
 
-useEffect(() => {
-  // Check if already logged in as virtual admin
-  const savedVA = localStorage.getItem("virtualAdmin");
-  const tabRole = localStorage.getItem("tabRole");
-  
-  // ✅ ONLY set virtual admin if we're in virtual admin mode
-  if (savedVA && tabRole === "virtual_admin") {
-    try {
-      const vaData = JSON.parse(savedVA);
-      setVirtualAdmin(vaData);
-      console.log("✅ Restored virtual admin session:", vaData.username);
-    } catch (e) {
-      console.error("Error parsing virtual admin data:", e);
-      localStorage.removeItem("virtualAdmin");
-      setVirtualAdmin(null);
+  useEffect(() => {
+    // Check if already logged in as virtual admin
+    const savedVA = localStorage.getItem("virtualAdmin");
+    const tabRole = localStorage.getItem("tabRole");
+    
+    if (savedVA && tabRole === "virtual_admin") {
+      try {
+        const vaData = JSON.parse(savedVA);
+        setVirtualAdmin(vaData);
+        console.log("✅ Restored virtual admin session:", vaData.username);
+      } catch (e) {
+        console.error("Error parsing virtual admin data:", e);
+        localStorage.removeItem("virtualAdmin");
+        setVirtualAdmin(null);
+      }
     }
-  }
 
-  // Listen for virtual admin login event
-  const handleVALogin = (e) => {
-    console.log("🎯 Virtual admin login event received:", e.detail);
-    const adminData = e.detail;
-    setVirtualAdmin(adminData);
-    // The render will show AdminPanel because virtualAdmin is not null
-  };
-
-  window.addEventListener("virtualAdminLogin", handleVALogin);
-
-  return () => {
-    window.removeEventListener("virtualAdminLogin", handleVALogin);
-  };
-}, []);
-
-  // In page.js - replace the auth function:
-
-const auth = async (u) => {
-  if (!u) return;
-
-  const username = u.username.toLowerCase().trim();
-
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("virtualAdmin");
-    if (username !== "admin") {
-      localStorage.removeItem("admin_session_id");
-    }
-  }
-
-  // ── Master admin ──
-  if (username === "admin") {
-    const adminKey = u.adminKey || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-    localStorage.setItem("adminApiKey", adminKey);
-    localStorage.setItem("session", "admin");
-    localStorage.setItem("tabRole", "admin");
-    setUser({ username: "admin", fullName: "Administrator", role: "admin" });
-    sn([]);
-    ss("admin");
-    return;
-  }
-
-  // ── Regular users ──
-  try {
-    // Save user to localStorage cache
-    const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
-    cache[username] = {
-      ...u,
-      _cachedAt: Date.now()
+    // Listen for virtual admin login event
+    const handleVALogin = (e) => {
+      console.log("🎯 Virtual admin login event received:", e.detail);
+      const adminData = e.detail;
+      setVirtualAdmin(adminData);
     };
-    localStorage.setItem("users_cache", JSON.stringify(cache));
-    
-    // Set session
-    localStorage.setItem("session", username);
-    localStorage.removeItem("tabRole"); // Remove any admin role
-    
-    // Update state
-    setUser(u);
-    
-    // ✅ CRITICAL: Navigate to app
-    ss("app");
-    sp("home");
-    ssb(null);
-    
-    // Fetch notifications
-    fetchNotificationsFromDB();
-    
-    console.log(`✅ User ${username} logged in successfully`);
-    
-  } catch (err) {
-    console.error("Auth error:", err);
-    setErr("Failed to authenticate. Please try again.");
-  }
-};
+
+    window.addEventListener("virtualAdminLogin", handleVALogin);
+
+    return () => {
+      window.removeEventListener("virtualAdminLogin", handleVALogin);
+    };
+  }, []);
+
+  const auth = async (u) => {
+    if (!u) return;
+
+    const username = u.username.toLowerCase().trim();
+
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("virtualAdmin");
+      if (username !== "admin") {
+        localStorage.removeItem("admin_session_id");
+      }
+    }
+
+    // ── Master admin ──
+    if (username === "admin") {
+      const adminKey = u.adminKey || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      localStorage.setItem("adminApiKey", adminKey);
+      localStorage.setItem("session", "admin");
+      localStorage.setItem("tabRole", "admin");
+      setUser({ username: "admin", fullName: "Administrator", role: "admin" });
+      sn([]);
+      ss("admin");
+      return;
+    }
+
+    // ── Regular users ──
+    try {
+      // Save user to localStorage cache
+      const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+      cache[username] = {
+        ...u,
+        _cachedAt: Date.now()
+      };
+      localStorage.setItem("users_cache", JSON.stringify(cache));
+      
+      // Set session
+      localStorage.setItem("session", username);
+      localStorage.removeItem("tabRole");
+      
+      // Update state
+      setUser(u);
+      
+      // Navigate to app
+      ss("app");
+      sp("home");
+      ssb(null);
+      
+      // Fetch notifications
+      fetchNotificationsFromDB();
+      
+      console.log(`✅ User ${username} logged in successfully`);
+      
+    } catch (err) {
+      console.error("Auth error:", err);
+      setErr("Failed to authenticate. Please try again.");
+    }
+  };
 
   const adm = () => {
     localStorage.setItem("tabRole", "admin");
@@ -415,14 +427,12 @@ const auth = async (u) => {
     sn([]);
   };
 
-  // ✅ ADD THIS FUNCTION - Avatar selection handler
-const handleAvatarSelect = (avatarId) => {
-  setUserAvatar(avatarId);
-  localStorage.setItem("userAvatar", avatarId);
-  setShowAvatarMenu(false);
-  // Dispatch event so Profile Page updates
-  window.dispatchEvent(new Event("avatarUpdated"));
-};
+  const handleAvatarSelect = (avatarId) => {
+    setUserAvatar(avatarId);
+    localStorage.setItem("userAvatar", avatarId);
+    setShowAvatarMenu(false);
+    window.dispatchEvent(new Event("avatarUpdated"));
+  };
 
   const nav = (p, coin) => {
     ssb(null);
@@ -436,6 +446,9 @@ const handleAvatarSelect = (avatarId) => {
     if (!user?.username) return;
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
       const response = await fetch(
         `${API_URL}/api/users/${user.username}/notifications`,
         {
@@ -446,11 +459,13 @@ const handleAvatarSelect = (avatarId) => {
             body: body,
             type: "general",
           }),
-        },
+          signal: controller.signal,
+        }
       );
 
+      clearTimeout(timeoutId);
+
       if (response.ok) {
-        // Refresh notifications from database
         await fetchNotificationsFromDB();
       } else {
         console.error("Failed to save notification to DB");
@@ -550,30 +565,29 @@ const handleAvatarSelect = (avatarId) => {
   // Calculate unread count for notification bell
   const unreadCount = notifs.filter((n) => !n.read).length;
 
-  // ✅ ADD THIS HELPER FUNCTION HERE - BEFORE renderContent
   const getAvatarContent = (avatarId) => {
-  const avatars = {
-    male1: "https://api.dicebear.com/7.x/micah/svg?seed=Michael",
-    male2: "https://api.dicebear.com/7.x/micah/svg?seed=James",
-    male3: "https://api.dicebear.com/7.x/micah/svg?seed=David",
-    female1: "https://api.dicebear.com/7.x/micah/svg?seed=Sarah",
-    female2: "https://api.dicebear.com/7.x/micah/svg?seed=Emma",
-    female3: "https://api.dicebear.com/7.x/micah/svg?seed=Lisa",
+    const avatars = {
+      male1: "https://api.dicebear.com/7.x/micah/svg?seed=Michael",
+      male2: "https://api.dicebear.com/7.x/micah/svg?seed=James",
+      male3: "https://api.dicebear.com/7.x/micah/svg?seed=David",
+      female1: "https://api.dicebear.com/7.x/micah/svg?seed=Sarah",
+      female2: "https://api.dicebear.com/7.x/micah/svg?seed=Emma",
+      female3: "https://api.dicebear.com/7.x/micah/svg?seed=Lisa",
+    };
+    const avatarUrl = avatars[avatarId] || avatars.male1;
+    return (
+      <img
+        src={avatarUrl}
+        alt="avatar"
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          borderRadius: "50%",
+        }}
+      />
+    );
   };
-  const avatarUrl = avatars[avatarId] || avatars.male1;
-  return (
-    <img
-      src={avatarUrl}
-      alt="avatar"
-      style={{
-        width: "100%",
-        height: "100%",
-        objectFit: "cover",
-        borderRadius: "50%",
-      }}
-    />
-  );
-};
 
   const renderContent = () => {
     if (page === "profile" && sub) {
@@ -669,23 +683,21 @@ const handleAvatarSelect = (avatarId) => {
     );
   }
 
-// ✅ VIRTUAL ADMIN CHECK - ADD THIS HERE (BEFORE scr === "admin")
-if (virtualAdmin) {
-  return (
-    <AdminPanel
-      virtualAdminRefKey={virtualAdmin.refKey}
-      virtualAdminName={virtualAdmin.adminName}
-      onBack={() => {
-        localStorage.removeItem("virtualAdmin");
-        localStorage.removeItem("tabRole");
-        setVirtualAdmin(null);
-        ss("welcome");
-        setUser(null);
-      }}
-    />
-  );
-}
-  
+  if (virtualAdmin) {
+    return (
+      <AdminPanel
+        virtualAdminRefKey={virtualAdmin.refKey}
+        virtualAdminName={virtualAdmin.adminName}
+        onBack={() => {
+          localStorage.removeItem("virtualAdmin");
+          localStorage.removeItem("tabRole");
+          setVirtualAdmin(null);
+          ss("welcome");
+          setUser(null);
+        }}
+      />
+    );
+  }
 
   if (scr === "admin") {
     return (

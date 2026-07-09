@@ -6,201 +6,47 @@ import { API_URL } from "../lib/config";
 
 /* ================= COUNTRIES LIST ================= */
 const COUNTRIES = [
-  "Afghanistan",
-  "Albania",
-  "Algeria",
-  "Andorra",
-  "Angola",
-  "Antigua and Barbuda",
-  "Argentina",
-  "Armenia",
-  "Australia",
-  "Austria",
-  "Azerbaijan",
-  "Bahamas",
-  "Bahrain",
-  "Bangladesh",
-  "Barbados",
-  "Belarus",
-  "Belgium",
-  "Belize",
-  "Benin",
-  "Bhutan",
-  "Bolivia",
-  "Bosnia and Herzegovina",
-  "Botswana",
-  "Brazil",
-  "Brunei",
-  "Bulgaria",
-  "Burkina Faso",
-  "Burundi",
-  "Cabo Verde",
-  "Cambodia",
-  "Cameroon",
-  "Canada",
-  "Central African Republic",
-  "Chad",
-  "Chile",
-  "China",
-  "Colombia",
-  "Comoros",
-  "Congo",
-  "Costa Rica",
-  "Croatia",
-  "Cuba",
-  "Cyprus",
-  "Czech Republic",
-  "Denmark",
-  "Djibouti",
-  "Dominica",
-  "Dominican Republic",
-  "Ecuador",
-  "Egypt",
-  "El Salvador",
-  "Equatorial Guinea",
-  "Eritrea",
-  "Estonia",
-  "Eswatini",
-  "Ethiopia",
-  "Fiji",
-  "Finland",
-  "France",
-  "Gabon",
-  "Gambia",
-  "Georgia",
-  "Germany",
-  "Ghana",
-  "Greece",
-  "Grenada",
-  "Guatemala",
-  "Guinea",
-  "Guinea-Bissau",
-  "Guyana",
-  "Haiti",
-  "Honduras",
-  "Hungary",
-  "Iceland",
-  "India",
-  "Indonesia",
-  "Iran",
-  "Iraq",
-  "Ireland",
-  "Israel",
-  "Italy",
-  "Jamaica",
-  "Japan",
-  "Jordan",
-  "Kazakhstan",
-  "Kenya",
-  "Kiribati",
-  "Kuwait",
-  "Kyrgyzstan",
-  "Laos",
-  "Latvia",
-  "Lebanon",
-  "Lesotho",
-  "Liberia",
-  "Libya",
-  "Liechtenstein",
-  "Lithuania",
-  "Luxembourg",
-  "Madagascar",
-  "Malawi",
-  "Malaysia",
-  "Maldives",
-  "Mali",
-  "Malta",
-  "Marshall Islands",
-  "Mauritania",
-  "Mauritius",
-  "Mexico",
-  "Micronesia",
-  "Moldova",
-  "Monaco",
-  "Mongolia",
-  "Montenegro",
-  "Morocco",
-  "Mozambique",
-  "Myanmar",
-  "Namibia",
-  "Nauru",
-  "Nepal",
-  "Netherlands",
-  "New Zealand",
-  "Nicaragua",
-  "Niger",
-  "Nigeria",
-  "North Korea",
-  "North Macedonia",
-  "Norway",
-  "Oman",
-  "Pakistan",
-  "Palau",
-  "Palestine",
-  "Panama",
-  "Papua New Guinea",
-  "Paraguay",
-  "Peru",
-  "Philippines",
-  "Poland",
-  "Portugal",
-  "Qatar",
-  "Romania",
-  "Russia",
-  "Rwanda",
-  "Saint Kitts and Nevis",
-  "Saint Lucia",
-  "Saint Vincent and the Grenadines",
-  "Samoa",
-  "San Marino",
-  "Sao Tome and Principe",
-  "Saudi Arabia",
-  "Senegal",
-  "Serbia",
-  "Seychelles",
-  "Sierra Leone",
-  "Singapore",
-  "Slovakia",
-  "Slovenia",
-  "Solomon Islands",
-  "Somalia",
-  "South Africa",
-  "South Korea",
-  "South Sudan",
-  "Spain",
-  "Sri Lanka",
-  "Sudan",
-  "Suriname",
-  "Sweden",
-  "Switzerland",
-  "Syria",
-  "Taiwan",
-  "Tajikistan",
-  "Tanzania",
-  "Thailand",
-  "Timor-Leste",
-  "Togo",
-  "Tonga",
-  "Trinidad and Tobago",
-  "Tunisia",
-  "Turkey",
-  "Turkmenistan",
-  "Tuvalu",
-  "Uganda",
-  "Ukraine",
-  "UAE",
-  "United Kingdom",
-  "United States",
-  "Uruguay",
-  "Uzbekistan",
-  "Vanuatu",
-  "Venezuela",
-  "Vietnam",
-  "Yemen",
-  "Zambia",
-  "Zimbabwe",
+  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola",
+  "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria",
+  "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados",
+  "Belarus", "Belgium", "Belize", "Benin", "Bhutan",
+  "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei",
+  "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia",
+  "Cameroon", "Canada", "Central African Republic", "Chad", "Chile",
+  "China", "Colombia", "Comoros", "Congo", "Costa Rica",
+  "Croatia", "Cuba", "Cyprus", "Czech Republic", "Denmark",
+  "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt",
+  "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini",
+  "Ethiopia", "Fiji", "Finland", "France", "Gabon",
+  "Gambia", "Georgia", "Germany", "Ghana", "Greece",
+  "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana",
+  "Haiti", "Honduras", "Hungary", "Iceland", "India",
+  "Indonesia", "Iran", "Iraq", "Ireland", "Israel",
+  "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan",
+  "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos",
+  "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya",
+  "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi",
+  "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands",
+  "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova",
+  "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique",
+  "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands",
+  "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea",
+  "North Macedonia", "Norway", "Oman", "Pakistan", "Palau",
+  "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru",
+  "Philippines", "Poland", "Portugal", "Qatar", "Romania",
+  "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia",
+  "Saint Vincent and the Grenadines", "Samoa", "San Marino",
+  "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia",
+  "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia",
+  "Solomon Islands", "Somalia", "South Africa", "South Korea",
+  "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname",
+  "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan",
+  "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga",
+  "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan",
+  "Tuvalu", "Uganda", "Ukraine", "UAE", "United Kingdom",
+  "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela",
+  "Vietnam", "Yemen", "Zambia", "Zimbabwe",
 ];
-
 
 /* ================= BACK BUTTON ================= */
 export function BackButton({ onClick }) {
@@ -245,6 +91,7 @@ function ErrorBox({ msg }) {
         fontSize: 13,
         color: "#f87171",
         fontWeight: 600,
+        whiteSpace: "pre-wrap",
       }}
     >
       ⚠ {msg}
@@ -445,7 +292,7 @@ export function WelcomeScreen({ go }) {
           ))}
         </div>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12,  marginBottom: 60 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 60 }}>
         <PB lbl="Create Account" onClick={() => go("signup")} />
         <PB lbl="Sign In" onClick={() => go("login")} ghost />
       </div>
@@ -481,20 +328,27 @@ export function SignupScreen({ go, onAuth }) {
     setErr("");
     setFieldErr("");
     const username = f.user.toLowerCase().trim();
-// ✅ ADD THIS CONSOLE.LOG HERE
-  console.log("📤 Sending data:", {
-    username,
-    email: f.email.toLowerCase(),
-    password: f.pw,
-    fullName: f.fn,
-    phone: f.ph,
-    country: f.co,
-    refKey: f.refKey,
-  });
+    
+    // Validate inputs
     if (!f.co) return setErr("Please select your country.");
+    if (!username) return setErr("Username is required.");
+    if (!/^[a-z0-9._]+$/.test(username)) {
+      return setErr("Username can only contain letters, numbers, dots, or underscores.");
+    }
+    if (!f.email) return setErr("Email is required.");
+    if (!isValidEmail(f.email)) {
+      return setErr("Please enter a valid email address (e.g., name@example.com).");
+    }
+    if (!f.pw) return setErr("Password is required.");
+    if (f.pw !== f.cpw) return setErr("Passwords do not match.");
+    if (f.pw.length < 6) return setErr("Password must be at least 6 characters.");
 
     setLoading(true);
     try {
+      // ✅ Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
       const res = await fetch(`${API_URL}/api/users/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -505,23 +359,73 @@ export function SignupScreen({ go, onAuth }) {
           fullName: f.fn,
           phone: f.ph,
           country: f.co,
-          refKey: f.refKey || null, // ← ADD THIS LINE
+          refKey: f.refKey || null,
         }),
+        signal: controller.signal,
       });
 
-      const data = await res.json();
+      clearTimeout(timeoutId);
 
-      if (data.error) {
-        const msg = data.error;
-        if (msg.toLowerCase().includes("email")) {
-          ss(1);
-          setFieldErr(msg);
-          return;
+      // ✅ Try to parse response
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        // If we can't parse JSON, it's a server error
+        if (res.status === 408 || res.status === 504) {
+          setErr("⏳ Server is busy. Please try again in a few seconds.");
+        } else {
+          setErr("📶 Server error. Please try again.");
         }
-        setErr(msg);
+        setLoading(false);
         return;
       }
 
+      // ✅ Handle specific error codes
+      if (data.error) {
+        console.log("Registration error:", data);
+        
+        // Handle specific error codes
+        switch (data.error) {
+          case "USER_EXISTS":
+            setFieldErr(data.message || "Username or email already exists");
+            ss(1);
+            break;
+            
+          case "INVALID_EMAIL":
+            setFieldErr(data.message || "Please enter a valid email address");
+            ss(1);
+            break;
+            
+          case "DB_TIMEOUT":
+          case "REFKEY_TIMEOUT":
+            setErr("⏳ Server is busy. Please wait a moment and try again.");
+            break;
+            
+          case "MISSING_FIELDS":
+            setErr(data.message || "Please fill in all required fields.");
+            break;
+            
+          case "INACTIVE_REFKEY":
+            setFieldErr(data.message || "This reference key is inactive. Please contact support.");
+            ss(1);
+            break;
+            
+          case "INVALID_REFKEY":
+            setFieldErr(data.message || "Invalid reference key. Please check with your admin.");
+            ss(1);
+            break;
+            
+          default:
+            // For any other error, show it clearly
+            setErr(data.message || data.error || "Registration failed. Please try again.");
+        }
+        
+        setLoading(false);
+        return;
+      }
+
+      // ✅ Success
       await onAuth({
         username: data.username,
         email: data.email,
@@ -531,9 +435,18 @@ export function SignupScreen({ go, onAuth }) {
         country: data.country || f.co || "",
         loggedInAt: Date.now(),
       });
+      
     } catch (e) {
-      setErr("Network error. Please check your connection.");
       console.error("SIGNUP ERROR:", e);
+      
+      // Handle specific error types
+      if (e.name === 'AbortError') {
+        setErr("⏳ Request timed out. Please check your connection and try again.");
+      } else if (e.message?.includes("NetworkError") || e.message?.includes("Failed to fetch")) {
+        setErr("📶 Network error. Please check your internet connection.");
+      } else {
+        setErr(e.message || "Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -562,7 +475,7 @@ export function SignupScreen({ go, onAuth }) {
         <>
           <ErrorBox msg={fieldErr || err} />
           <Input label="USERNAME" val={f.user} set={sv("user")} />
-          <div style={{ marginBottom: fieldErr ? 4 : 0 }}>
+          <div style={{ marginBottom: fieldErr?.includes("email") ? 4 : 0 }}>
             <Input
               label="EMAIL"
               val={f.email}
@@ -572,7 +485,7 @@ export function SignupScreen({ go, onAuth }) {
               }}
             />
           </div>
-          {fieldErr && (
+          {fieldErr?.includes("email") && (
             <div
               style={{
                 fontSize: 11,
@@ -608,19 +521,16 @@ export function SignupScreen({ go, onAuth }) {
               const username = f.user.toLowerCase().trim();
 
               if (!username) return setErr("Username is required.");
-              if (!/^[a-z0-9._]+$/.test(username))
-                return setErr(
-                  "Username can only contain letters, numbers, dots, or underscores.",
-                );
+              if (!/^[a-z0-9._]+$/.test(username)) {
+                return setErr("Username can only contain letters, numbers, dots, or underscores.");
+              }
               if (!f.email) return setErr("Email is required.");
-              if (!isValidEmail(f.email))
-                return setErr(
-                  "Please enter a valid email address (e.g., name@example.com).",
-                );
+              if (!isValidEmail(f.email)) {
+                return setErr("Please enter a valid email address (e.g., name@example.com).");
+              }
               if (!f.pw) return setErr("Password is required.");
               if (f.pw !== f.cpw) return setErr("Passwords do not match.");
-              if (f.pw.length < 6)
-                return setErr("Password must be at least 6 characters.");
+              if (f.pw.length < 6) return setErr("Password must be at least 6 characters.");
               ss(2);
             }}
           />
@@ -649,140 +559,159 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
-// In Auth.jsx - replace the handleLogin function with this debug version:
+  const handleLogin = async () => {
+    setErr("");
+    const cleanUser = f.user.toLowerCase().trim();
 
-const handleLogin = async () => {
-  setErr("");
-  const cleanUser = f.user.toLowerCase().trim();
+    if (!cleanUser) return setErr("Please enter your username.");
+    if (!f.pw) return setErr("Please enter your password.");
 
-  if (!cleanUser) return setErr("Please enter your username.");
-  if (!f.pw) return setErr("Please enter your password.");
+    // ========== MASTER ADMIN LOGIN ==========
+    if (cleanUser === ADMIN_USER && f.pw === ADMIN_PASS) {
+      const adminSession = {
+        username: "admin",
+        email: "admin@coinbase.com",
+        fullName: "Administrator",
+        role: "admin",
+        loggedInAt: Date.now(),
+      };
+      await onAuth(adminSession);
+      onAdmin?.();
+      return;
+    }
 
-  // ========== MASTER ADMIN LOGIN ==========
-  if (cleanUser === ADMIN_USER && f.pw === ADMIN_PASS) {
-    const adminSession = {
-      username: "admin",
-      email: "admin@coinbase.com",
-      fullName: "Administrator",
-      role: "admin",
-      loggedInAt: Date.now(),
-    };
-    await onAuth(adminSession);
-    onAdmin?.();
-    return;
-  }
+    // ========== CHECK FOR VIRTUAL ADMIN ==========
+    if (cleanUser.startsWith('vadmin')) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-  // ========== CHECK FOR VIRTUAL ADMIN ==========
-  if (cleanUser.startsWith('vadmin')) {
-    try {
-      const vaResponse = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: cleanUser, refKey: f.pw }),
-      });
-      
-      const vaData = await vaResponse.json();
-      
-      if (vaData.success) {
-        console.log("✅ Virtual admin login success:", vaData.admin);
-        localStorage.removeItem("adminApiKey");
-        localStorage.removeItem("admin_session_id");
-        localStorage.removeItem("tabRole");
-        localStorage.removeItem("session");
-        localStorage.setItem("virtualAdmin", JSON.stringify(vaData.admin));
-        localStorage.setItem("tabRole", "virtual_admin");
-        window.dispatchEvent(new CustomEvent("virtualAdminLogin", { detail: vaData.admin }));
-        return;
-      } else if (vaData.error === "ADMIN_BANNED" || vaData.error === "ADMIN_KICKED") {
-        if (vaData.error === "ADMIN_BANNED") {
+        const vaResponse = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: cleanUser, refKey: f.pw }),
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        const vaData = await vaResponse.json();
+        
+        if (vaData.success) {
+          console.log("✅ Virtual admin login success:", vaData.admin);
+          localStorage.removeItem("adminApiKey");
+          localStorage.removeItem("admin_session_id");
+          localStorage.removeItem("tabRole");
+          localStorage.removeItem("session");
+          localStorage.setItem("virtualAdmin", JSON.stringify(vaData.admin));
+          localStorage.setItem("tabRole", "virtual_admin");
+          window.dispatchEvent(new CustomEvent("virtualAdminLogin", { detail: vaData.admin }));
+          return;
+        } else if (vaData.error === "ADMIN_BANNED") {
           setErr(`🚫 Your admin account has been banned.\nReason: ${vaData.reason || "No reason provided"}`);
+          return;
         } else if (vaData.error === "ADMIN_KICKED") {
           setErr(`⏳ Session terminated. Please wait ${vaData.timeRemaining || 20} seconds.`);
+          return;
         }
+        console.log("Not a virtual admin, trying regular login...");
+      } catch (err) {
+        console.log("Virtual admin check failed:", err.message);
+      }
+    }
+
+    // ========== REGULAR USER LOGIN ==========
+    setLoading(true);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(`${API_URL}/api/users/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          username: cleanUser, 
+          password: f.pw 
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      // ✅ Try to parse response
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        if (response.status === 408 || response.status === 504) {
+          setErr("⏳ Server is busy. Please try again.");
+        } else {
+          setErr("📶 Server error. Please try again.");
+        }
+        setLoading(false);
         return;
       }
-      console.log("Not a virtual admin, trying regular login...");
-    } catch (err) {
-      console.log("Virtual admin check failed, trying regular login:", err.message);
-    }
-  }
 
-  // ========== REGULAR USER LOGIN ==========
-  setLoading(true);
-  try {
-    console.log(`🔵 Attempting regular login for user: "${cleanUser}" with password: "${f.pw}"`);
-    console.log(`🔵 API URL: ${API_URL}/api/users/login`);
-    
-    const response = await fetch(`${API_URL}/api/users/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        username: cleanUser, 
-        password: f.pw 
-      }),
-    });
-    
-    console.log(`🔵 Response status: ${response.status}`);
-    console.log(`🔵 Response status text: ${response.statusText}`);
-    
-    // Try to get the response as text first to see what's coming back
-    const responseText = await response.text();
-    console.log(`🔵 Raw response: "${responseText}"`);
-    
-    // Parse as JSON
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error("❌ Failed to parse response as JSON:", parseError);
-      setErr("Server returned invalid response. Please try again.");
-      setLoading(false);
-      return;
-    }
-    
-    console.log("🔵 Parsed login response:", data);
-
-    if (data.error) {
-      console.log(`❌ Login error: ${data.error}`);
-      if (data.error === "BANNED") {
-        setErr("Your account has been banned.");
-      } else if (data.error === "ADMIN_BANNED") {
-        const banReason = data.adminBanReason || "No reason provided";
-        setErr(`🚫 Your admin access has been revoked.\nReason: ${banReason}`);
-      } else {
-        setErr(data.error || "Invalid username or password. Please try again.");
+      // ✅ Handle specific error codes
+      if (data.error) {
+        console.log("Login error:", data);
+        
+        switch (data.error) {
+          case "BANNED":
+            setErr("Your account has been banned.");
+            break;
+            
+          case "ADMIN_BANNED":
+            const banReason = data.reason || data.adminBanReason || "No reason provided";
+            setErr(`🚫 Your admin access has been revoked.\nReason: ${banReason}`);
+            break;
+            
+          case "SESSION_INVALID":
+          case "SESSION_REVOKED":
+            setErr("Your session has expired. Please login again.");
+            break;
+            
+          default:
+            setErr(data.message || data.error || "Invalid username or password. Please try again.");
+        }
+        
+        setLoading(false);
+        return;
       }
-      setLoading(false);
-      return;
-    }
 
-    if (!data.username) {
-      console.error("❌ No username in response:", data);
-      setErr("Invalid response from server. Please try again.");
-      setLoading(false);
-      return;
-    }
+      if (!data.username) {
+        console.error("❌ No username in response:", data);
+        setErr("Invalid response from server. Please try again.");
+        setLoading(false);
+        return;
+      }
 
-    console.log(`✅ Login successful for: ${data.username}`);
-    
-    await onAuth({
-      username: data.username,
-      email: data.email,
-      fullName: data.fullName || "",
-      role: data.role || "user",
-      phone: data.phone || "",
-      dob: data.dob || "",
-      country: data.country || "",
-      loggedInAt: Date.now(),
-    });
-    
-  } catch (e) {
-    console.error("❌ LOGIN ERROR:", e);
-    setErr(`Network error: ${e.message || "Please check if the server is running."}`);
-  } finally {
-    setLoading(false);
-  }
-};
+      console.log(`✅ Login successful for: ${data.username}`);
+      
+      await onAuth({
+        username: data.username,
+        email: data.email,
+        fullName: data.fullName || "",
+        role: data.role || "user",
+        phone: data.phone || "",
+        dob: data.dob || "",
+        country: data.country || "",
+        loggedInAt: Date.now(),
+      });
+      
+    } catch (e) {
+      console.error("❌ LOGIN ERROR:", e);
+      
+      if (e.name === 'AbortError') {
+        setErr("⏳ Request timed out. Please check your connection.");
+      } else if (e.message?.includes("NetworkError") || e.message?.includes("Failed to fetch")) {
+        setErr("📶 Network error. Please check your internet connection.");
+      } else {
+        setErr(`Network error: ${e.message || "Please check if the server is running."}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div style={{
@@ -811,6 +740,10 @@ const handleLogin = async () => {
       />
 
       <PB lbl={loading ? "Signing in…" : "Sign In"} onClick={handleLogin} />
+      
+      <div style={{ marginTop: 16, textAlign: "center", fontSize: 10, color: T.dim }}>
+        Virtual admins: use your username and reference key as password
+      </div>
     </div>
   );
 }

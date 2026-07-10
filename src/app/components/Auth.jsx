@@ -328,6 +328,11 @@ export function SignupScreen({ go, onAuth }) {
   setErr("");
   setFieldErr("");
   const username = f.user.toLowerCase().trim();
+   // ✅ Validate refKey is provided
+  if (!f.refKey || f.refKey.trim() === "") {
+    setErr("⚠️ A Reference Key from your admin is required to register.");
+    return;
+  }
   
   if (!f.co) return setErr("Please select your country.");
 

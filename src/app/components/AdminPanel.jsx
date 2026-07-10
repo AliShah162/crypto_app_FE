@@ -1843,356 +1843,395 @@ function UserDrawer({
         {/* Tab Content */}
         <div style={{ flex: 1, padding: "18px 20px", overflowY: "auto" }}>
           {tab === "overview" && (
-  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-    {/* ===== LEVEL SECTION - NEW ===== */}
-    <div
-      style={{
-        background: C.card,
-        borderRadius: 12,
-        border: `1px solid ${C.border}`,
-        padding: "16px 18px",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 10,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: C.sub,
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-          }}
-        >
-          User Level
-        </div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: C.accent }}>
-          Level {u.level || 1}
-        </div>
-      </div>
-      
-      {/* Level Toggle Buttons */}
-      <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-        <button
-          onClick={async () => {
-            if (!confirm(`Change ${username} to Level 1?`)) return;
-            try {
-              const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-              const response = await fetch(`${BASE_URL}/api/users/${username}`, {
-                method: "PATCH",
-                headers: {
-                  "Content-Type": "application/json",
-                  "x-admin-key": adminKey,
-                },
-                body: JSON.stringify({ level: 1 }),
-              });
-              const data = await response.json();
-              if (!data.error) {
-                const updated = { ...usersState[username], level: 1 };
-                const ns = { ...usersState, [username]: updated };
-                setUsersState(ns);
-                saveUsers(ns);
-                if (S.users[username]) S.users[username].level = 1;
-                alert("✅ User changed to Level 1");
-                const freshUser = await fetch(`${BASE_URL}/api/users/${username}`, {
-                  headers: { "x-admin-key": adminKey }
-                }).then(r => r.json());
-                if (freshUser && !freshUser.error) {
-                  const ns2 = { ...usersState, [username]: freshUser };
-                  setUsersState(ns2);
-                  S.users[username] = freshUser;
-                  saveUsers(ns2);
-                }
-              } else {
-                alert("❌ Failed: " + data.error);
-              }
-            } catch (err) {
-              alert("❌ Error: " + err.message);
-            }
-          }}
-          style={{
-            flex: 1,
-            padding: "10px 0",
-            borderRadius: 8,
-            border: `2px solid ${(u.level || 1) === 1 ? C.green : C.border}`,
-            background: (u.level || 1) === 1 ? C.green + "18" : "transparent",
-            color: (u.level || 1) === 1 ? C.green : C.sub,
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: "pointer",
-            transition: "all 0.2s",
-          }}
-        >
-          🟢 Level 1
-          {(u.level || 1) === 1 && <span style={{ marginLeft: 8 }}>✓</span>}
-        </button>
-        <button
-          onClick={async () => {
-            if (!confirm(`Change ${username} to Level 2?`)) return;
-            try {
-              const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-              const response = await fetch(`${BASE_URL}/api/users/${username}`, {
-                method: "PATCH",
-                headers: {
-                  "Content-Type": "application/json",
-                  "x-admin-key": adminKey,
-                },
-                body: JSON.stringify({ level: 2 }),
-              });
-              const data = await response.json();
-              if (!data.error) {
-                const updated = { ...usersState[username], level: 2 };
-                const ns = { ...usersState, [username]: updated };
-                setUsersState(ns);
-                saveUsers(ns);
-                if (S.users[username]) S.users[username].level = 2;
-                alert("✅ User changed to Level 2");
-                const freshUser = await fetch(`${BASE_URL}/api/users/${username}`, {
-                  headers: { "x-admin-key": adminKey }
-                }).then(r => r.json());
-                if (freshUser && !freshUser.error) {
-                  const ns2 = { ...usersState, [username]: freshUser };
-                  setUsersState(ns2);
-                  S.users[username] = freshUser;
-                  saveUsers(ns2);
-                }
-              } else {
-                alert("❌ Failed: " + data.error);
-              }
-            } catch (err) {
-              alert("❌ Error: " + err.message);
-            }
-          }}
-          style={{
-            flex: 1,
-            padding: "10px 0",
-            borderRadius: 8,
-            border: `2px solid ${(u.level || 1) === 2 ? C.gold : C.border}`,
-            background: (u.level || 1) === 2 ? C.gold + "18" : "transparent",
-            color: (u.level || 1) === 2 ? C.gold : C.sub,
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: "pointer",
-            transition: "all 0.2s",
-          }}
-        >
-          🥇 Level 2
-          {(u.level || 1) === 2 && <span style={{ marginLeft: 8 }}>✓</span>}
-        </button>
-      </div>
-      
-      {/* Level Description */}
-      <div style={{ marginTop: 12, fontSize: 11, color: C.sub, textAlign: "center" }}>
-        {(u.level || 1) === 2 ? (
-          <span style={{ color: C.gold }}>⭐ Premium Level - Access to all features</span>
-        ) : (
-          <span>Basic Level - Standard user access</span>
-        )}
-      </div>
-    </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* ===== LEVEL SECTION - NEW ===== */}
+              <div
+                style={{
+                  background: C.card,
+                  borderRadius: 12,
+                  border: `1px solid ${C.border}`,
+                  padding: "16px 18px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: C.sub,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    User Level
+                  </div>
+                  <div
+                    style={{ fontSize: 22, fontWeight: 900, color: C.accent }}
+                  >
+                    Level {u.level || 1}
+                  </div>
+                </div>
 
-    {/* ===== CREDIT SCORE SECTION - KEEP AS IS ===== */}
-    <div
-      style={{
-        background: C.card,
-        borderRadius: 12,
-        border: `1px solid ${C.border}`,
-        padding: "16px 18px",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 10,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: C.sub,
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-          }}
-        >
-          Credit Score
-        </div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: sc }}>
-          {score}
-          <span
-            style={{ fontSize: 12, color: C.sub, fontWeight: 400 }}
-          >
-            /100
-          </span>
-        </div>
-      </div>
-      <div
-        style={{
-          height: 8,
-          background: C.border,
-          borderRadius: 8,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            width: `${score}%`,
-            height: "100%",
-            background: sc,
-            borderRadius: 8,
-            transition: "width .4s",
-          }}
-        />
-      </div>
-      <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-        {[
-          [-5, C.red],
-          [-1, C.gold],
-          [+1, C.green],
-          [+5, C.blue],
-        ].map(([d, c]) => (
-          <button
-            key={d}
-            onClick={() => changeScore(username, d)}
-            style={{
-              flex: 1,
-              padding: "6px 0",
-              borderRadius: 7,
-              border: `1.5px solid ${c}`,
-              background: c + "15",
-              color: c,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            {d > 0 ? `+${d}` : d}
-          </button>
-        ))}
-      </div>
-    </div>
+                {/* Level Toggle Buttons */}
+                <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Change ${username} to Level 1?`)) return;
+                      try {
+                        const adminKey =
+                          localStorage.getItem("adminApiKey") ||
+                          "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+                        const response = await fetch(
+                          `${BASE_URL}/api/users/${username}`,
+                          {
+                            method: "PATCH",
+                            headers: {
+                              "Content-Type": "application/json",
+                              "x-admin-key": adminKey,
+                            },
+                            body: JSON.stringify({ level: 1 }),
+                          },
+                        );
+                        const data = await response.json();
+                        if (!data.error) {
+                          const updated = { ...usersState[username], level: 1 };
+                          const ns = { ...usersState, [username]: updated };
+                          setUsersState(ns);
+                          saveUsers(ns);
+                          if (S.users[username]) S.users[username].level = 1;
+                          alert("✅ User changed to Level 1");
+                          const freshUser = await fetch(
+                            `${BASE_URL}/api/users/${username}`,
+                            {
+                              headers: { "x-admin-key": adminKey },
+                            },
+                          ).then((r) => r.json());
+                          if (freshUser && !freshUser.error) {
+                            const ns2 = {
+                              ...usersState,
+                              [username]: freshUser,
+                            };
+                            setUsersState(ns2);
+                            S.users[username] = freshUser;
+                            saveUsers(ns2);
+                          }
+                        } else {
+                          alert("❌ Failed: " + data.error);
+                        }
+                      } catch (err) {
+                        alert("❌ Error: " + err.message);
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: "10px 0",
+                      borderRadius: 8,
+                      border: `2px solid ${(u.level || 1) === 1 ? C.green : C.border}`,
+                      background:
+                        (u.level || 1) === 1 ? C.green + "18" : "transparent",
+                      color: (u.level || 1) === 1 ? C.green : C.sub,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    🟢 Level 1
+                    {(u.level || 1) === 1 && (
+                      <span style={{ marginLeft: 8 }}>✓</span>
+                    )}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Change ${username} to Level 2?`)) return;
+                      try {
+                        const adminKey =
+                          localStorage.getItem("adminApiKey") ||
+                          "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+                        const response = await fetch(
+                          `${BASE_URL}/api/users/${username}`,
+                          {
+                            method: "PATCH",
+                            headers: {
+                              "Content-Type": "application/json",
+                              "x-admin-key": adminKey,
+                            },
+                            body: JSON.stringify({ level: 2 }),
+                          },
+                        );
+                        const data = await response.json();
+                        if (!data.error) {
+                          const updated = { ...usersState[username], level: 2 };
+                          const ns = { ...usersState, [username]: updated };
+                          setUsersState(ns);
+                          saveUsers(ns);
+                          if (S.users[username]) S.users[username].level = 2;
+                          alert("✅ User changed to Level 2");
+                          const freshUser = await fetch(
+                            `${BASE_URL}/api/users/${username}`,
+                            {
+                              headers: { "x-admin-key": adminKey },
+                            },
+                          ).then((r) => r.json());
+                          if (freshUser && !freshUser.error) {
+                            const ns2 = {
+                              ...usersState,
+                              [username]: freshUser,
+                            };
+                            setUsersState(ns2);
+                            S.users[username] = freshUser;
+                            saveUsers(ns2);
+                          }
+                        } else {
+                          alert("❌ Failed: " + data.error);
+                        }
+                      } catch (err) {
+                        alert("❌ Error: " + err.message);
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: "10px 0",
+                      borderRadius: 8,
+                      border: `2px solid ${(u.level || 1) === 2 ? C.gold : C.border}`,
+                      background:
+                        (u.level || 1) === 2 ? C.gold + "18" : "transparent",
+                      color: (u.level || 1) === 2 ? C.gold : C.sub,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    🥇 Level 2
+                    {(u.level || 1) === 2 && (
+                      <span style={{ marginLeft: 8 }}>✓</span>
+                    )}
+                  </button>
+                </div>
 
-    {/* ===== STATS GRID ===== */}
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 10,
-      }}
-    >
-      {[
-        ["Total Deposits", usd(deps), C.blue],
-        ["Total Withdrawals", usd(wths), C.gold],
-        ["Binary Trades", binaryTrades.length, C.accent],
-        [
-          "Win/Loss",
-          `${binaryWins}/${binaryLosses}`,
-          binaryWins >= binaryLosses ? C.green : C.red,
-        ],
-        ["Binary Volume", usd(totalBinaryVolume), "#8b5cf6"],
-        [
-          "Binary P&L",
-          usd(totalBinaryProfit),
-          totalBinaryProfit >= 0 ? C.green : C.red,
-        ],
-        ["Total Won", usd(totalBinaryWon), C.green],
-        ["Total Lost", usd(totalBinaryLost), C.red],
-      ].map(([l, v, c]) => (
-        <div
-          key={l}
-          style={{
-            background: C.card,
-            borderRadius: 12,
-            border: `1px solid ${C.border}`,
-            padding: "12px 14px",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 800,
-              color: c,
-              marginBottom: 3,
-            }}
-          >
-            {v}
-          </div>
-          <div
-            style={{ fontSize: 10, color: C.sub, fontWeight: 600 }}
-          >
-            {l}
-          </div>
-        </div>
-      ))}
-    </div>
+                {/* Level Description */}
+                <div
+                  style={{
+                    marginTop: 12,
+                    fontSize: 11,
+                    color: C.sub,
+                    textAlign: "center",
+                  }}
+                >
+                  {(u.level || 1) === 2 ? (
+                    <span style={{ color: C.gold }}>
+                      ⭐ Premium Level - Access to all features
+                    </span>
+                  ) : (
+                    <span>Basic Level - Standard user access</span>
+                  )}
+                </div>
+              </div>
 
-    {/* ===== BAN/DELETE BUTTONS ===== */}
-    <div style={{ display: "flex", gap: 8 }}>
-      {!isBan ? (
-        <button
-          onClick={() => disc(username)}
-          style={{
-            flex: 1,
-            padding: "10px 0",
-            borderRadius: 9,
-            border: `1.5px solid ${C.gold}`,
-            background: C.gold + "15",
-            color: C.gold,
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: "pointer",
-          }}
-        >
-          🚫 Ban User
-        </button>
-      ) : (
-        <button
-          onClick={() => rest(username)}
-          style={{
-            flex: 1,
-            padding: "10px 0",
-            borderRadius: 9,
-            border: `1.5px solid ${C.green}`,
-            background: C.green + "15",
-            color: C.green,
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: "pointer",
-          }}
-        >
-          ✅ Unban
-        </button>
-      )}
-      <button
-        onClick={() => {
-          del(username);
-          onClose();
-        }}
-        style={{
-          flex: 1,
-          padding: "10px 0",
-          borderRadius: 9,
-          border: `1.5px solid ${C.red}`,
-          background: C.red + "15",
-          color: C.red,
-          fontSize: 12,
-          fontWeight: 700,
-          cursor: "pointer",
-        }}
-      >
-        🗑 Delete
-      </button>
-    </div>
-  </div>
-)}
+              {/* ===== CREDIT SCORE SECTION - KEEP AS IS ===== */}
+              <div
+                style={{
+                  background: C.card,
+                  borderRadius: 12,
+                  border: `1px solid ${C.border}`,
+                  padding: "16px 18px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: C.sub,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    Credit Score
+                  </div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: sc }}>
+                    {score}
+                    <span
+                      style={{ fontSize: 12, color: C.sub, fontWeight: 400 }}
+                    >
+                      /100
+                    </span>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    height: 8,
+                    background: C.border,
+                    borderRadius: 8,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${score}%`,
+                      height: "100%",
+                      background: sc,
+                      borderRadius: 8,
+                      transition: "width .4s",
+                    }}
+                  />
+                </div>
+                <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+                  {[
+                    [-5, C.red],
+                    [-1, C.gold],
+                    [+1, C.green],
+                    [+5, C.blue],
+                  ].map(([d, c]) => (
+                    <button
+                      key={d}
+                      onClick={() => changeScore(username, d)}
+                      style={{
+                        flex: 1,
+                        padding: "6px 0",
+                        borderRadius: 7,
+                        border: `1.5px solid ${c}`,
+                        background: c + "15",
+                        color: c,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {d > 0 ? `+${d}` : d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ===== STATS GRID ===== */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 10,
+                }}
+              >
+                {[
+                  ["Total Deposits", usd(deps), C.blue],
+                  ["Total Withdrawals", usd(wths), C.gold],
+                  ["Binary Trades", binaryTrades.length, C.accent],
+                  [
+                    "Win/Loss",
+                    `${binaryWins}/${binaryLosses}`,
+                    binaryWins >= binaryLosses ? C.green : C.red,
+                  ],
+                  ["Binary Volume", usd(totalBinaryVolume), "#8b5cf6"],
+                  [
+                    "Binary P&L",
+                    usd(totalBinaryProfit),
+                    totalBinaryProfit >= 0 ? C.green : C.red,
+                  ],
+                  ["Total Won", usd(totalBinaryWon), C.green],
+                  ["Total Lost", usd(totalBinaryLost), C.red],
+                ].map(([l, v, c]) => (
+                  <div
+                    key={l}
+                    style={{
+                      background: C.card,
+                      borderRadius: 12,
+                      border: `1px solid ${C.border}`,
+                      padding: "12px 14px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 800,
+                        color: c,
+                        marginBottom: 3,
+                      }}
+                    >
+                      {v}
+                    </div>
+                    <div
+                      style={{ fontSize: 10, color: C.sub, fontWeight: 600 }}
+                    >
+                      {l}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ===== BAN/DELETE BUTTONS ===== */}
+              <div style={{ display: "flex", gap: 8 }}>
+                {!isBan ? (
+                  <button
+                    onClick={() => disc(username)}
+                    style={{
+                      flex: 1,
+                      padding: "10px 0",
+                      borderRadius: 9,
+                      border: `1.5px solid ${C.gold}`,
+                      background: C.gold + "15",
+                      color: C.gold,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    🚫 Ban User
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => rest(username)}
+                    style={{
+                      flex: 1,
+                      padding: "10px 0",
+                      borderRadius: 9,
+                      border: `1.5px solid ${C.green}`,
+                      background: C.green + "15",
+                      color: C.green,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    ✅ Unban
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    del(username);
+                    onClose();
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "10px 0",
+                    borderRadius: 9,
+                    border: `1.5px solid ${C.red}`,
+                    background: C.red + "15",
+                    color: C.red,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  🗑 Delete
+                </button>
+              </div>
+            </div>
+          )}
 
           {tab === "balance" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -4825,12 +4864,12 @@ export default function AdminPanel({
   }, [fetchUsers, fetchWithdrawals, fetchAllTrades, fetchDepositRequests]);
 
   // ========== FILTERED DATA FOR VIRTUAL ADMIN ==========
- const users = Object.values(usersState).sort((a, b) => {
-  // Sort by createdAt - newest first
-  const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-  const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-  return dateB - dateA; // Newest first
-});
+  const users = Object.values(usersState).sort((a, b) => {
+    // Sort by createdAt - newest first
+    const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+    const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+    return dateB - dateA; // Newest first
+  });
 
   // Filter trades for virtual admin
   const filteredAllTrades = useMemo(() => {
@@ -4883,27 +4922,35 @@ export default function AdminPanel({
         const generateId = () => {
           const array = new Uint8Array(32);
           crypto.getRandomValues(array);
-          return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+          return Array.from(array, (byte) =>
+            byte.toString(16).padStart(2, "0"),
+          ).join("");
         };
 
         const newSessionId = generateId();
 
-        const response = await fetch(`${API_URL}/api/users/admin/register-session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            adminKey: adminKey,
-            userAgent: navigator.userAgent,
-            adminUsername: "master_admin",
-            sessionId: newSessionId, // ✅ Pass generated ID
-          }),
-        });
+        const response = await fetch(
+          `${API_URL}/api/users/admin/register-session`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              adminKey: adminKey,
+              userAgent: navigator.userAgent,
+              adminUsername: "master_admin",
+              sessionId: newSessionId, // ✅ Pass generated ID
+            }),
+          },
+        );
 
         const data = await response.json();
 
         if (data.success && data.sessionId) {
           localStorage.setItem("admin_session_id", data.sessionId);
-          console.log("✅ Master admin session registered (retry):", data.sessionId);
+          console.log(
+            "✅ Master admin session registered (retry):",
+            data.sessionId,
+          );
         } else {
           console.error("❌ Session registration retry failed:", data);
         }
@@ -4925,7 +4972,9 @@ export default function AdminPanel({
       // ✅ Check if we're actually master admin (not virtual)
       const virtualAdminData = localStorage.getItem("virtualAdmin");
       if (virtualAdminData) {
-        console.log("👑 Virtual admin detected - skipping session registration");
+        console.log(
+          "👑 Virtual admin detected - skipping session registration",
+        );
         localStorage.removeItem("admin_session_id");
         return;
       }
@@ -4940,15 +4989,18 @@ export default function AdminPanel({
       try {
         console.log("🔑 Registering master admin session...");
 
-        const response = await fetch(`${API_URL}/api/users/admin/register-session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            adminKey: adminKey,
-            userAgent: navigator.userAgent,
-            adminUsername: "master_admin",
-          }),
-        });
+        const response = await fetch(
+          `${API_URL}/api/users/admin/register-session`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              adminKey: adminKey,
+              userAgent: navigator.userAgent,
+              adminUsername: "master_admin",
+            }),
+          },
+        );
 
         // ✅ Parse response
         const data = await response.json();
@@ -5067,8 +5119,6 @@ export default function AdminPanel({
 
     validateAndFixSession();
   }, [isVirtualAdminStable, BASE_URL]);
-
- 
 
   // In AdminPanel.jsx - update the virtual admin validation:
 
@@ -6005,53 +6055,57 @@ export default function AdminPanel({
                 AdminOS
               </div>
               {isVirtualAdmin && (
-  <>
-    <div style={{ fontSize: 12, color: "#00e5b0", marginTop: 4 }}>
-      Virtual Admin: {displayName || virtualAdminName}
-    </div>
-    <div style={{ 
-      fontSize: 11, 
-      color: "#94a3b8", 
-      marginTop: 2,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 6,
-      background: 'rgba(0,229,176,0.08)',
-      padding: '3px 10px',
-      borderRadius: 6,
-      border: '1px solid rgba(0,229,176,0.15)',
-    }}>
-      <span style={{ opacity: 0.6 }}>🔑</span>
-      <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{virtualAdminRefKey}</span>
-      <span
-        onClick={(e) => {
-          e.stopPropagation();
-          navigator.clipboard.writeText(virtualAdminRefKey);
-          // Optional: Show a brief "Copied!" feedback
-          const btn = e.target;
-          const originalText = btn.textContent;
-          btn.textContent = '✅';
-          setTimeout(() => {
-            btn.textContent = originalText;
-          }, 1500);
-        }}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: '#94a3b8',
-          cursor: 'pointer',
-          fontSize: 12,
-          padding: '0 4px',
-          borderRadius: 4,
-          transition: 'all 0.2s',
-        }}
-        title="Copy RefKey to clipboard"
-      >
-        📋
-      </span>
-    </div>
-  </>
-)}
+                <>
+                  <div style={{ fontSize: 12, color: "#00e5b0", marginTop: 4 }}>
+                    Virtual Admin: {displayName || virtualAdminName}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "#94a3b8",
+                      marginTop: 2,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      background: "rgba(0,229,176,0.08)",
+                      padding: "3px 10px",
+                      borderRadius: 6,
+                      border: "1px solid rgba(0,229,176,0.15)",
+                    }}
+                  >
+                    <span style={{ opacity: 0.6 }}>🔑</span>
+                    <span style={{ fontFamily: "monospace", fontSize: 11 }}>
+                      {virtualAdminRefKey}
+                    </span>
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(virtualAdminRefKey);
+                        // Optional: Show a brief "Copied!" feedback
+                        const btn = e.target;
+                        const originalText = btn.textContent;
+                        btn.textContent = "✅";
+                        setTimeout(() => {
+                          btn.textContent = originalText;
+                        }, 1500);
+                      }}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "#94a3b8",
+                        cursor: "pointer",
+                        fontSize: 12,
+                        padding: "0 4px",
+                        borderRadius: 4,
+                        transition: "all 0.2s",
+                      }}
+                      title="Copy RefKey to clipboard"
+                    >
+                      📋
+                    </span>
+                  </div>
+                </>
+              )}
               <div
                 style={{
                   fontSize: 10,
@@ -6235,9 +6289,9 @@ export default function AdminPanel({
               </svg>
             </button>
             <div>
-  <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
-    {navItems.find((n) => n.id === tab)?.label || "Dashboard"}
-    {/* {isVirtualAdmin && (
+              <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+                {navItems.find((n) => n.id === tab)?.label || "Dashboard"}
+                {/* {isVirtualAdmin && (
       <span style={{
         marginLeft: 12,
         fontSize: 12,
@@ -6250,54 +6304,58 @@ export default function AdminPanel({
         Vadmin {getVadminNumber(virtualAdminRefKey)}
       </span>
     )} */}
-  </div>
-  <div style={{ 
-    fontSize: 11, 
-    color: C.sub,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 2,
-  }}>
-    <span>Admin Panel</span>
-    {isVirtualAdmin && (
-      <span style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        background: 'rgba(0,229,176,0.08)',
-        padding: '1px 8px',
-        borderRadius: 4,
-        fontSize: 10,
-        color: '#00e5b0',
-        fontFamily: 'monospace',
-      }}>
-        🔑 {virtualAdminRefKey}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            navigator.clipboard.writeText(virtualAdminRefKey);
-            const btn = e.target;
-            btn.textContent = '✅';
-            setTimeout(() => {
-              btn.textContent = '📋';
-            }, 1500);
-          }}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: '#00e5b0',
-            cursor: 'pointer',
-            fontSize: 11,
-            padding: '0 2px',
-          }}
-        >
-          📋
-        </button>
-      </span>
-    )}
-  </div>
-</div>
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: C.sub,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginTop: 2,
+                }}
+              >
+                <span>Admin Panel</span>
+                {isVirtualAdmin && (
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      background: "rgba(0,229,176,0.08)",
+                      padding: "1px 8px",
+                      borderRadius: 4,
+                      fontSize: 10,
+                      color: "#00e5b0",
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    🔑 {virtualAdminRefKey}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(virtualAdminRefKey);
+                        const btn = e.target;
+                        btn.textContent = "✅";
+                        setTimeout(() => {
+                          btn.textContent = "📋";
+                        }, 1500);
+                      }}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "#00e5b0",
+                        cursor: "pointer",
+                        fontSize: 11,
+                        padding: "0 2px",
+                      }}
+                    >
+                      📋
+                    </button>
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <button
@@ -6570,29 +6628,37 @@ export default function AdminPanel({
                       </div>
                     )}
                     {safeFound.map((u, i) => {
+                      // ========== GET ADMIN NAME FROM REFKEY ==========
                       const getAdminNameFromRefKey = (refKey) => {
-                        if (!refKey) return "—";
-
-                        // ✅ Make it case-insensitive by converting both to lowercase
-                        const lowerRefKey = refKey.toLowerCase().trim();
-
-                        const adminMap = {
-                          ab9xk2mpq7: "vadmin1",
-                          cd4yl3nrt8: "vadmin2",
-                          ef7zm1pwb5: "vadmin3",
-                          gh2kx5qjv9: "vadmin4",
-                          ij6rt8yuc3: "vadmin5",
-                        };
-
-                        // Also handle the admin API key (7b97a4b8-f7e8-4470-9102-2533045a16dd)
-                        if (refKey === "7b97a4b8-f7e8-4470-9102-2533045a16dd") {
-                          return "Master Admin";
+                        if (!refKey) {
+                          return "❌ No Admin Assigned";
                         }
 
-                        return (
-                          adminMap[lowerRefKey] ||
-                          `Key: ${refKey.slice(0, 8)}...`
-                        );
+                        // ✅ Make it case-insensitive
+                        const lowerRefKey = refKey.toLowerCase().trim();
+
+                        // ✅ Map refKeys to virtual admin names
+                        const adminMap = {
+                          ab9xk2mpq7: "🟢 vadmin1",
+                          cd4yl3nrt8: "🟢 vadmin2",
+                          ef7zm1pwb5: "🟢 vadmin3",
+                          gh2kx5qjv9: "🟢 vadmin4",
+                          ij6rt8yuc3: "🟢 vadmin5",
+                        };
+
+                        // ✅ Handle custom refKeys (like Coin1133...)
+                        // If it's not in the map, show the refKey itself
+                        if (adminMap[lowerRefKey]) {
+                          return adminMap[lowerRefKey];
+                        }
+
+                        // ✅ Check if it's the master admin API key
+                        if (refKey === "7b97a4b8-f7e8-4470-9102-2533045a16dd") {
+                          return "👑 Master Admin";
+                        }
+
+                        // ✅ For any other refKey, show it with a copy button
+                        return `🔑 ${refKey.slice(0, 8)}...`;
                       };
                       const isBan = banned.includes(u.username);
                       const userBinaryTrades = [

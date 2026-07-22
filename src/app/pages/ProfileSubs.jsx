@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { T, S } from "../lib/store";
 import { Input, PB, BHdr } from "../components/UI";
-import { API_URL } from '../config/api'; // adjust path as needed
+import { API_URL } from '../lib/config';
 
 export function SecSub({ back }) {
   const [f, sf] = useState({ c: "", n: "", cn: "" });

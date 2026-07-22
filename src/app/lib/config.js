@@ -12,7 +12,7 @@ const USE_LOCAL = process.env.NEXT_PUBLIC_USE_LOCAL === 'true' || isLocalhost;
 // API URL - automatically switches
 export const API_URL = USE_LOCAL
   ? 'http://localhost:5000'
-  : 'https://crypto-backend-production-11dc.up.railway.app';
+  : process.env.REACT_APP_API_URL || 'https://crypto-backend-lovat.vercel.app';
 
 // Base URL for API calls
 export const BASE_URL = API_URL;

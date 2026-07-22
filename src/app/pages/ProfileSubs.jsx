@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { T, S } from "../lib/store";
 import { Input, PB, BHdr } from "../components/UI";
+import { API_URL } from '../config/api'; // adjust path as needed
 
 export function SecSub({ back }) {
   const [f, sf] = useState({ c: "", n: "", cn: "" });
@@ -240,8 +241,8 @@ export function NotifSub({ back, userNotifs, onMarkRead }) {
       const sessionUser = localStorage.getItem("session");
       if (sessionUser) {
         try {
-          const res = await fetch(
-            `https://crypto-backend-production-11dc.up.railway.app/api/users/${sessionUser}/notifications`,
+         const res = await fetch(
+  `${API_URL}/api/users/${sessionUser}/notifications`,
           );
           const data = await res.json();
           if (Array.isArray(data)) {
@@ -261,7 +262,7 @@ export function NotifSub({ back, userNotifs, onMarkRead }) {
     if (sessionUser) {
       try {
         await fetch(
-          `https://crypto-backend-production-11dc.up.railway.app/api/users/${sessionUser}/notifications/read`,
+  `${API_URL}/api/users/${sessionUser}/notifications/read`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },

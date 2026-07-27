@@ -9307,7 +9307,7 @@ export default function AdminPanel({
           </div>
           <div style={{
             fontSize: 12,
-            color: T.acc,
+            color: C.accent,
             fontFamily: "monospace",
             wordBreak: "break-all",
             background: "rgba(0,0,0,0.3)",

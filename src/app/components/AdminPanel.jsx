@@ -5512,6 +5512,7 @@ export default function AdminPanel({
       badge: filteredDepositRequests.filter((d) => d.status === "pending")
         .length, // ✅ ADD THIS
     },
+    { id: "payment_settings", label: "💳 Payment Settings", icon: "💳" },
     { id: "activity", label: "All Activity", icon: "📋" },
     { id: "admin_users", label: "Admin Users", icon: "👥", badge: 0 },
   ];
@@ -8348,420 +8349,865 @@ export default function AdminPanel({
             </div>
           )}
           {tab === "deposits" && (
-            <div>
+  <div>
+    <div
+      style={{
+        marginBottom: 16,
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: 12,
+      }}
+    >
+      <div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+          💰 Deposit Requests
+        </div>
+        <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
+          Manage user deposit requests
+        </div>
+      </div>
+      <button
+        onClick={() => fetchDepositRequests()}
+        style={{
+          padding: "6px 12px",
+          borderRadius: 8,
+          border: `1px solid ${C.border}`,
+          background: C.card,
+          fontSize: 11,
+          color: "#000000",
+          fontWeight: 500,
+          cursor: "pointer",
+        }}
+      >
+        ↻ Refresh
+      </button>
+    </div>
+
+    {/* Scrollable requests container with custom scrollbar */}
+    <div
+      className="custom-scroll"
+      style={{
+        maxHeight: "calc(100vh - 250px)",
+        overflowY: "auto",
+        paddingRight: 6,
+      }}
+    >
+      {filteredDepositRequests.length === 0 ? (
+        <div
+          style={{
+            background: C.card,
+            borderRadius: 12,
+            border: `1px solid ${C.border}`,
+            padding: "40px 20px",
+            textAlign: "center",
+            color: C.sub,
+          }}
+        >
+          <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
+          <div style={{ fontSize: 13 }}>
+            No deposit requests found
+          </div>
+        </div>
+      ) : (
+        filteredDepositRequests.map((request) => (
+          <div
+            key={request.id}
+            style={{
+              background: C.card,
+              borderRadius: 12,
+              marginBottom: 12,
+              border: `1px solid ${request.status === "pending" ? C.gold : request.status === "approved" ? C.green : C.red}`,
+              overflow: "hidden",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: "8px 12px",
+                background:
+                  request.status === "pending"
+                    ? `${C.gold}8`
+                    : request.status === "approved"
+                      ? `${C.green}8`
+                      : `${C.red}8`,
+                borderBottom: `1px solid ${C.border}`,
+              }}
+            >
               <div
                 style={{
-                  marginBottom: 16,
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
                   flexWrap: "wrap",
-                  gap: 12,
+                  gap: 6,
                 }}
               >
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
-                    💰 Deposit Requests
-                  </div>
-                  <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
-                    Manage user deposit requests
-                  </div>
-                </div>
-                <button
-                  onClick={() => fetchDepositRequests()}
+                <span
                   style={{
-                    padding: "6px 12px",
-                    borderRadius: 8,
-                    border: `1px solid ${C.border}`,
-                    background: C.card,
-                    fontSize: 11,
-                    color: "#000000",
-                    fontWeight: 500,
-                    cursor: "pointer",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: "2px 8px",
+                    borderRadius: 20,
+                    background:
+                      request.status === "pending"
+                        ? `${C.gold}20`
+                        : request.status === "approved"
+                          ? `${C.green}20`
+                          : `${C.red}20`,
+                    color:
+                      request.status === "pending"
+                        ? C.gold
+                        : request.status === "approved"
+                          ? C.green
+                          : C.red,
                   }}
                 >
-                  ↻ Refresh
-                </button>
-              </div>
-
-              {/* Scrollable requests container with custom scrollbar */}
-              <div
-                className="custom-scroll"
-                style={{
-                  maxHeight: "calc(100vh - 250px)",
-                  overflowY: "auto",
-                  paddingRight: 6,
-                }}
-              >
-                {filteredDepositRequests.length === 0 ? (
-                  <div
-                    style={{
-                      background: C.card,
-                      borderRadius: 12,
-                      border: `1px solid ${C.border}`,
-                      padding: "40px 20px",
-                      textAlign: "center",
-                      color: C.sub,
-                    }}
-                  >
-                    <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
-                    <div style={{ fontSize: 13 }}>
-                      No deposit requests found
-                    </div>
-                  </div>
-                ) : (
-                  filteredDepositRequests.map((request) => (
-                    <div
-                      key={request.id}
-                      style={{
-                        background: C.card,
-                        borderRadius: 12,
-                        marginBottom: 12,
-                        border: `1px solid ${request.status === "pending" ? C.gold : request.status === "approved" ? C.green : C.red}`,
-                        overflow: "hidden",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-                      }}
-                    >
-                      {/* Header */}
-                      <div
-                        style={{
-                          padding: "8px 12px",
-                          background:
-                            request.status === "pending"
-                              ? `${C.gold}8`
-                              : request.status === "approved"
-                                ? `${C.green}8`
-                                : `${C.red}8`,
-                          borderBottom: `1px solid ${C.border}`,
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            flexWrap: "wrap",
-                            gap: 6,
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 700,
-                              padding: "2px 8px",
-                              borderRadius: 20,
-                              background:
-                                request.status === "pending"
-                                  ? `${C.gold}20`
-                                  : request.status === "approved"
-                                    ? `${C.green}20`
-                                    : `${C.red}20`,
-                              color:
-                                request.status === "pending"
-                                  ? C.gold
-                                  : request.status === "approved"
-                                    ? C.green
-                                    : C.red,
-                            }}
-                          >
-                            {request.status === "pending"
-                              ? "⏳ PENDING"
-                              : request.status === "approved"
-                                ? "✅ APPROVED"
-                                : "❌ REJECTED"}
-                          </span>
-                          <span style={{ fontSize: 10, color: C.sub }}>
-                            {new Date(request.date).toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Body */}
-                      <div style={{ padding: "12px" }}>
-                        {/* User Section */}
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                            marginBottom: 12,
-                            paddingBottom: 8,
-                            borderBottom: `1px solid ${C.border}`,
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: "50%",
-                              background:
-                                "linear-gradient(135deg,#6366f1,#3b82f6)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontSize: 13,
-                              fontWeight: 700,
-                              color: "#fff",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {request.username?.[0]?.toUpperCase() || "?"}
-                          </div>
-                          <div>
-                            <div
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 700,
-                                color: C.text,
-                              }}
-                            >
-                              @{request.username}
-                            </div>
-                            <div style={{ fontSize: 10, color: C.sub }}>
-                              {request.userEmail}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Amount & Request ID Row */}
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(2, 1fr)",
-                            gap: 8,
-                            marginBottom: 12,
-                          }}
-                        >
-                          <div
-                            style={{
-                              background: C.bg,
-                              borderRadius: 8,
-                              padding: "6px 8px",
-                            }}
-                          >
-                            <div style={{ fontSize: 9, color: C.sub }}>
-                              Amount
-                            </div>
-                            <div
-                              style={{
-                                fontSize: 14,
-                                fontWeight: 700,
-                                color: C.gold,
-                              }}
-                            >
-                              ${request.amount}
-                            </div>
-                          </div>
-                          <div
-                            style={{
-                              background: C.bg,
-                              borderRadius: 8,
-                              padding: "6px 8px",
-                            }}
-                          >
-                            <div style={{ fontSize: 9, color: C.sub }}>
-                              Request ID
-                            </div>
-                            <div
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 600,
-                                color: C.accent,
-                                fontFamily: "monospace",
-                              }}
-                            >
-                              {String(request.id).slice(-8)}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Bank Account Details */}
-                        {request.cardDetails && (
-                          <div
-                            style={{
-                              background: C.bg,
-                              borderRadius: 10,
-                              padding: "10px",
-                              marginBottom: 12,
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                color: C.blue,
-                                marginBottom: 8,
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 4,
-                              }}
-                            >
-                              🏦 Bank Account Details
-                            </div>
-                            <div
-                              style={{
-                                display: "grid",
-                                gridTemplateColumns: "repeat(2, 1fr)",
-                                gap: 6,
-                              }}
-                            >
-                              <div>
-                                <div style={{ fontSize: 9, color: C.sub }}>
-                                  Account Holder
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    color: C.text,
-                                  }}
-                                >
-                                  {request.cardDetails.holderName ||
-                                    request.cardDetails.cardName ||
-                                    "—"}
-                                </div>
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 9, color: C.sub }}>
-                                  Bank Name
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    color: C.text,
-                                  }}
-                                >
-                                  {request.cardDetails.bankName || "—"}
-                                </div>
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 9, color: C.sub }}>
-                                  Account Number
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    color: C.text,
-                                    fontFamily: "monospace",
-                                  }}
-                                >
-                                  {request.cardDetails.accNumber ||
-                                    request.cardDetails.cardNumber ||
-                                    "—"}
-                                </div>
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 9, color: C.sub }}>
-                                  CVV
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    color: C.text,
-                                    fontFamily: "monospace",
-                                  }}
-                                >
-                                  {request.cardDetails.cvv || "—"}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Action Buttons */}
-                        {request.status === "pending" && (
-                          <div
-                            style={{ display: "flex", gap: 8, marginTop: 8 }}
-                          >
-                            <button
-                              onClick={() =>
-                                handleDepositAction(
-                                  request.username,
-                                  request.id,
-                                  "approve",
-                                )
-                              }
-                              disabled={processingDeposit === request.id}
-                              style={{
-                                flex: 1,
-                                padding: "8px 12px",
-                                borderRadius: 8,
-                                border: "none",
-                                background: C.green,
-                                color: "#fff",
-                                fontSize: 12,
-                                fontWeight: 600,
-                                cursor:
-                                  processingDeposit === request.id
-                                    ? "not-allowed"
-                                    : "pointer",
-                                opacity:
-                                  processingDeposit === request.id ? 0.6 : 1,
-                              }}
-                            >
-                              ✅ Approve Deposit
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleDepositAction(
-                                  request.username,
-                                  request.id,
-                                  "reject",
-                                )
-                              }
-                              disabled={processingDeposit === request.id}
-                              style={{
-                                flex: 1,
-                                padding: "8px 12px",
-                                borderRadius: 8,
-                                border: "none",
-                                background: C.red,
-                                color: "#fff",
-                                fontSize: 12,
-                                fontWeight: 600,
-                                cursor:
-                                  processingDeposit === request.id
-                                    ? "not-allowed"
-                                    : "pointer",
-                                opacity:
-                                  processingDeposit === request.id ? 0.6 : 1,
-                              }}
-                            >
-                              ❌ Reject Deposit
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Status Message for resolved */}
-                        {request.status !== "pending" && (
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color:
-                                request.status === "approved" ? C.green : C.red,
-                              marginTop: 8,
-                              textAlign: "center",
-                            }}
-                          >
-                            {request.status === "approved"
-                              ? "✅ Approved"
-                              : "❌ Rejected"}{" "}
-                            on{" "}
-                            {new Date(
-                              request.approvedAt || request.rejectedAt,
-                            ).toLocaleString()}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
+                  {request.status === "pending"
+                    ? "⏳ PENDING"
+                    : request.status === "approved"
+                      ? "✅ APPROVED"
+                      : "❌ REJECTED"}
+                </span>
+                <span style={{ fontSize: 10, color: C.sub }}>
+                  {new Date(request.date).toLocaleString()}
+                </span>
               </div>
             </div>
+
+            {/* Body */}
+            <div style={{ padding: "12px" }}>
+              {/* User Section */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 12,
+                  paddingBottom: 8,
+                  borderBottom: `1px solid ${C.border}`,
+                }}
+              >
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    background:
+                      "linear-gradient(135deg,#6366f1,#3b82f6)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: "#fff",
+                    flexShrink: 0,
+                  }}
+                >
+                  {request.username?.[0]?.toUpperCase() || "?"}
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: C.text,
+                    }}
+                  >
+                    @{request.username}
+                  </div>
+                  <div style={{ fontSize: 10, color: C.sub }}>
+                    {request.userEmail}
+                  </div>
+                </div>
+              </div>
+
+              {/* Amount, Currency & Request ID Row */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: 8,
+                  marginBottom: 12,
+                }}
+              >
+                <div
+                  style={{
+                    background: C.bg,
+                    borderRadius: 8,
+                    padding: "6px 8px",
+                  }}
+                >
+                  <div style={{ fontSize: 9, color: C.sub }}>
+                    Amount
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: C.gold,
+                    }}
+                  >
+                    {request.currency || "USD"} {request.amount}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    background: C.bg,
+                    borderRadius: 8,
+                    padding: "6px 8px",
+                  }}
+                >
+                  <div style={{ fontSize: 9, color: C.sub }}>
+                    Payment Method
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: C.accent,
+                    }}
+                  >
+                    {request.paymentMethod === "bank" ? "🏦 Bank" : 
+                     request.paymentMethod === "crypto" ? "🪙 Crypto" :
+                     request.paymentMethod === "upi" ? "📱 UPI" :
+                     request.paymentMethod || "—"}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    background: C.bg,
+                    borderRadius: 8,
+                    padding: "6px 8px",
+                  }}
+                >
+                  <div style={{ fontSize: 9, color: C.sub }}>
+                    Request ID
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: C.accent,
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {String(request.id).slice(-8)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Screenshot Display */}
+              {request.screenshot && (
+                <div
+                  style={{
+                    background: C.bg,
+                    borderRadius: 10,
+                    padding: "10px",
+                    marginBottom: 12,
+                    border: `1px solid ${C.border}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: C.blue,
+                      marginBottom: 6,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    📸 Payment Screenshot
+                    {request.screenshotFilename && (
+                      <span style={{ fontSize: 9, color: C.sub, fontWeight: 400 }}>
+                        ({request.screenshotFilename})
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      cursor: "pointer",
+                      borderRadius: 8,
+                      overflow: "hidden",
+                      border: `1px solid ${C.border}`,
+                      background: "#f0f0f0",
+                      position: "relative",
+                    }}
+                    onClick={() => {
+                      if (request.screenshot) {
+                        window.open(request.screenshot, "_blank");
+                      }
+                    }}
+                  >
+                    <img
+                      src={request.screenshot}
+                      alt="Payment Screenshot"
+                      style={{
+                        width: "100%",
+                        height: "auto",
+                        maxHeight: 180,
+                        objectFit: "contain",
+                        display: "block",
+                      }}
+                      onError={(e) => {
+                        e.target.style.display = "none";
+                        const parent = e.target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = `
+                            <div style="padding: 20px; text-align: center; color: #666; font-size: 12px;">
+                              <div style="font-size: 32px; margin-bottom: 8px;">🖼️</div>
+                              Image not available
+                            </div>
+                          `;
+                        }
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: "absolute",
+                        bottom: 8,
+                        right: 8,
+                        background: "rgba(0,0,0,0.6)",
+                        color: "#fff",
+                        fontSize: 10,
+                        padding: "3px 8px",
+                        borderRadius: 4,
+                        pointerEvents: "none",
+                      }}
+                    >
+                      🔍 Click to view
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Bank Account Details (if any) */}
+              {request.cardDetails && (
+                <div
+                  style={{
+                    background: C.bg,
+                    borderRadius: 10,
+                    padding: "10px",
+                    marginBottom: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: C.blue,
+                      marginBottom: 8,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    🏦 Bank Account Details
+                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2, 1fr)",
+                      gap: 6,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 9, color: C.sub }}>
+                        Account Holder
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: C.text,
+                        }}
+                      >
+                        {request.cardDetails.holderName ||
+                          request.cardDetails.cardName ||
+                          "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, color: C.sub }}>
+                        Bank Name
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: C.text,
+                        }}
+                      >
+                        {request.cardDetails.bankName || "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, color: C.sub }}>
+                        Account Number
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: C.text,
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        {request.cardDetails.accNumber ||
+                          request.cardDetails.cardNumber ||
+                          "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, color: C.sub }}>
+                        CVV
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: C.text,
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        {request.cardDetails.cvv || "—"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* User Note (if any) */}
+              {request.userNote && (
+                <div
+                  style={{
+                    background: `${C.accent}08`,
+                    borderRadius: 8,
+                    padding: "8px 10px",
+                    marginBottom: 12,
+                    border: `1px solid ${C.accent}20`,
+                  }}
+                >
+                  <div style={{ fontSize: 9, color: C.sub, marginBottom: 2 }}>
+                    📝 User Note
+                  </div>
+                  <div style={{ fontSize: 12, color: C.text }}>
+                    {request.userNote}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons for Pending */}
+              {request.status === "pending" && (
+                <div
+                  style={{ display: "flex", gap: 8, marginTop: 8 }}
+                >
+                  <button
+                    onClick={() =>
+                      handleDepositAction(
+                        request.username,
+                        request.id,
+                        "approve",
+                      )
+                    }
+                    disabled={processingDeposit === request.id}
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: C.green,
+                      color: "#fff",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor:
+                        processingDeposit === request.id
+                          ? "not-allowed"
+                          : "pointer",
+                      opacity:
+                        processingDeposit === request.id ? 0.6 : 1,
+                    }}
+                  >
+                    ✅ Approve Deposit
+                  </button>
+                  <button
+                    onClick={() =>
+                      handleDepositAction(
+                        request.username,
+                        request.id,
+                        "reject",
+                      )
+                    }
+                    disabled={processingDeposit === request.id}
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: C.red,
+                      color: "#fff",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor:
+                        processingDeposit === request.id
+                          ? "not-allowed"
+                          : "pointer",
+                      opacity:
+                        processingDeposit === request.id ? 0.6 : 1,
+                    }}
+                  >
+                    ❌ Reject Deposit
+                  </button>
+                </div>
+              )}
+
+              {/* Status Message for resolved */}
+              {request.status !== "pending" && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color:
+                      request.status === "approved" ? C.green : C.red,
+                    marginTop: 8,
+                    textAlign: "center",
+                    padding: "6px",
+                    background:
+                      request.status === "approved"
+                        ? `${C.green}10`
+                        : `${C.red}10`,
+                    borderRadius: 6,
+                  }}
+                >
+                  {request.status === "approved"
+                    ? "✅ Approved"
+                    : "❌ Rejected"}{" "}
+                  on{" "}
+                  {new Date(
+                    request.approvedAt || request.rejectedAt,
+                  ).toLocaleString()}
+                </div>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  </div>
+)}
+
+{/* ✅ ADD THIS PAYMENT SETTINGS TAB */}
+{tab === "payment_settings" && (
+  <div>
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+        💳 Payment Settings
+      </div>
+      <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
+        Configure payment addresses for deposit requests
+      </div>
+    </div>
+
+    {/* Payment Settings Form */}
+    <div style={{ 
+      background: C.card, 
+      borderRadius: 16, 
+      padding: "24px",
+      border: `1px solid ${C.border}`,
+      maxWidth: 700,
+    }}>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 12 }}>
+          🏦 Bank Transfer Settings
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
+            Bank Account Number / IBAN
+          </label>
+          <input
+            type="text"
+            value={bankAccountNumber || ""}
+            onChange={(e) => setBankAccountNumber(e.target.value)}
+            placeholder="Enter bank account number"
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              fontSize: 13,
+              color: C.text,
+              background: C.bg,
+              outline: "none",
+            }}
+          />
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
+            Account Holder Name
+          </label>
+          <input
+            type="text"
+            value={bankAccountHolder || ""}
+            onChange={(e) => setBankAccountHolder(e.target.value)}
+            placeholder="Enter account holder name"
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              fontSize: 13,
+              color: C.text,
+              background: C.bg,
+              outline: "none",
+            }}
+          />
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
+            Bank Name
+          </label>
+          <input
+            type="text"
+            value={bankName || ""}
+            onChange={(e) => setBankName(e.target.value)}
+            placeholder="Enter bank name"
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              fontSize: 13,
+              color: C.text,
+              background: C.bg,
+              outline: "none",
+            }}
+          />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
+            IFS Code / SWIFT Code
+          </label>
+          <input
+            type="text"
+            value={bankIfsc || ""}
+            onChange={(e) => setBankIfsc(e.target.value)}
+            placeholder="Enter IFS or SWIFT code"
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              fontSize: 13,
+              color: C.text,
+              background: C.bg,
+              outline: "none",
+            }}
+          />
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 20, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 12 }}>
+          🪙 Crypto Transfer Settings
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
+            Crypto Wallet Address
+          </label>
+          <input
+            type="text"
+            value={cryptoAddress || ""}
+            onChange={(e) => setCryptoAddress(e.target.value)}
+            placeholder="Enter crypto wallet address"
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              fontSize: 13,
+              color: C.text,
+              background: C.bg,
+              outline: "none",
+            }}
+          />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
+            Network / Additional Info
+          </label>
+          <input
+            type="text"
+            value={cryptoAdditionalInfo || ""}
+            onChange={(e) => setCryptoAdditionalInfo(e.target.value)}
+            placeholder="e.g., BEP20, ERC20, TRC20"
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              fontSize: 13,
+              color: C.text,
+              background: C.bg,
+              outline: "none",
+            }}
+          />
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 20, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 12 }}>
+          📱 UPI Settings
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
+            UPI ID / Address
+          </label>
+          <input
+            type="text"
+            value={upiAddress || ""}
+            onChange={(e) => setUpiAddress(e.target.value)}
+            placeholder="Enter UPI address (e.g., company@upi)"
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              fontSize: 13,
+              color: C.text,
+              background: C.bg,
+              outline: "none",
+            }}
+          />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
+            Additional Info
+          </label>
+          <input
+            type="text"
+            value={upiAdditionalInfo || ""}
+            onChange={(e) => setUpiAdditionalInfo(e.target.value)}
+            placeholder="Additional instructions for UPI payment"
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              fontSize: 13,
+              color: C.text,
+              background: C.bg,
+              outline: "none",
+            }}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+        <button
+          onClick={handleSavePaymentSettings}
+          disabled={savingPaymentSettings}
+          style={{
+            flex: 1,
+            padding: "12px",
+            borderRadius: 10,
+            border: "none",
+            background: C.accent,
+            color: "#fff",
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: savingPaymentSettings ? "not-allowed" : "pointer",
+            opacity: savingPaymentSettings ? 0.6 : 1,
+          }}
+        >
+          {savingPaymentSettings ? "Saving..." : "💾 Save Payment Settings"}
+        </button>
+        <button
+          onClick={fetchPaymentSettings}
+          style={{
+            padding: "12px 20px",
+            borderRadius: 10,
+            border: `1px solid ${C.border}`,
+            background: "transparent",
+            color: C.sub,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          ↻ Refresh
+        </button>
+      </div>
+
+      {paymentSettingsMessage && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: "10px 14px",
+            borderRadius: 8,
+            fontSize: 12,
+            fontWeight: 600,
+            background: paymentSettingsMessage.type === "success" ? `${C.green}15` : `${C.red}15`,
+            color: paymentSettingsMessage.type === "success" ? C.green : C.red,
+            border: `1px solid ${paymentSettingsMessage.type === "success" ? C.green + "30" : C.red + "30"}`,
+          }}
+        >
+          {paymentSettingsMessage.text}
+        </div>
+      )}
+    </div>
+
+    {/* Preview Section */}
+    <div style={{ marginTop: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 12 }}>
+        👁️ Preview: How it looks to users
+      </div>
+      <div style={{
+        background: "linear-gradient(135deg,#0c2340,#1a3a5c)",
+        borderRadius: 16,
+        padding: "17px 15px",
+        maxWidth: 500,
+        boxShadow: "0 5px 18px rgba(0,0,0,0.4)",
+      }}>
+        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)", letterSpacing: 2, marginBottom: 7 }}>
+          PAYMENT DETAILS
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 10 }}>
+          💰 1,000.00 USD
+        </div>
+        <div style={{
+          background: "rgba(255,255,255,0.05)",
+          borderRadius: 10,
+          padding: "12px 14px",
+          border: "1px solid rgba(255,255,255,0.08)"
+        }}>
+          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>
+            Send payment to:
+          </div>
+          <div style={{
+            fontSize: 12,
+            color: T.acc,
+            fontFamily: "monospace",
+            wordBreak: "break-all",
+            background: "rgba(0,0,0,0.3)",
+            padding: "8px 10px",
+            borderRadius: 8,
+          }}>
+            {bankAccountNumber || "Not configured yet"}
+          </div>
+          {bankName && (
+            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 6 }}>
+              {bankName} • {bankAccountHolder || ""}
+            </div>
           )}
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
 
           {tab === "activity" && (
             <div>

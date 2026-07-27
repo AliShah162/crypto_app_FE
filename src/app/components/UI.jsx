@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { T } from "../lib/store";
+import { formatLocalTimeOnly } from "../lib/timezone";
  const styles = {
   overlay: {
     position: "fixed",
@@ -246,7 +247,7 @@ export function NotifPanel({ notifs, onClose, onDelete, onDeleteAll }) {
                 <div style={styles.notifContent}>
                   <div style={styles.notifTitle}>{n.title}</div>
                   <div style={styles.notifBody}>{n.body}</div>
-                  <div style={styles.notifTime}>{n.time}</div>
+                  <div style={styles.notifTime}>{formatLocalTimeOnly(n.time)}</div>
                 </div>
                 <div style={styles.notifActions}>
                   <button onClick={() => onDelete(n.id)} style={styles.deleteBtn}>

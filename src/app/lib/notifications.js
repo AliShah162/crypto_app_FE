@@ -32,7 +32,7 @@ export function addUserNotification(username, title, body) {
       id: Date.now() + Math.random(),
       title,
       body,
-      time: new Date().toLocaleTimeString(),
+      time: new Date().toISOString(),
       date: new Date().toISOString(),
       read: false
     };

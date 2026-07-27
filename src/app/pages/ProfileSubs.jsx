@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { T, S } from "../lib/store";
 import { Input, PB, BHdr } from "../components/UI";
 import { API_URL } from '../lib/config';
+import { formatLocalTime } from '../lib/timezone';
 
 export function SecSub({ back }) {
   const [f, sf] = useState({ c: "", n: "", cn: "" });
@@ -338,7 +339,7 @@ export function NotifSub({ back, userNotifs, onMarkRead }) {
                 {notif.body}
               </div>
               <div style={{ fontSize: 11, color: T.dim, marginTop: 8 }}>
-                {new Date(notif.date).toLocaleString()}
+                {formatLocalTime(notif.date)}
               </div>
             </div>
           ))

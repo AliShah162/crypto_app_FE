@@ -4,6 +4,7 @@ import { T, S, COINS, NEWS, PE, f2, usd } from "../lib/store";
 import { PB, BHdr, CoinIcon } from "../components/UI";
 import { API_URL } from "../lib/config";
 import Image from "next/image";
+import { formatLocalTime } from "../lib/timezone";
 
 /* ─────────────────────────────────────────────────────────────
    ORIGINAL DESIGN SYSTEM
@@ -1250,13 +1251,12 @@ export function HistoryPage({ user, onBack }) {
                       </div>
                     </div>
                     <div style={{ fontSize: 9, color: T.dim }}>
-                      {tx.formattedDate ||
-                        new Date(tx.date).toLocaleString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                      {formatLocalTime(tx.date, {
+                        year: undefined,
+                        month: "short",
+                        day: "numeric",
+                        second: undefined,
+                      })}
                     </div>
                   </div>
                   <div style={{ padding: "14px 14px" }}>

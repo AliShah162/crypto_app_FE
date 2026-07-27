@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { T, S, usd, f2 } from "../lib/store";
 import { getBinaryTrades } from "../lib/api";
 import { BHdr } from "./UI";
+import { formatLocalTime } from "../lib/timezone";
 
 export default function BinaryHistory({ user, back }) {
   const [trades, setTrades] = useState([]);
@@ -366,7 +367,7 @@ export default function BinaryHistory({ user, back }) {
                           {isWin ? "WINNER" : "LOSS"}
                         </div>
                         <div style={{ fontSize: 10, color: T.dim }}>
-                          {new Date(trade.date).toLocaleString()}
+                          {formatLocalTime(trade.date)}
                         </div>
                       </div>
                     </div>

@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { T, COINS, PE, f2, usd } from "../lib/store";
 import { PB } from "../components/UI";
 import { API_URL } from "../lib/config";
-import { formatIndianTime } from '../lib/timezone';
+import { formatLocalTime } from '../lib/timezone';
 
 /* ── Candlestick Chart ─────────────────────────────────────── */
 function CChart({ coin, px }) {
@@ -173,7 +173,7 @@ function OrderConfirmation({ order, onClose }) {
     },
     {
       label: "Order Time",
-      value: order.orderTime || formatIndianTime(order.startTime),
+      value: order.orderTime || formatLocalTime(order.startTime),
       color: T.dim,
       key: "orderTimeDisplay",
     },
@@ -368,7 +368,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
       startTime: new Date().toISOString(),
     };
 
-    const orderTime = formatIndianTime(new Date());
+    const orderTime = formatLocalTime(new Date());
 
     // ✅ SHOW CONFIRMATION IMMEDIATELY
     setPlaced({ ...orderData, orderTime: orderTime });
@@ -414,7 +414,7 @@ export default function TradePage({ nav, px, onTrade, coin }) {
           status: "pending",
           profitAmount: 0,
           date: new Date().toISOString(),
-          formattedDate: formatIndianTime(new Date()),
+          formattedDate: formatLocalTime(new Date()),
         }),
       }),
       fetch(`${API_URL}/api/users/${sessionUser}/notifications`, {

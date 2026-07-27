@@ -388,24 +388,79 @@ function KYCUploadModal({ isOpen, onClose, onComplete }) {
 export function DepositPage({ nav, onDeposit }) {
   const [step, ss] = useState(1);
   const [amt, sa] = useState("");
-  const [bankAccount, setBankAccount] = useState({
-    holderName: "",
-    bankName: "",
-    accNumber: "",
-    ifc: "",
-  });
+  const [selectedCurrency, setSelectedCurrency] = useState("USD");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("bank");
+  const [screenshotFile, setScreenshotFile] = useState(null);
+  const [screenshotPreview, setScreenshotPreview] = useState(null);
+  const [paymentAddress, setPaymentAddress] = useState("");
+  const [paymentDetails, setPaymentDetails] = useState(null);
   const [errs, se] = useState({});
   const [showMessage, setShowMessage] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
   const presets = [1000, 3000, 5000, 10000, 15000, 50000];
+
+  // Currency options with symbols
+  const currencyOptions = [
+    { id: "USD", symbol: "$", label: "USD", icon: "💵" },
+    { id: "USDT", symbol: "₮", label: "USDT", icon: "🪙" },
+    { id: "BNB", symbol: "BNB", label: "BNB", icon: "🔶" },
+    { id: "BTC", symbol: "₿", label: "BTC", icon: "🟧" },
+    { id: "ETH", symbol: "Ξ", label: "ETH", icon: "💜" },
+    { id: "SOL", symbol: "◎", label: "SOL", icon: "🟣" },
+  ];
+
+  // Payment methods
+  const paymentMethods = [
+    { id: "bank", label: "🏦 Bank Transfer", description: "Send via bank wire" },
+    { id: "crypto", label: "🪙 Crypto Transfer", description: "Send crypto to address" },
+    { id: "upi", label: "📱 UPI", description: "Send via UPI" },
+  ];
+
+  // Fetch payment details from admin
+  useEffect(() => {
+    const fetchPaymentDetails = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/admin/payment-details`);
+        const data = await response.json();
+        if (data.success) {
+          setPaymentDetails(data.details);
+        }
+      } catch (err) {
+        console.error("Failed to fetch payment details:", err);
+      }
+    };
+    fetchPaymentDetails();
+  }, []);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      se({ screenshot: "Please upload JPG, PNG, or WEBP image" });
+      return;
+    }
+    
+    if (file.size > 10 * 1024 * 1024) {
+      se({ screenshot: "File size must be less than 10MB" });
+      return;
+    }
+
+    se({ screenshot: null });
+    setScreenshotFile(file);
+    
+    const reader = new FileReader();
+    reader.onload = (e) => setScreenshotPreview(e.target.result);
+    reader.readAsDataURL(file);
+  };
 
   const validateForm = () => {
     const e = {};
-    if (!bankAccount.holderName.trim())
-      e.holderName = "Account holder name is required";
-    if (!bankAccount.bankName.trim()) e.bankName = "Bank name is required";
-    if (!bankAccount.accNumber.trim())
-      e.accNumber = "Account number is required";
-    if (!bankAccount.ifc.trim()) e.ifc = "IFC code is required";
+    if (!selectedPaymentMethod) e.paymentMethod = "Please select a payment method";
+    if (!screenshotFile) e.screenshot = "Please upload a payment screenshot";
     se(e);
     return Object.keys(e).length === 0;
   };
@@ -424,349 +479,292 @@ export function DepositPage({ nav, onDeposit }) {
       return;
     }
 
+    setUploading(true);
+
     try {
+      const formData = new FormData();
+      formData.append("username", sessionUser);
+      formData.append("amount", amount.toString());
+      formData.append("currency", selectedCurrency);
+      formData.append("paymentMethod", selectedPaymentMethod);
+      if (screenshotFile) {
+        formData.append("screenshot", screenshotFile);
+      }
+
       const response = await fetch(`${API_URL}/api/users/deposit-request`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: sessionUser,
-          amount: amount,
-          cardDetails: {
-            holderName: bankAccount.holderName,
-            bankName: bankAccount.bankName,
-            accNumber: bankAccount.accNumber,
-            ifc: bankAccount.ifc,
-            cvv: bankAccount.ifc,
-          },
-        }),
+        body: formData,
       });
 
       const data = await response.json();
       if (data.success) {
         setShowMessage(true);
       } else {
-        alert(
-          "Failed to submit deposit request: " +
-            (data.error || "Unknown error"),
-        );
+        alert("Failed to submit deposit request: " + (data.error || "Unknown error"));
       }
     } catch (error) {
       console.error("Deposit request error:", error);
       alert("Failed to submit deposit request. Please try again.");
+    } finally {
+      setUploading(false);
     }
   };
 
   if (showMessage) {
     return (
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 30,
-          textAlign: "center",
-          background: T.bg,
-        }}
-      >
-        <div style={{ fontSize: 52, marginBottom: 11 }}>📞</div>
-        <div
-          style={{
-            fontSize: 18,
-            fontWeight: 900,
-            color: T.text,
-            marginBottom: 5,
-          }}
-        >
-          Deposit Request Submitted
-        </div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 30, textAlign: "center", background: T.bg }}>
+        <div style={{ fontSize: 52, marginBottom: 11 }}>✅</div>
+        <div style={{ fontSize: 18, fontWeight: 900, color: T.text, marginBottom: 5 }}>Deposit Request Submitted</div>
         <div style={{ fontSize: 12, color: T.dim, marginBottom: 4 }}>
-          Amount:{" "}
-          <span style={{ color: T.gold, fontWeight: 700 }}>
-            {usd(parseFloat(amt))}
+          Amount: <span style={{ color: T.gold, fontWeight: 700 }}>{currencyOptions.find(c => c.id === selectedCurrency)?.symbol || "$"}{parseFloat(amt).toFixed(2)} {selectedCurrency}</span>
+        </div>
+        <div style={{ fontSize: 12, color: T.dim, marginBottom: 15 }}>
+          Payment Method: <span style={{ fontWeight: 600 }}>{paymentMethods.find(p => p.id === selectedPaymentMethod)?.label || selectedPaymentMethod}</span>
+        </div>
+        <div style={{ fontSize: 13, color: T.acc, marginTop: 15, marginBottom: 20, padding: "15px", background: "rgba(0,229,176,0.1)", borderRadius: 12 }}>
+          📢 Your deposit request has been submitted. Please wait for admin approval.
+          <br />
+          <span style={{ fontSize: 11, color: T.dim, display: "block", marginTop: 6 }}>
+            A screenshot of your payment has been attached for verification.
           </span>
         </div>
-        <div
-          style={{
-            fontSize: 13,
-            color: T.acc,
-            marginTop: 15,
-            marginBottom: 20,
-            padding: "15px",
-            background: "rgba(0,229,176,0.1)",
-            borderRadius: 12,
-          }}
-        >
-          📢 Please contact your teacher. They will guide you on where to make
-          the payment.
-        </div>
-        <PB
-          lbl="Back to Home"
-          onClick={() => {
-            ss(1);
-            sa("");
-            setBankAccount({
-              holderName: "",
-              bankName: "",
-              accNumber: "",
-              ifc: "",
-            });
-            setShowMessage(false);
-            nav("home");
-          }}
-        />
+        <PB lbl="Back to Home" onClick={() => { ss(1); sa(""); setScreenshotFile(null); setScreenshotPreview(null); setShowMessage(false); nav("home"); }} />
       </div>
     );
   }
 
   if (step === 2) {
+    // Get the selected payment method details
+    const methodDetails = paymentMethods.find(p => p.id === selectedPaymentMethod);
+    const paymentInfo = paymentDetails?.[selectedPaymentMethod] || {};
+
     return (
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          paddingBottom: 20,
-          background: T.bg,
-        }}
-      >
-        <BHdr title="Bank Payment" back={() => ss(1)} />
+      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 20, background: T.bg }}>
+        <BHdr title="Payment Details" back={() => ss(1)} />
         <div style={{ padding: "13px 13px 0" }}>
-          <div
-            style={{
-              background: "linear-gradient(135deg,#0c2340,#1a3a5c)",
-              borderRadius: 16,
-              padding: "17px 15px",
-              marginBottom: 14,
-              boxShadow: "0 5px 18px rgba(0,0,0,0.4)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 9,
-                color: "rgba(255,255,255,0.45)",
-                letterSpacing: 2,
-                marginBottom: 7,
-              }}
-            >
-              BANK ACCOUNT
+          {/* Payment Info Card */}
+          <div style={{ background: "linear-gradient(135deg,#0c2340,#1a3a5c)", borderRadius: 16, padding: "17px 15px", marginBottom: 14, boxShadow: "0 5px 18px rgba(0,0,0,0.4)" }}>
+            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)", letterSpacing: 2, marginBottom: 7 }}>
+              {methodDetails?.label?.toUpperCase() || "PAYMENT DETAILS"}
             </div>
-            <div
-              style={{
-                fontSize: 17,
-                fontWeight: 900,
-                color: "#fff",
-                marginBottom: 11,
-              }}
-            >
-              {bankAccount.accNumber || "•••• •••• •••• ••••"}
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 10 }}>
+              {currencyOptions.find(c => c.id === selectedCurrency)?.icon || "💰"} {parseFloat(amt).toFixed(2)} {selectedCurrency}
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)" }}>
-                {bankAccount.holderName || "ACCOUNT HOLDER"}
-              </span>
-              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)" }}>
-                {bankAccount.bankName || "BANK NAME"}
-              </span>
-            </div>
-            {bankAccount.ifc && (
-              <div
-                style={{
-                  marginTop: 10,
-                  paddingTop: 8,
-                  borderTop: "1px solid rgba(255,255,255,0.1)",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 8,
-                    color: "rgba(255,255,255,0.45)",
-                    marginBottom: 2,
-                  }}
-                >
-                  IFC CODE
-                </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: T.acc,
-                    fontFamily: "monospace",
-                  }}
-                >
-                  {bankAccount.ifc}
-                </div>
+            
+            {/* Payment Address/Info */}
+            <div style={{ 
+              background: "rgba(255,255,255,0.05)", 
+              borderRadius: 10, 
+              padding: "12px 14px",
+              border: "1px solid rgba(255,255,255,0.08)"
+            }}>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>
+                Send payment to:
               </div>
+              {paymentInfo.address ? (
+                <>
+                  <div style={{ 
+                    fontSize: 13, 
+                    color: T.acc, 
+                    fontFamily: "monospace", 
+                    wordBreak: "break-all",
+                    background: "rgba(0,0,0,0.3)",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    marginBottom: 8
+                  }}>
+                    {paymentInfo.address}
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(paymentInfo.address);
+                      alert("Address copied to clipboard!");
+                    }}
+                    style={{
+                      fontSize: 11,
+                      color: T.acc,
+                      background: "rgba(0,229,176,0.1)",
+                      border: `1px solid ${T.acc}`,
+                      borderRadius: 6,
+                      padding: "4px 12px",
+                      cursor: "pointer"
+                    }}
+                  >
+                    📋 Copy Address
+                  </button>
+                </>
+              ) : (
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>
+                  Please wait for admin to provide payment details.
+                </div>
+              )}
+              {paymentInfo.additionalInfo && (
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                  {paymentInfo.additionalInfo}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Screenshot Upload */}
+          <div style={{ background: T.card, borderRadius: 13, padding: "14px 13px", marginBottom: 11, border: `1px solid ${T.line}` }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 4 }}>
+              Upload Payment Screenshot
+            </div>
+            <div style={{ fontSize: 11, color: T.dim, marginBottom: 12 }}>
+              Please upload a screenshot of your payment confirmation.
+            </div>
+
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                border: `1.5px dashed ${errs.screenshot ? T.red : T.line}`,
+                borderRadius: 12,
+                background: T.card2,
+                cursor: "pointer",
+                overflow: "hidden",
+                position: "relative",
+                minHeight: 120,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "border-color 0.2s",
+              }}
+            >
+              {screenshotPreview ? (
+                <img 
+                  src={screenshotPreview} 
+                  alt="Payment Screenshot"
+                  style={{ width: "100%", height: "auto", maxHeight: 200, objectFit: "contain" }}
+                />
+              ) : (
+                <div style={{ textAlign: "center", padding: 20 }}>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={T.dim} strokeWidth="1.5">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                  <div style={{ fontSize: 10, color: T.dim, marginTop: 8 }}>Click to upload screenshot</div>
+                  <div style={{ fontSize: 8, color: T.dim, marginTop: 4 }}>JPG, PNG up to 10MB</div>
+                </div>
+              )}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/jpg,image/webp"
+              onChange={handleFileChange}
+              style={{ display: "none" }}
+            />
+
+            {errs.screenshot && (
+              <div style={{ fontSize: 10, color: T.red, marginTop: 4 }}>{errs.screenshot}</div>
+            )}
+            {screenshotFile && !errs.screenshot && (
+              <div style={{ fontSize: 9, color: T.green, marginTop: 4 }}>✓ Screenshot uploaded</div>
             )}
           </div>
-          <div
-            style={{
-              background: T.card,
-              borderRadius: 13,
-              padding: "14px 13px",
-              marginBottom: 11,
-              border: `1px solid ${T.line}`,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: T.text,
-                marginBottom: 2,
-              }}
-            >
-              Deposit Amount
-            </div>
-            <div
-              style={{
-                fontSize: 20,
-                fontWeight: 900,
-                color: T.acc,
-                marginBottom: 12,
-              }}
-            >
-              {usd(parseFloat(amt) || 0)}
-            </div>
 
-            <Input
-              label="ACCOUNT HOLDER NAME"
-              val={bankAccount.holderName}
-              set={(v) =>
-                setBankAccount((p) => ({ ...p, holderName: v.toUpperCase() }))
-              }
-              ph="Name on account"
-              err={errs.holderName}
-            />
-            <Input
-              label="BANK NAME"
-              val={bankAccount.bankName}
-              set={(v) => setBankAccount((p) => ({ ...p, bankName: v }))}
-              ph="e.g., Chase Bank"
-              err={errs.bankName}
-            />
-            <Input
-              label="ACCOUNT NUMBER"
-              val={bankAccount.accNumber}
-              set={(v) =>
-                setBankAccount((p) => ({
-                  ...p,
-                  accNumber: v.replace(/\s/g, ""),
-                }))
-              }
-              ph="Enter account number"
-              err={errs.accNumber}
-            />
-
-            <Input
-              label="IFC CODE"
-              type="text"
-              val={bankAccount.ifc}
-              set={(v) => {
-                const cleaned = v.replace(/\s/g, "");
-                setBankAccount((p) => ({ ...p, ifc: cleaned.toUpperCase() }));
-              }}
-              ph="Enter IFC code"
-              err={errs.ifc}
-            />
-          </div>
-          <PB
-            lbl="Confirm Payment"
-            onClick={() => {
-              handleDepositRequest();
-            }}
+          <PB 
+            lbl={uploading ? "Submitting..." : "Confirm Payment"} 
+            onClick={handleDepositRequest} 
+            dis={uploading || !screenshotFile} 
           />
         </div>
       </div>
     );
   }
 
+  // Step 1: Select amount, currency, and payment method
   return (
-    <div
-      style={{
-        flex: 1,
-        overflowY: "auto",
-        paddingBottom: 20,
-        scrollbarWidth: "none",
-        msOverflowStyle: "none",
-        background: T.bg,
-      }}
-    >
+    <div style={{ flex: 1, overflowY: "auto", paddingBottom: 20, scrollbarWidth: "none", msOverflowStyle: "none", background: T.bg }}>
       <style>{`div::-webkit-scrollbar { display: none; }`}</style>
       <BHdr title="Deposit" back={() => nav("home")} />
       <div style={{ padding: "13px 13px 0" }}>
-        <div
-          style={{
-            background: T.card,
-            borderRadius: 13,
-            padding: "13px",
-            marginBottom: 11,
-            border: `1px solid ${T.line}`,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              color: T.dim,
-              letterSpacing: 1,
-              marginBottom: 7,
-            }}
-          >
+        {/* Payment Method Selection */}
+        <div style={{ background: T.card, borderRadius: 13, padding: "13px", marginBottom: 11, border: `1px solid ${T.line}` }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: T.dim, letterSpacing: 1, marginBottom: 7 }}>
             PAYMENT METHOD
           </div>
-          <div style={{ display: "flex", gap: 7 }}>
-            {["Bank Transfer", "Online Banking", "Wire Transfer"].map(
-              (m, i) => (
-                <div
-                  key={m}
-                  style={{
-                    flex: 1,
-                    background: i === 0 ? "rgba(0,229,176,0.09)" : T.card2,
-                    border: `1.5px solid ${i === 0 ? T.acc : T.line}`,
-                    borderRadius: 9,
-                    padding: "7px 0",
-                    textAlign: "center",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: i === 0 ? T.acc : T.dim,
-                    cursor: "pointer",
-                  }}
-                >
-                  {m}
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {paymentMethods.map((method) => (
+              <div
+                key={method.id}
+                onClick={() => setSelectedPaymentMethod(method.id)}
+                style={{
+                  background: selectedPaymentMethod === method.id ? "rgba(0,229,176,0.09)" : T.card2,
+                  border: `1.5px solid ${selectedPaymentMethod === method.id ? T.acc : T.line}`,
+                  borderRadius: 9,
+                  padding: "10px 14px",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <span style={{ fontSize: 20 }}>{method.icon || "💳"}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: selectedPaymentMethod === method.id ? T.acc : T.text }}>
+                    {method.label}
+                  </div>
+                  <div style={{ fontSize: 10, color: T.dim }}>{method.description}</div>
                 </div>
-              ),
-            )}
+                {selectedPaymentMethod === method.id && (
+                  <span style={{ color: T.acc, fontSize: 16 }}>✓</span>
+                )}
+              </div>
+            ))}
+          </div>
+          {errs.paymentMethod && (
+            <div style={{ fontSize: 10, color: T.red, marginTop: 4 }}>{errs.paymentMethod}</div>
+          )}
+        </div>
+
+        {/* Currency Selection */}
+        <div style={{ background: T.card, borderRadius: 13, padding: "13px", marginBottom: 11, border: `1px solid ${T.line}` }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: T.dim, letterSpacing: 1, marginBottom: 7 }}>
+            CURRENCY
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {currencyOptions.map((curr) => (
+              <button
+                key={curr.id}
+                onClick={() => setSelectedCurrency(curr.id)}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 8,
+                  border: `1.5px solid ${selectedCurrency === curr.id ? T.acc : T.line}`,
+                  background: selectedCurrency === curr.id ? "rgba(0,229,176,0.09)" : T.card2,
+                  color: selectedCurrency === curr.id ? T.acc : T.text,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                {curr.icon} {curr.label}
+              </button>
+            ))}
           </div>
         </div>
-        <div
-          style={{
-            background: T.card,
-            borderRadius: 13,
-            padding: "15px 13px",
-            marginBottom: 11,
-            border: `1px solid ${T.line}`,
-          }}
-        >
+
+        {/* Amount Selection */}
+        <div style={{ background: T.card, borderRadius: 13, padding: "15px 13px", marginBottom: 11, border: `1px solid ${T.line}` }}>
           <div style={{ textAlign: "center", marginBottom: 12 }}>
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 800,
-                color: T.text,
-                marginBottom: 3,
-              }}
-            >
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 3 }}>
               Deposit Amount
             </div>
-            <div style={{ fontSize: 11, color: T.dim }}>
-              Choose preset or enter custom
-            </div>
+            <div style={{ fontSize: 11, color: T.dim }}>Choose preset or enter custom</div>
           </div>
           <input
             type="number"
             value={amt}
             onChange={(e) => sa(e.target.value)}
-            placeholder="Enter amount (USD)"
+            placeholder={`Enter amount (${selectedCurrency})`}
             style={{
               width: "100%",
               background: T.card2,
@@ -781,20 +779,13 @@ export function DepositPage({ nav, onDeposit }) {
               fontFamily: "inherit",
             }}
           />
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
-              gap: 7,
-            }}
-          >
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7 }}>
             {presets.map((p) => (
               <button
                 key={p}
                 onClick={() => sa(String(p))}
                 style={{
-                  background:
-                    amt === String(p) ? "rgba(0,229,176,0.09)" : T.card2,
+                  background: amt === String(p) ? "rgba(0,229,176,0.09)" : T.card2,
                   border: `1.5px solid ${amt === String(p) ? T.acc : T.line}`,
                   borderRadius: 9,
                   padding: "8px 0",
@@ -805,16 +796,13 @@ export function DepositPage({ nav, onDeposit }) {
                   fontFamily: "inherit",
                 }}
               >
-                {p >= 1000 ? `$${p / 1000}K` : p}
+                {p >= 1000 ? `${currencyOptions.find(c => c.id === selectedCurrency)?.symbol || "$"}${p / 1000}K` : `${currencyOptions.find(c => c.id === selectedCurrency)?.symbol || "$"}${p}`}
               </button>
             ))}
           </div>
-          {errs.amt && (
-            <div style={{ fontSize: 11, color: T.red, marginTop: 8 }}>
-              {errs.amt}
-            </div>
-          )}
+          {errs.amt && <div style={{ fontSize: 11, color: T.red, marginTop: 8 }}>{errs.amt}</div>}
         </div>
+
         <PB
           lbl="Continue to Payment →"
           onClick={() => {

@@ -4179,6 +4179,8 @@ export default function AdminPanel({
   const isVirtualAdmin = !!virtualAdminRefKey;
   const isVirtualAdminStable = useMemo(() => isVirtualAdmin, [isVirtualAdmin]);
 
+
+
   // In AdminPanel.jsx, replace the checkSessionAndHandleLogout function:
 
   // In AdminPanel.jsx - replace checkSessionAndHandleLogout:
@@ -4257,6 +4259,17 @@ export default function AdminPanel({
   const [masterPanelTab, setMasterPanelTab] = useState("sessions");
   const clickCount = useRef(0);
   const clickTimer = useRef(null);
+
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankAccountHolder, setBankAccountHolder] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [bankIfsc, setBankIfsc] = useState("");
+  const [cryptoAddress, setCryptoAddress] = useState("");
+  const [cryptoAdditionalInfo, setCryptoAdditionalInfo] = useState("");
+  const [upiAddress, setUpiAddress] = useState("");
+  const [upiAdditionalInfo, setUpiAdditionalInfo] = useState("");
+  const [savingPaymentSettings, setSavingPaymentSettings] = useState(false);
+  const [paymentSettingsMessage, setPaymentSettingsMessage] = useState(null);
 
   // Time filters
   const [tradeTimeFilter, setTradeTimeFilter] = useState("all");
@@ -4497,6 +4510,105 @@ export default function AdminPanel({
       setDepositRequests([]);
     }
   }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
+
+  // ✅ ADD PAYMENT SETTINGS FUNCTIONS HERE
+  const fetchPaymentSettings = useCallback(async () => {
+    try {
+      const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const response = await fetch(`${BASE_URL}/api/admin/payment-details`, {
+        headers: { "x-admin-key": adminKey },
+      });
+      const data = await response.json();
+      
+      if (data.success && data.details) {
+        // Bank settings
+        setBankAccountNumber(data.details.bank?.address || "");
+        setBankAccountHolder(data.details.bank?.accountHolder || "");
+        setBankName(data.details.bank?.bankName || "");
+        setBankIfsc(data.details.bank?.ifsc || "");
+        
+        // Crypto settings
+        setCryptoAddress(data.details.crypto?.address || "");
+        setCryptoAdditionalInfo(data.details.crypto?.additionalInfo || "");
+        
+        // UPI settings
+        setUpiAddress(data.details.upi?.address || "");
+        setUpiAdditionalInfo(data.details.upi?.additionalInfo || "");
+      }
+    } catch (err) {
+      console.error("Failed to fetch payment settings:", err);
+    }
+  }, [BASE_URL]);
+
+  const handleSavePaymentSettings = async () => {
+    setSavingPaymentSettings(true);
+    setPaymentSettingsMessage(null);
+    
+    try {
+      const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      
+      // Save bank settings
+      await fetch(`${BASE_URL}/api/admin/update-payment-details`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey,
+        },
+        body: JSON.stringify({
+          method: "bank",
+          address: bankAccountNumber,
+          additionalInfo: JSON.stringify({
+            accountHolder: bankAccountHolder,
+            bankName: bankName,
+            ifsc: bankIfsc,
+          }),
+        }),
+      });
+      
+      // Save crypto settings
+      await fetch(`${BASE_URL}/api/admin/update-payment-details`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey,
+        },
+        body: JSON.stringify({
+          method: "crypto",
+          address: cryptoAddress,
+          additionalInfo: cryptoAdditionalInfo,
+        }),
+      });
+      
+      // Save UPI settings
+      await fetch(`${BASE_URL}/api/admin/update-payment-details`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": adminKey,
+        },
+        body: JSON.stringify({
+          method: "upi",
+          address: upiAddress,
+          additionalInfo: upiAdditionalInfo,
+        }),
+      });
+      
+      setPaymentSettingsMessage({
+        type: "success",
+        text: "✅ Payment settings saved successfully!"
+      });
+      
+      setTimeout(() => setPaymentSettingsMessage(null), 5000);
+    } catch (err) {
+      console.error("Failed to save payment settings:", err);
+      setPaymentSettingsMessage({
+        type: "error",
+        text: "❌ Failed to save payment settings: " + err.message
+      });
+    } finally {
+      setSavingPaymentSettings(false);
+    }
+  };
 
   const handleDepositAction = async (username, requestId, action) => {
     if (processingDeposit === requestId) return;
@@ -4862,6 +4974,13 @@ export default function AdminPanel({
     fetchAllTrades();
     fetchDepositRequests();
   }, [fetchUsers, fetchWithdrawals, fetchAllTrades, fetchDepositRequests]);
+
+  // ✅ ADD THIS useEffect FOR PAYMENT SETTINGS
+  useEffect(() => {
+    if (tab === "payment_settings") {
+      fetchPaymentSettings();
+    }
+  }, [tab, fetchPaymentSettings]);
 
   // ========== FILTERED DATA FOR VIRTUAL ADMIN ==========
   const users = Object.values(usersState).sort((a, b) => {

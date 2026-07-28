@@ -1702,24 +1702,6 @@ function UserDrawer({
               alignItems: "flex-end",
             }}
           >
-            <button
-              onClick={() => setShowNotificationModal(true)}
-              style={{
-                background: "rgba(99,102,241,0.2)",
-                border: "1px solid #6366f1",
-                borderRadius: 8,
-                padding: "6px 12px",
-                fontSize: 11,
-                fontWeight: 600,
-                color: "#a5b4fc",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                whiteSpace: "nowrap",
-              }}
-            >
-              📧 Send Notification
-            </button>
-
             <span
               style={{
                 fontSize: 10,

@@ -4864,109 +4864,50 @@ export default function AdminPanel({
     }
   };
 
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const adminKey =
-        localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-
-      let data;
-
-      // Check if this is a virtual admin
-      if (isVirtualAdminStable && virtualAdminRefKey) {
-        // Virtual admin - fetch only users with their refKey
-        const response = await fetch(
-          `${BASE_URL}/api/users/virtual-admin/${virtualAdminRefKey}/users`,
-          {
-            headers: {
-              "x-admin-key": adminKey,
-            },
-          },
-        );
-        const result = await response.json();
-
-        // ✅ SKIP session check for virtual admins - they don't have sessions
-        // if (checkSessionAndHandleLogout(response, result)) return;
-
-        if (result.success) {
-          data = result.users;
-        } else {
-          data = [];
-        }
-      } else {
-        // Master admin - fetch all users
-        const sessionId = localStorage.getItem("admin_session_id");
-        const headers = {
-          "x-admin-key": adminKey,
-        };
-
-        if (sessionId) {
-          headers["x-session-id"] = sessionId;
-        }
-
-        const response = await fetch(
-          `${BASE_URL}/api/users/admin/all-with-plain-passwords`,
-          {
-            headers: headers,
-          },
-        );
-        data = await response.json();
-
-        // ✅ ONLY check session for master admin
-        if (
-          !isVirtualAdminStable &&
-          checkSessionAndHandleLogout(response, data)
-        ) {
-          setLoading(false);
-          return;
-        }
+ const fetchUsers = useCallback(async (page = 1) => {
+  setLoading(true);
+  try {
+    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+    
+    // ✅ Add pagination to URL
+    const response = await fetch(
+      `${BASE_URL}/api/users/admin/all-with-plain-passwords?page=${page}&limit=50`,
+      {
+        headers: { "x-admin-key": adminKey },
       }
-
-      if (data.error) {
-        console.error("Error fetching users:", data.error);
-        setUsersState(loadLocalUsers());
-      } else if (Array.isArray(data)) {
-        const dbUsers = {};
-        data.forEach((u) => {
-          const k = u.username?.toLowerCase();
-          if (k && k !== "admin" && k !== "master_admin") {
-            dbUsers[k] = {
-              ...u,
-              username: k,
-              plainPassword: u.plainPassword ?? null,
-            };
-          }
-        });
-
-        await Promise.all(
-          Object.keys(dbUsers).map(async (username) => {
-            try {
-              const trades = await getBinaryTrades(username);
-              if (Array.isArray(trades) && trades.length > 0) {
-                dbUsers[username].binaryTrades = trades;
-              }
-            } catch {}
-          }),
-        );
-        const cleanLocal = {};
-        for (const [username, userData] of Object.entries(dbUsers)) {
-          cleanLocal[username] = userData;
-        }
-        localStorage.setItem("users", JSON.stringify(cleanLocal));
-        S.users = cleanLocal;
-        setUsersState(cleanLocal);
-        saveUsers(cleanLocal);
-      } else {
-        setUsersState(loadLocalUsers());
-      }
-    } catch (error) {
-      console.error("Fetch users error:", error);
+    );
+    const data = await response.json();
+    
+    if (data.error) {
+      console.error("Error fetching users:", data.error);
       setUsersState(loadLocalUsers());
-    } finally {
-      setLoading(false);
+    } else if (data.users) {
+      // ✅ Handle paginated response
+      const dbUsers = {};
+      data.users.forEach((u) => {
+        const k = u.username?.toLowerCase();
+        if (k && k !== "admin" && k !== "master_admin") {
+          dbUsers[k] = {
+            ...u,
+            username: k,
+            plainPassword: u.plainPassword ?? null,
+          };
+        }
+      });
+      
+      // Store in state
+      setUsersState(dbUsers);
+      
+      // Optionally store pagination info
+      setPaginationInfo(data.pagination);
     }
-  }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
+  } catch (error) {
+    console.error("Fetch users error:", error);
+    setUsersState(loadLocalUsers());
+  } finally {
+    setLoading(false);
+  }
+}, [BASE_URL]);
 
   useEffect(() => {
     fetchUsers();
@@ -5879,6 +5820,7 @@ export default function AdminPanel({
   const [adminKeyInput, setAdminKeyInput] = useState("");
   const [keyError, setKeyError] = useState("");
   const [keyLoading, setKeyLoading] = useState(false);
+  const [paginationInfo, setPaginationInfo] = useState(null);
 
   useEffect(() => {
     if (isVirtualAdmin) {

@@ -34,6 +34,22 @@ import { API_URL } from "./lib/config";
 import VirtualAdminLogin from "./components/VirtualAdminLogin";
 import AvatarSelector from "./components/AvatarSelector";
 import Image from "next/image";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { useNotifications } from './hooks/useUserData';
+
+
+// ✅ Create queryClient outside the component
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60000, // 1 minute
+      gcTime: 300000, // 5 minutes
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 function initLocalStorage() {
   if (typeof window === "undefined") return;
@@ -107,32 +123,23 @@ export default function App() {
     return () => window.removeEventListener("resize", checkScreen);
   }, []);
 
-  // Fetch notifications from MongoDB
-  const fetchNotificationsFromDB = useCallback(async () => {
-    const sessionUser = localStorage.getItem("session");
-    if (!sessionUser || sessionUser === "admin") return [];
+  // Inside the App component, replace the fetchNotificationsFromDB with:
+const { data: notificationsData, refetch: refetchNotifications } = useNotifications(
+  typeof window !== 'undefined' ? localStorage.getItem("session") : null
+);
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
-      const response = await fetch(
-        `${API_URL}/api/users/${sessionUser}/notifications`,
-        { signal: controller.signal }
-      );
-      
-      clearTimeout(timeoutId);
-      const data = await response.json();
-      
-      if (Array.isArray(data)) {
-        sn(data);
-        return data;
-      }
-    } catch (err) {
-      console.error("Failed to fetch notifications from DB:", err);
-    }
-    return [];
-  }, []);
+// Use useEffect to sync notifications data to state
+useEffect(() => {
+  if (notificationsData && Array.isArray(notificationsData)) {
+    sn(notificationsData);
+  }
+}, [notificationsData]);
+
+// Create a refetch function that matches the old API
+const fetchNotificationsFromDB = useCallback(async () => {
+  const result = await refetchNotifications();
+  return result.data || [];
+}, [refetchNotifications]);
 
   useEffect(() => {
     const handleAvatarUpdate = () => {
@@ -758,7 +765,8 @@ export default function App() {
   }
 
   // Main App (authenticated) - full width with max-width container
-  return (
+return (
+  <QueryClientProvider client={queryClient}>
     <div
       style={{
         minHeight: "100vh",
@@ -1097,5 +1105,7 @@ export default function App() {
         />
       )}
     </div>
-  );
+    <ReactQueryDevtools initialIsOpen={false} />
+  </QueryClientProvider>
+);
 }

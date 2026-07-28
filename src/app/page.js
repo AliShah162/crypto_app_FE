@@ -37,6 +37,9 @@ import Image from "next/image";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useNotifications } from './hooks/useUserData';
+// Add these to the imports section
+import { useBalance, useDeleteNotification, useDeleteAllNotifications } from './hooks/useUserData';
+
 
 
 // ✅ Create queryClient outside the component
@@ -105,6 +108,10 @@ export default function App() {
   const px = usePX();
   const [virtualAdmin, setVirtualAdmin] = useState(null);
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  const deleteNotificationMutation = useDeleteNotification();
+const deleteAllNotificationsMutation = useDeleteAllNotifications();
+const sessionUser = typeof window !== 'undefined' ? localStorage.getItem("session") : null;
+const { data: balance = 0 } = useBalance(sessionUser);
   const [userAvatar, setUserAvatar] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("userAvatar") || "male1";
@@ -152,86 +159,67 @@ const fetchNotificationsFromDB = useCallback(async () => {
     return () => window.removeEventListener("avatarUpdated", handleAvatarUpdate);
   }, []);
 
-  useEffect(() => {
-    initLocalStorage();
+ useEffect(() => {
+  initLocalStorage();
 
-    if (typeof window === "undefined") {
+  if (typeof window === "undefined") {
+    startTransition(() => ss("welcome"));
+    return;
+  }
+
+  const tabRole = localStorage.getItem("tabRole");
+  const sessionUser = localStorage.getItem("session");
+  const savedVA = localStorage.getItem("virtualAdmin");
+
+  // ── Restore master admin session ──
+  if (tabRole === "admin" && sessionUser === "admin") {
+    setUser({ username: "admin", fullName: "Administrator", role: "admin" });
+    startTransition(() => ss("admin"));
+    return;
+  }
+
+  // ── Restore virtual admin session ──
+  if (savedVA && tabRole === "virtual_admin") {
+    try {
+      const vaData = JSON.parse(savedVA);
+      setVirtualAdmin(vaData);
       startTransition(() => ss("welcome"));
       return;
-    }
+    } catch {}
+  }
 
-    const tabRole = localStorage.getItem("tabRole");
+  // ── Restore regular user session ──
+  if (sessionUser && sessionUser !== "admin") {
+    const bannedList = JSON.parse(localStorage.getItem("banned") || "[]");
+    const isBanned = bannedList.some(b => b.toLowerCase() === sessionUser.toLowerCase());
+    if (!isBanned) {
+      const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+      const cached = cache[sessionUser];
+      if (cached) {
+        startTransition(() => {
+          setUser(cached);
+          // ✅ React Query will handle notifications automatically
+          ss("app");
+        });
+        return;
+      }
+    }
+  }
+
+  // ── No valid session — show welcome ──
+  startTransition(() => ss("welcome"));
+}, []); // ✅ Removed fetchNotificationsFromDB dependency
+
+ useEffect(() => {
+  if (scr === "loading") return;
+  if (scr === "admin") return;
+
+  const checkSession = async () => {
+    if (typeof window === "undefined") return;
+
     const sessionUser = localStorage.getItem("session");
-    const savedVA = localStorage.getItem("virtualAdmin");
-
-    // ── Restore master admin session ──
-    if (tabRole === "admin" && sessionUser === "admin") {
-      setUser({ username: "admin", fullName: "Administrator", role: "admin" });
-      startTransition(() => ss("admin"));
-      return;
-    }
-
-    // ── Restore virtual admin session ──
-    if (savedVA && tabRole === "virtual_admin") {
-      try {
-        const vaData = JSON.parse(savedVA);
-        setVirtualAdmin(vaData);
-        startTransition(() => ss("welcome"));
-        return;
-      } catch {}
-    }
-
-    // ── Restore regular user session ──
-    if (sessionUser && sessionUser !== "admin") {
-      const bannedList = JSON.parse(localStorage.getItem("banned") || "[]");
-      const isBanned = bannedList.some(b => b.toLowerCase() === sessionUser.toLowerCase());
-      if (!isBanned) {
-        const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
-        const cached = cache[sessionUser];
-        if (cached) {
-          startTransition(() => {
-            setUser(cached);
-            fetchNotificationsFromDB();
-            ss("app");
-          });
-          return;
-        }
-      }
-    }
-
-    // ── No valid session — show welcome ──
-    startTransition(() => ss("welcome"));
-  }, [fetchNotificationsFromDB]);
-
-  useEffect(() => {
-    if (scr === "loading") return;
-    if (scr === "admin") return;
-
-    const checkSession = async () => {
-      if (typeof window === "undefined") return;
-
-      const sessionUser = localStorage.getItem("session");
-      if (!sessionUser) {
-        if (scr === "app") {
-          startTransition(() => {
-            setUser(null);
-            ss("login");
-            sp("home");
-            ssb(null);
-            sn([]);
-          });
-        }
-        return;
-      }
-
-      const bannedList = JSON.parse(localStorage.getItem("banned") || "[]");
-      const isBanned = bannedList.some(
-        (b) => b.toLowerCase() === sessionUser.toLowerCase(),
-      );
-
-      if (isBanned) {
-        localStorage.removeItem("session");
-        localStorage.removeItem("tabRole");
+    if (!sessionUser) {
+      if (scr === "app") {
         startTransition(() => {
           setUser(null);
           ss("login");
@@ -239,63 +227,83 @@ const fetchNotificationsFromDB = useCallback(async () => {
           ssb(null);
           sn([]);
         });
-        return;
       }
+      return;
+    }
 
-      if (scr === "app" && sessionUser && sessionUser !== "admin") {
-        try {
-          const freshUser = await getUser(sessionUser, true);
+    const bannedList = JSON.parse(localStorage.getItem("banned") || "[]");
+    const isBanned = bannedList.some(
+      (b) => b.toLowerCase() === sessionUser.toLowerCase(),
+    );
 
-          if (freshUser && freshUser.error === "User not found") {
-            localStorage.removeItem("session");
-            localStorage.removeItem("tabRole");
-            startTransition(() => {
-              setUser(null);
-              ss("login");
-              sp("home");
-              ssb(null);
-              sn([]);
-            });
-            return;
-          }
+    if (isBanned) {
+      localStorage.removeItem("session");
+      localStorage.removeItem("tabRole");
+      startTransition(() => {
+        setUser(null);
+        ss("login");
+        sp("home");
+        ssb(null);
+        sn([]);
+      });
+      return;
+    }
 
-          if (freshUser && !freshUser.error) {
-            const cache = JSON.parse(
-              localStorage.getItem("users_cache") || "{}",
-            );
-            const cachedUser = cache[sessionUser] || {};
+    if (scr === "app" && sessionUser && sessionUser !== "admin") {
+      try {
+        const freshUser = await getUser(sessionUser, true);
 
-            const updatedUser = {
-              ...cachedUser,
-              ...freshUser,
-              balance: freshUser.balance ?? cachedUser.balance,
-              transactions: freshUser.transactions || cachedUser.transactions,
-              creditScore: freshUser.creditScore ?? cachedUser.creditScore,
-            };
-
-            cache[sessionUser] = { ...updatedUser, _cachedAt: Date.now() };
-            localStorage.setItem("users_cache", JSON.stringify(cache));
-            setUser(updatedUser);
-
-            // Refresh notifications
-            fetchNotificationsFromDB();
-          }
-        } catch (err) {
-          console.error("Failed to fetch fresh user data:", err);
+        if (freshUser && freshUser.error === "User not found") {
+          localStorage.removeItem("session");
+          localStorage.removeItem("tabRole");
+          startTransition(() => {
+            setUser(null);
+            ss("login");
+            sp("home");
+            ssb(null);
+            sn([]);
+          });
+          return;
         }
+
+        if (freshUser && !freshUser.error) {
+          const cache = JSON.parse(
+            localStorage.getItem("users_cache") || "{}",
+          );
+          const cachedUser = cache[sessionUser] || {};
+
+          const updatedUser = {
+            ...cachedUser,
+            ...freshUser,
+            balance: freshUser.balance ?? cachedUser.balance,
+            transactions: freshUser.transactions || cachedUser.transactions,
+            creditScore: freshUser.creditScore ?? cachedUser.creditScore,
+          };
+
+          cache[sessionUser] = { ...updatedUser, _cachedAt: Date.now() };
+          localStorage.setItem("users_cache", JSON.stringify(cache));
+          setUser(updatedUser);
+
+          // ✅ React Query handles notifications automatically
+          // Just refetch them
+          refetchNotifications();
+        }
+      } catch (err) {
+        console.error("Failed to fetch fresh user data:", err);
       }
-    };
+    }
+  };
 
-    window.addEventListener("storage", checkSession);
-    window.addEventListener("focus", checkSession);
-    const interval = setInterval(checkSession, 30000);
+  window.addEventListener("storage", checkSession);
+  window.addEventListener("focus", checkSession);
+  const interval = setInterval(checkSession, 30000);
 
-    return () => {
-      window.removeEventListener("storage", checkSession);
-      window.removeEventListener("focus", checkSession);
-      clearInterval(interval);
-    };
-  }, [scr, fetchNotificationsFromDB]);
+  return () => {
+    window.removeEventListener("storage", checkSession);
+    window.removeEventListener("focus", checkSession);
+    clearInterval(interval);
+  };
+}, [scr, refetchNotifications]); // ✅ Added refetchNotifications
 
   const re = useCallback(async () => {
     if (typeof window !== "undefined") {
@@ -358,61 +366,62 @@ const fetchNotificationsFromDB = useCallback(async () => {
   }, []);
 
   const auth = async (u) => {
-    if (!u) return;
+  if (!u) return;
 
-    const username = u.username.toLowerCase().trim();
+  const username = u.username.toLowerCase().trim();
 
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("virtualAdmin");
-      if (username !== "admin") {
-        localStorage.removeItem("admin_session_id");
-      }
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("virtualAdmin");
+    if (username !== "admin") {
+      localStorage.removeItem("admin_session_id");
     }
+  }
 
-    // ── Master admin ──
-    if (username === "admin") {
-      const adminKey = u.adminKey || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-      localStorage.setItem("adminApiKey", adminKey);
-      localStorage.setItem("session", "admin");
-      localStorage.setItem("tabRole", "admin");
-      setUser({ username: "admin", fullName: "Administrator", role: "admin" });
-      sn([]);
-      ss("admin");
-      return;
-    }
+  // ── Master admin ──
+  if (username === "admin") {
+    const adminKey = u.adminKey || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+    localStorage.setItem("adminApiKey", adminKey);
+    localStorage.setItem("session", "admin");
+    localStorage.setItem("tabRole", "admin");
+    setUser({ username: "admin", fullName: "Administrator", role: "admin" });
+    sn([]);
+    ss("admin");
+    return;
+  }
 
-    // ── Regular users ──
-    try {
-      // Save user to localStorage cache
-      const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
-      cache[username] = {
-        ...u,
-        _cachedAt: Date.now()
-      };
-      localStorage.setItem("users_cache", JSON.stringify(cache));
-      
-      // Set session
-      localStorage.setItem("session", username);
-      localStorage.removeItem("tabRole");
-      
-      // Update state
-      setUser(u);
-      
-      // Navigate to app
-      ss("app");
-      sp("home");
-      ssb(null);
-      
-      // Fetch notifications
-      fetchNotificationsFromDB();
-      
-      console.log(`✅ User ${username} logged in successfully`);
-      
-    } catch (err) {
-      console.error("Auth error:", err);
-      setErr("Failed to authenticate. Please try again.");
-    }
-  };
+  // ── Regular users ──
+  try {
+    // Save user to localStorage cache
+    const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+    cache[username] = {
+      ...u,
+      _cachedAt: Date.now()
+    };
+    localStorage.setItem("users_cache", JSON.stringify(cache));
+    
+    // Set session
+    localStorage.setItem("session", username);
+    localStorage.removeItem("tabRole");
+    
+    // Update state
+    setUser(u);
+    
+    // Navigate to app
+    ss("app");
+    sp("home");
+    ssb(null);
+    
+    // ✅ React Query will fetch notifications automatically
+    // Just trigger a refetch
+    refetchNotifications();
+    
+    console.log(`✅ User ${username} logged in successfully`);
+    
+  } catch (err) {
+    console.error("Auth error:", err);
+    setErr("Failed to authenticate. Please try again.");
+  }
+};
 
   const adm = () => {
     localStorage.setItem("tabRole", "admin");
@@ -804,18 +813,18 @@ return (
           {/* Balance display */}
           {u && (
             <div
-              style={{
-                padding: "6px 14px",
-                borderRadius: 20,
-                background: "rgba(0,229,176,0.1)",
-                border: "1px solid rgba(0,229,176,0.2)",
-                fontSize: 13,
-                fontWeight: 600,
-                color: T.acc,
-              }}
-            >
-              {usd(u?.balance || 0)}
-            </div>
+  style={{
+    padding: "6px 14px",
+    borderRadius: 20,
+    background: "rgba(0,229,176,0.1)",
+    border: "1px solid rgba(0,229,176,0.2)",
+    fontSize: 13,
+    fontWeight: 600,
+    color: T.acc,
+  }}
+>
+  {usd(balance || u?.balance || 0)}
+</div>
           )}
           {/* Notification bell */}
           <div
@@ -1072,38 +1081,36 @@ return (
 
       {/* Notification Panel */}
       {nPanel && (
-        <NotifPanel
-          notifs={notifs}
-          onClose={() => snp(false)}
-          onDelete={async (notifId) => {
-            if (user?.username) {
-              try {
-                await fetch(
-                  `${API_URL}/api/users/${user.username}/notifications/${notifId}`,
-                  { method: "DELETE" },
-                );
-                await fetchNotificationsFromDB();
-              } catch (e) {
-                console.error("Failed to delete notification:", e);
-              }
-            }
-          }}
-          onDeleteAll={async () => {
-            if (user?.username) {
-              try {
-                const response = await fetch(
-                  `${API_URL}/api/users/${user.username}/notifications/all`,
-                  { method: "DELETE" },
-                );
-                const data = await response.json();
-                if (data.success) sn([]);
-              } catch (e) {
-                console.error("Failed to delete all notifications:", e);
-              }
-            }
-          }}
-        />
-      )}
+  <NotifPanel
+    notifs={notifs}
+    onClose={() => snp(false)}
+    onDelete={async (notifId) => {
+      if (user?.username) {
+        try {
+          await deleteNotificationMutation.mutateAsync({
+            username: user.username,
+            notificationId: notifId,
+          });
+          // React Query will automatically refetch notifications
+        } catch (e) {
+          console.error("Failed to delete notification:", e);
+        }
+      }
+    }}
+    onDeleteAll={async () => {
+      if (user?.username) {
+        try {
+          await deleteAllNotificationsMutation.mutateAsync({
+            username: user.username,
+          });
+          // React Query will automatically refetch notifications
+        } catch (e) {
+          console.error("Failed to delete all notifications:", e);
+        }
+      }
+    }}
+  />
+)}
     </div>
     <ReactQueryDevtools initialIsOpen={false} />
   </QueryClientProvider>

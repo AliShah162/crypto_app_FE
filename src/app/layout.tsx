@@ -1,5 +1,4 @@
 // app/layout.tsx
-"use client";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

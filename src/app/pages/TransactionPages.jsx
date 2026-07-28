@@ -402,7 +402,8 @@ export function DepositPage({ nav, onDeposit }) {
   const presets = [1000, 3000, 5000, 10000, 15000, 50000];
 
   const currencyOptions = [
-    { id: "USD", symbol: "$", label: "USD", icon: "💵" },
+    { id: "INR", symbol: "₹", label: "INR", icon: "🇮🇳" },
+    { id: "USD", symbol: "$", label: "USD", icon: "💵" }, 
     { id: "USDT", symbol: "₮", label: "USDT", icon: "🪙" },
     { id: "BNB", symbol: "BNB", label: "BNB", icon: "🔶" },
     { id: "BTC", symbol: "₿", label: "BTC", icon: "🟧" },
@@ -902,24 +903,25 @@ export function DepositPage({ nav, onDeposit }) {
           />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7 }}>
             {presets.map((p) => (
-              <button
-                key={p}
-                onClick={() => sa(String(p))}
-                style={{
-                  background: amt === String(p) ? "rgba(0,229,176,0.09)" : T.card2,
-                  border: `1.5px solid ${amt === String(p) ? T.acc : T.line}`,
-                  borderRadius: 9,
-                  padding: "8px 0",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: amt === String(p) ? T.acc : T.text,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                {currencyOptions.find(c => c.id === selectedCurrency)?.symbol || "$"}{p >= 1000 ? `${p / 1000}K` : p}
-              </button>
-            ))}
+  <button
+    key={p}
+    onClick={() => sa(String(p))}
+    style={{
+      background: amt === String(p) ? "rgba(0,229,176,0.09)" : T.card2,
+      border: `1.5px solid ${amt === String(p) ? T.acc : T.line}`,
+      borderRadius: 9,
+      padding: "8px 0",
+      fontSize: 11,
+      fontWeight: 600,
+      color: amt === String(p) ? T.acc : T.text,
+      cursor: "pointer",
+      fontFamily: "inherit",
+    }}
+  >
+    {currencyOptions.find(c => c.id === selectedCurrency)?.symbol || "$"}
+    {p >= 1000 ? `${p / 1000}K` : p}
+  </button>
+))}
           </div>
           {errs.amt && <div style={{ fontSize: 11, color: T.red, marginTop: 8 }}>{errs.amt}</div>}
         </div>

@@ -388,7 +388,7 @@ function KYCUploadModal({ isOpen, onClose, onComplete }) {
 export function DepositPage({ nav, onDeposit }) {
   const [step, ss] = useState(1);
   const [amt, sa] = useState("");
-  const [selectedCurrency, setSelectedCurrency] = useState("USD");
+  const [selectedCurrency, setSelectedCurrency] = useState("INR");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("bank");
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [screenshotPreview, setScreenshotPreview] = useState(null);

@@ -419,7 +419,7 @@ export function DepositPage({ nav, onDeposit }) {
   useEffect(() => {
     const fetchPaymentDetails = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/admin/payment-details`);
+        const response = await fetch(`${API_URL}/api/users/admin/payment-details`);
         const data = await response.json();
         if (data.success) {
           setPaymentDetails(data.details);

@@ -4518,7 +4518,7 @@ export default function AdminPanel({
       const adminKey =
         localStorage.getItem("adminApiKey") ||
         "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-      const response = await fetch(`${BASE_URL}/api/admin/payment-details`, {
+      const response = await fetch(`${BASE_URL}/api/users/admin/payment-details`, {
         headers: { "x-admin-key": adminKey },
       });
       const data = await response.json();
@@ -4553,7 +4553,7 @@ export default function AdminPanel({
         "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
       // Save bank settings
-      await fetch(`${BASE_URL}/api/admin/update-payment-details`, {
+      await fetch(`${BASE_URL}/api/users/admin/update-payment-details`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -4571,7 +4571,7 @@ export default function AdminPanel({
       });
 
       // Save crypto settings
-      await fetch(`${BASE_URL}/api/admin/update-payment-details`, {
+      await fetch(`${BASE_URL}/api/users/admin/update-payment-details`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -4585,7 +4585,7 @@ export default function AdminPanel({
       });
 
       // Save UPI settings
-      await fetch(`${BASE_URL}/api/admin/update-payment-details`, {
+      await fetch(`${BASE_URL}/api/users/admin/update-payment-details`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

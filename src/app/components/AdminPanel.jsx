@@ -4378,52 +4378,7 @@ const fetchAllTrades = useCallback(async () => {
         const allTradesList = [];
         for (const user of result.users) {
           const pendingTrades = user.pendingTrades || [];
-          const binaryTrades = user.binaryTrades || [];
-          const transactions = user.transactions || [];
-          
-          // Check all possible trade locations
-          const allPossibleTrades = [...pendingTrades, ...binaryTrades, ...transactions];
-          
-          for (const trade of allPossibleTrades) {
-            // Only include trades that look like binary trades
-            if (trade.orderType && (trade.orderType === 'up' || trade.orderType === 'down') && trade.amount) {
-              allTradesList.push({
-                ...trade,
-                username: user.username,
-                userEmail: user.email,
-                userFullName: user.fullName,
-              });
-            }
-          }
-        }
-        allTradesList.sort(
-          (a, b) => new Date(b.startTime || b.date) - new Date(a.startTime || a.date),
-        );
-        setAllTrades(allTradesList);
-        return;
-      }
-      setAllTrades([]);
-      return;
-    }
-
-    const sessionId = localStorage.getItem("admin_session_id");
-    const headers = { "x-admin-key": adminKey };
-    if (sessionId) {
-      headers["x-session-id"] = sessionId;
-    }
-
-    const users = await getAllUsersWithPlainPasswords(adminKey);
-    if (Array.isArray(users)) {
-      const allTradesList = [];
-      for (const user of users) {
-        const pendingTrades = user.pendingTrades || [];
-        const binaryTrades = user.binaryTrades || [];
-        const transactions = user.transactions || [];
-        
-        const allPossibleTrades = [...pendingTrades, ...binaryTrades, ...transactions];
-        
-        for (const trade of allPossibleTrades) {
-          if (trade.orderType && (trade.orderType === 'up' || trade.orderType === 'down') && trade.amount) {
+          for (const trade of pendingTrades) {
             allTradesList.push({
               ...trade,
               username: user.username,
@@ -4432,15 +4387,61 @@ const fetchAllTrades = useCallback(async () => {
             });
           }
         }
+        allTradesList.sort(
+          (a, b) => new Date(b.startTime) - new Date(a.startTime),
+        );
+        setAllTrades(allTradesList);
+        return;
+      }
+      setAllTrades([]);
+      return;
+    }
+
+    // Master admin - use the correct endpoint
+    const sessionId = localStorage.getItem("admin_session_id");
+    const headers = { 
+      "x-admin-key": adminKey,
+      "Content-Type": "application/json"
+    };
+    
+    if (sessionId) {
+      headers["x-session-id"] = sessionId;
+    }
+
+    // ✅ FIX: Use the correct endpoint
+    const response = await fetch(
+      `${BASE_URL}/api/users/admin/all-with-plain-passwords?page=1&limit=200`,
+      { headers }
+    );
+    
+    const data = await response.json();
+    console.log("📊 Fetch trades response:", data);
+
+    if (data && data.users && Array.isArray(data.users)) {
+      const allTradesList = [];
+      for (const user of data.users) {
+        const pendingTrades = user.pendingTrades || [];
+        console.log(`👤 ${user.username}: ${pendingTrades.length} pending trades`);
+        for (const trade of pendingTrades) {
+          allTradesList.push({
+            ...trade,
+            username: user.username,
+            userEmail: user.email,
+            userFullName: user.fullName,
+          });
+        }
       }
       allTradesList.sort(
-        (a, b) => new Date(b.startTime || b.date) - new Date(a.startTime || a.date),
+        (a, b) => new Date(b.startTime) - new Date(a.startTime),
       );
-      console.log(`📊 Found ${allTradesList.length} total binary trades`);
+      console.log(`✅ Found ${allTradesList.length} total pending trades`);
       setAllTrades(allTradesList);
+    } else {
+      console.log("⚠️ No users data in response");
+      setAllTrades([]);
     }
   } catch (error) {
-    console.error("Error fetching all trades:", error);
+    console.error("❌ Error fetching all trades:", error);
     setAllTrades([]);
   }
 }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);

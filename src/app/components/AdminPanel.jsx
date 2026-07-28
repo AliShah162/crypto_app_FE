@@ -6473,7 +6473,7 @@ export default function AdminPanel({
                 {[
                   {
                     label: "Total Users",
-                    value: users.length,
+                     value: paginationInfo?.total || users.length,
                     color: C.accent,
                     icon: "👥",
                   },

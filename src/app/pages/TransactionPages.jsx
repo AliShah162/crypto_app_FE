@@ -392,15 +392,15 @@ export function DepositPage({ nav, onDeposit }) {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("bank");
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [screenshotPreview, setScreenshotPreview] = useState(null);
-  const [paymentAddress, setPaymentAddress] = useState("");
   const [paymentDetails, setPaymentDetails] = useState(null);
   const [errs, se] = useState({});
   const [showMessage, setShowMessage] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [depositRequestId, setDepositRequestId] = useState(null);
+  const [depositStatus, setDepositStatus] = useState(null);
   const fileInputRef = useRef(null);
   const presets = [1000, 3000, 5000, 10000, 15000, 50000];
 
-  // Currency options with symbols
   const currencyOptions = [
     { id: "USD", symbol: "$", label: "USD", icon: "💵" },
     { id: "USDT", symbol: "₮", label: "USDT", icon: "🪙" },
@@ -410,14 +410,12 @@ export function DepositPage({ nav, onDeposit }) {
     { id: "SOL", symbol: "◎", label: "SOL", icon: "🟣" },
   ];
 
-  // Payment methods
   const paymentMethods = [
     { id: "bank", label: "🏦 Bank Transfer", description: "Send via bank wire" },
     { id: "crypto", label: "🪙 Crypto Transfer", description: "Send crypto to address" },
     { id: "upi", label: "📱 UPI", description: "Send via UPI" },
   ];
 
-  // Fetch payment details from admin
   useEffect(() => {
     const fetchPaymentDetails = async () => {
       try {
@@ -433,11 +431,35 @@ export function DepositPage({ nav, onDeposit }) {
     fetchPaymentDetails();
   }, []);
 
+  useEffect(() => {
+    if (!depositRequestId) return;
+    
+    const checkStatus = async () => {
+      try {
+        const sessionUser = localStorage.getItem("session");
+        if (!sessionUser) return;
+        
+        const response = await fetch(`${API_URL}/api/users/${sessionUser}/deposit-status/${depositRequestId}`);
+        const data = await response.json();
+        
+        if (data.status === "approved") {
+          setDepositStatus("approved");
+        } else if (data.status === "rejected") {
+          setDepositStatus("rejected");
+        }
+      } catch (err) {
+        console.error("Failed to check deposit status:", err);
+      }
+    };
+    
+    const interval = setInterval(checkStatus, 5000);
+    return () => clearInterval(interval);
+  }, [depositRequestId]);
+
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file
     const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       se({ screenshot: "Please upload JPG, PNG, or WEBP image" });
@@ -498,6 +520,7 @@ export function DepositPage({ nav, onDeposit }) {
 
       const data = await response.json();
       if (data.success) {
+        setDepositRequestId(data.requestId);
         setShowMessage(true);
       } else {
         alert("Failed to submit deposit request: " + (data.error || "Unknown error"));
@@ -510,16 +533,116 @@ export function DepositPage({ nav, onDeposit }) {
     }
   };
 
+  if (depositStatus === "approved" && paymentDetails) {
+    const selectedMethod = paymentMethods.find(p => p.id === selectedPaymentMethod);
+    const paymentInfo = paymentDetails[selectedPaymentMethod];
+    const currencyInfo = currencyOptions.find(c => c.id === selectedCurrency);
+    
+    return (
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 30, background: T.bg }}>
+        <div style={{ fontSize: 52, marginBottom: 11 }}>✅</div>
+        <div style={{ fontSize: 18, fontWeight: 900, color: T.text, marginBottom: 5 }}>Deposit Approved!</div>
+        <div style={{ fontSize: 13, color: T.green, marginBottom: 15 }}>
+          Your deposit has been approved. Here are the payment details:
+        </div>
+        
+        <div style={{ 
+          background: "linear-gradient(135deg,#0c2340,#1a3a5c)", 
+          borderRadius: 16, 
+          padding: "20px", 
+          width: "100%",
+          maxWidth: 400,
+          border: `1px solid rgba(0,229,176,0.2)`,
+          boxShadow: "0 5px 18px rgba(0,0,0,0.4)",
+          marginBottom: 20
+        }}>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)", letterSpacing: 2, marginBottom: 7 }}>
+            {selectedMethod?.label?.toUpperCase() || "PAYMENT DETAILS"}
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 10 }}>
+            {currencyInfo?.icon || "💰"} {parseFloat(amt).toFixed(2)} {selectedCurrency}
+          </div>
+          
+          <div style={{ 
+            background: "rgba(255,255,255,0.05)", 
+            borderRadius: 10, 
+            padding: "12px 14px",
+            border: "1px solid rgba(255,255,255,0.08)"
+          }}>
+            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>
+              Send payment to:
+            </div>
+            {paymentInfo?.address ? (
+              <>
+                <div style={{ 
+                  fontSize: 13, 
+                  color: T.acc, 
+                  fontFamily: "monospace", 
+                  wordBreak: "break-all",
+                  background: "rgba(0,0,0,0.3)",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  marginBottom: 8
+                }}>
+                  {paymentInfo.address}
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(paymentInfo.address);
+                    alert("Address copied to clipboard!");
+                  }}
+                  style={{
+                    fontSize: 11,
+                    color: T.acc,
+                    background: "rgba(0,229,176,0.1)",
+                    border: `1px solid ${T.acc}`,
+                    borderRadius: 6,
+                    padding: "4px 12px",
+                    cursor: "pointer"
+                  }}
+                >
+                  📋 Copy Address
+                </button>
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>
+                Payment details not configured by admin yet.
+              </div>
+            )}
+            {paymentInfo?.additionalInfo && (
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                {paymentInfo.additionalInfo}
+              </div>
+            )}
+            {paymentInfo?.bankName && (
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                Bank: {paymentInfo.bankName} · Account: {paymentInfo.accountHolder}
+              </div>
+            )}
+          </div>
+        </div>
+        
+        <PB lbl="Back to Home" onClick={() => { nav("home"); }} />
+      </div>
+    );
+  }
+
   if (showMessage) {
+    const currencyInfo = currencyOptions.find(c => c.id === selectedCurrency);
+    const methodInfo = paymentMethods.find(p => p.id === selectedPaymentMethod);
+    
     return (
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 30, textAlign: "center", background: T.bg }}>
         <div style={{ fontSize: 52, marginBottom: 11 }}>✅</div>
         <div style={{ fontSize: 18, fontWeight: 900, color: T.text, marginBottom: 5 }}>Deposit Request Submitted</div>
         <div style={{ fontSize: 12, color: T.dim, marginBottom: 4 }}>
-          Amount: <span style={{ color: T.gold, fontWeight: 700 }}>{currencyOptions.find(c => c.id === selectedCurrency)?.symbol || "$"}{parseFloat(amt).toFixed(2)} {selectedCurrency}</span>
+          Amount: <span style={{ color: T.gold, fontWeight: 700 }}>
+            {currencyInfo?.symbol || "$"}
+            {parseFloat(amt).toFixed(2)} {selectedCurrency}
+          </span>
         </div>
         <div style={{ fontSize: 12, color: T.dim, marginBottom: 15 }}>
-          Payment Method: <span style={{ fontWeight: 600 }}>{paymentMethods.find(p => p.id === selectedPaymentMethod)?.label || selectedPaymentMethod}</span>
+          Payment Method: <span style={{ fontWeight: 600 }}>{methodInfo?.label || selectedPaymentMethod}</span>
         </div>
         <div style={{ fontSize: 13, color: T.acc, marginTop: 15, marginBottom: 20, padding: "15px", background: "rgba(0,229,176,0.1)", borderRadius: 12 }}>
           📢 Your deposit request has been submitted. Please wait for admin approval.
@@ -534,24 +657,22 @@ export function DepositPage({ nav, onDeposit }) {
   }
 
   if (step === 2) {
-    // Get the selected payment method details
     const methodDetails = paymentMethods.find(p => p.id === selectedPaymentMethod);
-    const paymentInfo = paymentDetails?.[selectedPaymentMethod] || {};
+    const paymentInfo = paymentDetails?.[selectedPaymentMethod];
+    const currencyInfo = currencyOptions.find(c => c.id === selectedCurrency);
 
     return (
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 20, background: T.bg }}>
         <BHdr title="Payment Details" back={() => ss(1)} />
         <div style={{ padding: "13px 13px 0" }}>
-          {/* Payment Info Card */}
           <div style={{ background: "linear-gradient(135deg,#0c2340,#1a3a5c)", borderRadius: 16, padding: "17px 15px", marginBottom: 14, boxShadow: "0 5px 18px rgba(0,0,0,0.4)" }}>
             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)", letterSpacing: 2, marginBottom: 7 }}>
               {methodDetails?.label?.toUpperCase() || "PAYMENT DETAILS"}
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 10 }}>
-              {currencyOptions.find(c => c.id === selectedCurrency)?.icon || "💰"} {parseFloat(amt).toFixed(2)} {selectedCurrency}
+              {currencyInfo?.icon || "💰"} {parseFloat(amt).toFixed(2)} {selectedCurrency}
             </div>
             
-            {/* Payment Address/Info */}
             <div style={{ 
               background: "rgba(255,255,255,0.05)", 
               borderRadius: 10, 
@@ -561,7 +682,7 @@ export function DepositPage({ nav, onDeposit }) {
               <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>
                 Send payment to:
               </div>
-              {paymentInfo.address ? (
+              {paymentInfo?.address ? (
                 <>
                   <div style={{ 
                     fontSize: 13, 
@@ -598,15 +719,19 @@ export function DepositPage({ nav, onDeposit }) {
                   Please wait for admin to provide payment details.
                 </div>
               )}
-              {paymentInfo.additionalInfo && (
+              {paymentInfo?.additionalInfo && (
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                   {paymentInfo.additionalInfo}
+                </div>
+              )}
+              {paymentInfo?.bankName && (
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                  Bank: {paymentInfo.bankName} · Account: {paymentInfo.accountHolder}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Screenshot Upload */}
           <div style={{ background: T.card, borderRadius: 13, padding: "14px 13px", marginBottom: 11, border: `1px solid ${T.line}` }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 4 }}>
               Upload Payment Screenshot
@@ -675,13 +800,11 @@ export function DepositPage({ nav, onDeposit }) {
     );
   }
 
-  // Step 1: Select amount, currency, and payment method
   return (
     <div style={{ flex: 1, overflowY: "auto", paddingBottom: 20, scrollbarWidth: "none", msOverflowStyle: "none", background: T.bg }}>
       <style>{`div::-webkit-scrollbar { display: none; }`}</style>
       <BHdr title="Deposit" back={() => nav("home")} />
       <div style={{ padding: "13px 13px 0" }}>
-        {/* Payment Method Selection */}
         <div style={{ background: T.card, borderRadius: 13, padding: "13px", marginBottom: 11, border: `1px solid ${T.line}` }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: T.dim, letterSpacing: 1, marginBottom: 7 }}>
             PAYMENT METHOD
@@ -721,7 +844,6 @@ export function DepositPage({ nav, onDeposit }) {
           )}
         </div>
 
-        {/* Currency Selection */}
         <div style={{ background: T.card, borderRadius: 13, padding: "13px", marginBottom: 11, border: `1px solid ${T.line}` }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: T.dim, letterSpacing: 1, marginBottom: 7 }}>
             CURRENCY
@@ -752,7 +874,6 @@ export function DepositPage({ nav, onDeposit }) {
           </div>
         </div>
 
-        {/* Amount Selection */}
         <div style={{ background: T.card, borderRadius: 13, padding: "15px 13px", marginBottom: 11, border: `1px solid ${T.line}` }}>
           <div style={{ textAlign: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 3 }}>
@@ -796,7 +917,7 @@ export function DepositPage({ nav, onDeposit }) {
                   fontFamily: "inherit",
                 }}
               >
-                {p >= 1000 ? `${currencyOptions.find(c => c.id === selectedCurrency)?.symbol || "$"}${p / 1000}K` : `${currencyOptions.find(c => c.id === selectedCurrency)?.symbol || "$"}${p}`}
+                {currencyOptions.find(c => c.id === selectedCurrency)?.symbol || "$"}{p >= 1000 ? `${p / 1000}K` : p}
               </button>
             ))}
           </div>

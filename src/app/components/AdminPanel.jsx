@@ -6975,7 +6975,7 @@ export default function AdminPanel({
                               <button
                                 onClick={() => {
                                   if (currentPage > 1) {
-                                    fetchUsers(currentPage - 1);
+                                    fetchUsers(currentPage - 1, q);
                                   }
                                 }}
                                 disabled={currentPage <= 1}
@@ -7016,7 +7016,7 @@ export default function AdminPanel({
                               <button
                                 onClick={() => {
                                   if (currentPage < paginationInfo.totalPages) {
-                                    fetchUsers(currentPage + 1);
+                                    fetchUsers(currentPage + 1, q);
                                   }
                                 }}
                                 disabled={

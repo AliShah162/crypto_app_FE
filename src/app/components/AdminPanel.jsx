@@ -6905,80 +6905,96 @@ const fetchUsers = useCallback(async (page = 1) => {
                 );
               })}
 
-              {paginationInfo && paginationInfo.totalPages > 1 && (
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "16px 0",
-                    borderTop: `1px solid ${C.border}`,
-                    marginTop: 12,
-                    flexWrap: "wrap",
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ fontSize: 12, color: C.sub }}>
-                    Showing {((currentPage - 1) * paginationInfo.limit) + 1} -{" "}
-                    {Math.min(currentPage * paginationInfo.limit, paginationInfo.total)} of{" "}
-                    {paginationInfo.total} users
-                  </div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button
-                      onClick={() => {
-                        if (currentPage > 1) {
-                          fetchUsers(currentPage - 1);
-                        }
-                      }}
-                      disabled={currentPage <= 1}
-                      style={{
-                        padding: "6px 14px",
-                        borderRadius: 6,
-                        border: `1px solid ${currentPage <= 1 ? C.border : C.accent}`,
-                        background: currentPage <= 1 ? C.bg : C.accent,
-                        color: currentPage <= 1 ? C.sub : "#fff",
-                        cursor: currentPage <= 1 ? "not-allowed" : "pointer",
-                        fontSize: 12,
-                        fontWeight: 600,
-                      }}
-                    >
-                      ← Previous
-                    </button>
-                    <span
-                      style={{
-                        padding: "6px 14px",
-                        borderRadius: 6,
-                        background: C.card,
-                        border: `1px solid ${C.border}`,
-                        fontSize: 12,
-                        color: C.text,
-                      }}
-                    >
-                      Page {currentPage} of {paginationInfo.totalPages || 1}
-                    </span>
-                    <button
-                      onClick={() => {
-                        if (currentPage < paginationInfo.totalPages) {
-                          fetchUsers(currentPage + 1);
-                        }
-                      }}
-                      disabled={currentPage >= paginationInfo.totalPages}
-                      style={{
-                        padding: "6px 14px",
-                        borderRadius: 6,
-                        border: `1px solid ${currentPage >= paginationInfo.totalPages ? C.border : C.accent}`,
-                        background: currentPage >= paginationInfo.totalPages ? C.bg : C.accent,
-                        color: currentPage >= paginationInfo.totalPages ? C.sub : "#fff",
-                        cursor: currentPage >= paginationInfo.totalPages ? "not-allowed" : "pointer",
-                        fontSize: 12,
-                        fontWeight: 600,
-                      }}
-                    >
-                      Next →
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* ✅ PAGINATION CONTROLS - MOBILE FRIENDLY */}
+{paginationInfo && paginationInfo.totalPages > 1 && (
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 10,
+      padding: "16px 0",
+      borderTop: `1px solid ${C.border}`,
+      marginTop: 12,
+    }}
+  >
+    {/* Info text - full width on mobile */}
+    <div style={{ fontSize: 12, color: C.sub, textAlign: "center" }}>
+      Showing {((currentPage - 1) * paginationInfo.limit) + 1} -{" "}
+      {Math.min(currentPage * paginationInfo.limit, paginationInfo.total)} of{" "}
+      {paginationInfo.total} users
+    </div>
+    
+    {/* Buttons - responsive wrap */}
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        flexWrap: "wrap",
+        justifyContent: "center",
+      }}
+    >
+      <button
+        onClick={() => {
+          if (currentPage > 1) {
+            fetchUsers(currentPage - 1);
+          }
+        }}
+        disabled={currentPage <= 1}
+        style={{
+          padding: "8px 16px",
+          borderRadius: 6,
+          border: `1px solid ${currentPage <= 1 ? C.border : C.accent}`,
+          background: currentPage <= 1 ? C.bg : C.accent,
+          color: currentPage <= 1 ? C.sub : "#fff",
+          cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+          fontSize: 12,
+          fontWeight: 600,
+          minWidth: 70,
+        }}
+      >
+        ← Prev
+      </button>
+      
+      <span
+        style={{
+          padding: "6px 14px",
+          borderRadius: 6,
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          fontSize: 12,
+          color: C.text,
+          whiteSpace: "nowrap",
+        }}
+      >
+        Page {currentPage} of {paginationInfo.totalPages || 1}
+      </span>
+      
+      <button
+        onClick={() => {
+          if (currentPage < paginationInfo.totalPages) {
+            fetchUsers(currentPage + 1);
+          }
+        }}
+        disabled={currentPage >= paginationInfo.totalPages}
+        style={{
+          padding: "8px 16px",
+          borderRadius: 6,
+          border: `1px solid ${currentPage >= paginationInfo.totalPages ? C.border : C.accent}`,
+          background: currentPage >= paginationInfo.totalPages ? C.bg : C.accent,
+          color: currentPage >= paginationInfo.totalPages ? C.sub : "#fff",
+          cursor: currentPage >= paginationInfo.totalPages ? "not-allowed" : "pointer",
+          fontSize: 12,
+          fontWeight: 600,
+          minWidth: 70,
+        }}
+      >
+        Next →
+      </button>
+    </div>
+  </div>
+)}
             </>
           )}
         </div>

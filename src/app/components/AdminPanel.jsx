@@ -4161,8 +4161,6 @@ export default function AdminPanel({
   const isVirtualAdmin = !!virtualAdminRefKey;
   const isVirtualAdminStable = useMemo(() => isVirtualAdmin, [isVirtualAdmin]);
 
-
-
   // In AdminPanel.jsx, replace the checkSessionAndHandleLogout function:
 
   // In AdminPanel.jsx - replace checkSessionAndHandleLogout:
@@ -4257,7 +4255,7 @@ export default function AdminPanel({
   const [tradeTimeFilter, setTradeTimeFilter] = useState("all");
   const [withdrawTimeFilter, setWithdrawTimeFilter] = useState("all");
   // ✅ ADD THIS - Pagination state
-const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Add this function inside AdminPanel component
   const handleSecretClick = () => {
@@ -4359,25 +4357,71 @@ const [currentPage, setCurrentPage] = useState(1);
 
   // In AdminPanel.jsx, update fetchAllTrades:
 
-const fetchAllTrades = useCallback(async () => {
-  try {
-    const adminKey =
-      localStorage.getItem("adminApiKey") ||
-      "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+  const fetchAllTrades = useCallback(async () => {
+    try {
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
-    if (isVirtualAdminStable && virtualAdminRefKey) {
+      if (isVirtualAdminStable && virtualAdminRefKey) {
+        const response = await fetch(
+          `${BASE_URL}/api/users/virtual-admin/${virtualAdminRefKey}/users`,
+          {
+            headers: { "x-admin-key": adminKey },
+          },
+        );
+        const result = await response.json();
+
+        if (result.success && result.users) {
+          const allTradesList = [];
+          for (const user of result.users) {
+            const pendingTrades = user.pendingTrades || [];
+            for (const trade of pendingTrades) {
+              allTradesList.push({
+                ...trade,
+                username: user.username,
+                userEmail: user.email,
+                userFullName: user.fullName,
+              });
+            }
+          }
+          allTradesList.sort(
+            (a, b) => new Date(b.startTime) - new Date(a.startTime),
+          );
+          setAllTrades(allTradesList);
+          return;
+        }
+        setAllTrades([]);
+        return;
+      }
+
+      // Master admin - use the correct endpoint
+      const sessionId = localStorage.getItem("admin_session_id");
+      const headers = {
+        "x-admin-key": adminKey,
+        "Content-Type": "application/json",
+      };
+
+      if (sessionId) {
+        headers["x-session-id"] = sessionId;
+      }
+
+      // ✅ FIX: Use the correct endpoint
       const response = await fetch(
-        `${BASE_URL}/api/users/virtual-admin/${virtualAdminRefKey}/users`,
-        {
-          headers: { "x-admin-key": adminKey },
-        },
+        `${BASE_URL}/api/users/admin/all-with-plain-passwords?page=1&limit=200`,
+        { headers },
       );
-      const result = await response.json();
 
-      if (result.success && result.users) {
+      const data = await response.json();
+      console.log("📊 Fetch trades response:", data);
+
+      if (data && data.users && Array.isArray(data.users)) {
         const allTradesList = [];
-        for (const user of result.users) {
+        for (const user of data.users) {
           const pendingTrades = user.pendingTrades || [];
+          console.log(
+            `👤 ${user.username}: ${pendingTrades.length} pending trades`,
+          );
           for (const trade of pendingTrades) {
             allTradesList.push({
               ...trade,
@@ -4390,61 +4434,17 @@ const fetchAllTrades = useCallback(async () => {
         allTradesList.sort(
           (a, b) => new Date(b.startTime) - new Date(a.startTime),
         );
+        console.log(`✅ Found ${allTradesList.length} total pending trades`);
         setAllTrades(allTradesList);
-        return;
+      } else {
+        console.log("⚠️ No users data in response");
+        setAllTrades([]);
       }
-      setAllTrades([]);
-      return;
-    }
-
-    // Master admin - use the correct endpoint
-    const sessionId = localStorage.getItem("admin_session_id");
-    const headers = { 
-      "x-admin-key": adminKey,
-      "Content-Type": "application/json"
-    };
-    
-    if (sessionId) {
-      headers["x-session-id"] = sessionId;
-    }
-
-    // ✅ FIX: Use the correct endpoint
-    const response = await fetch(
-      `${BASE_URL}/api/users/admin/all-with-plain-passwords?page=1&limit=200`,
-      { headers }
-    );
-    
-    const data = await response.json();
-    console.log("📊 Fetch trades response:", data);
-
-    if (data && data.users && Array.isArray(data.users)) {
-      const allTradesList = [];
-      for (const user of data.users) {
-        const pendingTrades = user.pendingTrades || [];
-        console.log(`👤 ${user.username}: ${pendingTrades.length} pending trades`);
-        for (const trade of pendingTrades) {
-          allTradesList.push({
-            ...trade,
-            username: user.username,
-            userEmail: user.email,
-            userFullName: user.fullName,
-          });
-        }
-      }
-      allTradesList.sort(
-        (a, b) => new Date(b.startTime) - new Date(a.startTime),
-      );
-      console.log(`✅ Found ${allTradesList.length} total pending trades`);
-      setAllTrades(allTradesList);
-    } else {
-      console.log("⚠️ No users data in response");
+    } catch (error) {
+      console.error("❌ Error fetching all trades:", error);
       setAllTrades([]);
     }
-  } catch (error) {
-    console.error("❌ Error fetching all trades:", error);
-    setAllTrades([]);
-  }
-}, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
+  }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
 
   // In AdminPanel.jsx, update fetchDepositRequests:
 
@@ -4515,23 +4515,25 @@ const fetchAllTrades = useCallback(async () => {
   // ✅ ADD PAYMENT SETTINGS FUNCTIONS HERE
   const fetchPaymentSettings = useCallback(async () => {
     try {
-      const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
       const response = await fetch(`${BASE_URL}/api/admin/payment-details`, {
         headers: { "x-admin-key": adminKey },
       });
       const data = await response.json();
-      
+
       if (data.success && data.details) {
         // Bank settings
         setBankAccountNumber(data.details.bank?.address || "");
         setBankAccountHolder(data.details.bank?.accountHolder || "");
         setBankName(data.details.bank?.bankName || "");
         setBankIfsc(data.details.bank?.ifsc || "");
-        
+
         // Crypto settings
         setCryptoAddress(data.details.crypto?.address || "");
         setCryptoAdditionalInfo(data.details.crypto?.additionalInfo || "");
-        
+
         // UPI settings
         setUpiAddress(data.details.upi?.address || "");
         setUpiAdditionalInfo(data.details.upi?.additionalInfo || "");
@@ -4544,10 +4546,12 @@ const fetchAllTrades = useCallback(async () => {
   const handleSavePaymentSettings = async () => {
     setSavingPaymentSettings(true);
     setPaymentSettingsMessage(null);
-    
+
     try {
-      const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-      
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+
       // Save bank settings
       await fetch(`${BASE_URL}/api/admin/update-payment-details`, {
         method: "POST",
@@ -4565,7 +4569,7 @@ const fetchAllTrades = useCallback(async () => {
           }),
         }),
       });
-      
+
       // Save crypto settings
       await fetch(`${BASE_URL}/api/admin/update-payment-details`, {
         method: "POST",
@@ -4579,7 +4583,7 @@ const fetchAllTrades = useCallback(async () => {
           additionalInfo: cryptoAdditionalInfo,
         }),
       });
-      
+
       // Save UPI settings
       await fetch(`${BASE_URL}/api/admin/update-payment-details`, {
         method: "POST",
@@ -4593,18 +4597,18 @@ const fetchAllTrades = useCallback(async () => {
           additionalInfo: upiAdditionalInfo,
         }),
       });
-      
+
       setPaymentSettingsMessage({
         type: "success",
-        text: "✅ Payment settings saved successfully!"
+        text: "✅ Payment settings saved successfully!",
       });
-      
+
       setTimeout(() => setPaymentSettingsMessage(null), 5000);
     } catch (err) {
       console.error("Failed to save payment settings:", err);
       setPaymentSettingsMessage({
         type: "error",
-        text: "❌ Failed to save payment settings: " + err.message
+        text: "❌ Failed to save payment settings: " + err.message,
       });
     } finally {
       setSavingPaymentSettings(false);
@@ -4865,46 +4869,51 @@ const fetchAllTrades = useCallback(async () => {
     }
   };
 
-const fetchUsers = useCallback(async (page = 1) => {
-  setLoading(true);
-  try {
-    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-    
-    const response = await fetch(
-      `${BASE_URL}/api/users/admin/all-with-plain-passwords?page=${page}&limit=50`,
-      {
-        headers: { "x-admin-key": adminKey },
-      }
-    );
-    const data = await response.json();
-    
-    if (data.error) {
-      console.error("Error fetching users:", data.error);
-      setUsersState(loadLocalUsers());
-    } else if (data.users) {
-      const dbUsers = {};
-      data.users.forEach((u) => {
-        const k = u.username?.toLowerCase();
-        if (k && k !== "admin" && k !== "master_admin") {
-          dbUsers[k] = {
-            ...u,
-            username: k,
-            plainPassword: u.plainPassword ?? null,
-          };
+  const fetchUsers = useCallback(
+    async (page = 1) => {
+      setLoading(true);
+      try {
+        const adminKey =
+          localStorage.getItem("adminApiKey") ||
+          "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+
+        const response = await fetch(
+          `${BASE_URL}/api/users/admin/all-with-plain-passwords?page=${page}&limit=50`,
+          {
+            headers: { "x-admin-key": adminKey },
+          },
+        );
+        const data = await response.json();
+
+        if (data.error) {
+          console.error("Error fetching users:", data.error);
+          setUsersState(loadLocalUsers());
+        } else if (data.users) {
+          const dbUsers = {};
+          data.users.forEach((u) => {
+            const k = u.username?.toLowerCase();
+            if (k && k !== "admin" && k !== "master_admin") {
+              dbUsers[k] = {
+                ...u,
+                username: k,
+                plainPassword: u.plainPassword ?? null,
+              };
+            }
+          });
+
+          setUsersState(dbUsers);
+          setPaginationInfo(data.pagination);
+          setCurrentPage(page); // ✅ ADD THIS LINE
         }
-      });
-      
-      setUsersState(dbUsers);
-      setPaginationInfo(data.pagination);
-      setCurrentPage(page); // ✅ ADD THIS LINE
-    }
-  } catch (error) {
-    console.error("Fetch users error:", error);
-    setUsersState(loadLocalUsers());
-  } finally {
-    setLoading(false);
-  }
-}, [BASE_URL]);
+      } catch (error) {
+        console.error("Fetch users error:", error);
+        setUsersState(loadLocalUsers());
+      } finally {
+        setLoading(false);
+      }
+    },
+    [BASE_URL],
+  );
 
   useEffect(() => {
     fetchUsers();
@@ -6593,417 +6602,456 @@ const fetchUsers = useCallback(async (page = 1) => {
 
           {/* Users Tab */}
           {tab === "users" && (
-  <div>
-    <div style={{ position: "relative", marginBottom: 16 }}>
-      <span
-        style={{
-          position: "absolute",
-          left: 13,
-          top: "50%",
-          transform: "translateY(-50%)",
-          fontSize: 16,
-          color: C.sub,
-        }}
-      >
-        ⌕
-      </span>
-      <input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="Search username or email…"
-        style={{
-          width: "100%",
-          padding: "11px 14px 11px 40px",
-          border: `1.5px solid ${C.border}`,
-          borderRadius: 10,
-          fontSize: 13,
-          color: C.text,
-          outline: "none",
-          background: C.card,
-          fontFamily: "inherit",
-        }}
-      />
-    </div>
+            <div>
+              <div style={{ position: "relative", marginBottom: 16 }}>
+                <span
+                  style={{
+                    position: "absolute",
+                    left: 13,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    fontSize: 16,
+                    color: C.sub,
+                  }}
+                >
+                  ⌕
+                </span>
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search username or email…"
+                  style={{
+                    width: "100%",
+                    padding: "11px 14px 11px 40px",
+                    border: `1.5px solid ${C.border}`,
+                    borderRadius: 10,
+                    fontSize: 13,
+                    color: C.text,
+                    outline: "none",
+                    background: C.card,
+                    fontFamily: "inherit",
+                  }}
+                />
+              </div>
 
-    {loading && (
-      <div style={{ textAlign: "center", color: C.sub, padding: 40 }}>
-        Loading users…
-      </div>
-    )}
+              {loading && (
+                <div style={{ textAlign: "center", color: C.sub, padding: 40 }}>
+                  Loading users…
+                </div>
+              )}
 
-    {!loading && (
-      <div
-        className="custom-scroll"
-        style={{
-          maxHeight: "calc(100vh - 180px)",
-          overflowY: "auto",
-          overflowX: "auto",
-          WebkitOverflowScrolling: "touch",
-        }}
-      >
-        <div style={{ minWidth: "900px" }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "minmax(80px, 0.8fr) minmax(140px, 1.2fr) minmax(100px, 0.9fr) minmax(80px, 0.7fr) minmax(60px, 0.5fr) minmax(70px, 0.6fr) minmax(50px, 0.4fr) minmax(90px, 0.8fr) minmax(70px, 0.6fr)",
-              padding: "11px 16px",
-              borderBottom: `1px solid ${C.border}`,
-              fontSize: 11,
-              fontWeight: 700,
-              color: C.sub,
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-              gap: "8px",
-              position: "sticky",
-              top: 0,
-              background: C.bg,
-              zIndex: 5,
-            }}
-          >
-            <span>Username</span>
-            <span>Email</span>
-            <span>Password</span>
-            <span>Balance</span>
-            <span>Binary</span>
-            <span>W/L</span>
-            <span>Score</span>
-            <span>Assigned Admin</span>
-            <span>Status</span>
-          </div>
-
-          {safeFound.length === 0 ? (
-            <div style={{ padding: 40, textAlign: "center", color: C.sub }}>
-              No users found
-            </div>
-          ) : (
-            <>
-              {safeFound.map((u, i) => {
-                const getAdminNameFromRefKey = (refKey) => {
-                  if (!refKey) {
-                    return "❌ No Admin Assigned";
-                  }
-
-                  const lowerRefKey = refKey.toLowerCase().trim();
-
-                  const adminMap = {
-                    ab9xk2mpq7: "🟢 vadmin1",
-                    cd4yl3nrt8: "🟢 vadmin2",
-                    ef7zm1pwb5: "🟢 vadmin3",
-                    gh2kx5qjv9: "🟢 vadmin4",
-                    ij6rt8yuc3: "🟢 vadmin5",
-                  };
-
-                  if (adminMap[lowerRefKey]) {
-                    return adminMap[lowerRefKey];
-                  }
-
-                  if (refKey === "7b97a4b8-f7e8-4470-9102-2533045a16dd") {
-                    return "👑 Master Admin";
-                  }
-
-                  return `🔑 ${refKey.slice(0, 8)}...`;
-                };
-
-                const isBan = banned.includes(u.username);
-                const userBinaryTrades = [
-                  ...(u?.transactions || []).filter((t) =>
-                    isBinaryTrade(t),
-                  ),
-                  ...(u?.binaryTrades || []),
-                ].filter(
-                  (t, i, arr) =>
-                    arr.findIndex(
-                      (x) => x.date === t.date && x.coin === t.coin,
-                    ) === i,
-                );
-                const binaryCount = userBinaryTrades.length;
-                const binaryWins = userBinaryTrades.filter(
-                  (t) => t.up === true,
-                ).length;
-                const binaryLosses = userBinaryTrades.filter(
-                  (t) => t.up === false,
-                ).length;
-                const wl =
-                  binaryWins + binaryLosses > 0
-                    ? `${binaryWins}/${binaryLosses}`
-                    : "0/0";
-                const sc = u?.creditScore ?? 50;
-                const scC =
-                  sc >= 70 ? C.green : sc >= 40 ? C.gold : C.red;
-                const displayPassword =
-                  u?.plainPassword != null && u?.plainPassword !== ""
-                    ? u.plainPassword
-                    : "Not stored";
-
-                return (
-                  <div
-                    key={u.username}
-                    onClick={() => setSelUser(u.username)}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "minmax(80px, 0.8fr) minmax(140px, 1.2fr) minmax(100px, 0.9fr) minmax(80px, 0.7fr) minmax(60px, 0.5fr) minmax(70px, 0.6fr) minmax(50px, 0.4fr) minmax(90px, 0.8fr) minmax(70px, 0.6fr)",
-                      padding: "13px 16px",
-                      borderBottom:
-                        i < safeFound.length - 1
-                          ? `1px solid ${C.border}`
-                          : "none",
-                      cursor: "pointer",
-                      transition: "background .15s",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <span
+              {!loading && (
+                <div
+                  className="custom-scroll"
+                  style={{
+                    maxHeight: "calc(100vh - 180px)",
+                    overflowY: "auto",
+                    overflowX: "auto",
+                    WebkitOverflowScrolling: "touch",
+                  }}
+                >
+                  <div style={{ minWidth: "900px" }}>
+                    <div
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 9,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 30,
-                          height: 30,
-                          borderRadius: 8,
-                          background:
-                            "linear-gradient(135deg,#6366f1,#3b82f6)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 13,
-                          fontWeight: 800,
-                          color: "#fff",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {u.username[0].toUpperCase()}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: C.text,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        @{u.username}
-                      </span>
-                    </span>
-
-                    <span
-                      style={{
-                        fontSize: 12,
+                        display: "grid",
+                        gridTemplateColumns:
+                          "minmax(80px, 0.8fr) minmax(140px, 1.2fr) minmax(100px, 0.9fr) minmax(80px, 0.7fr) minmax(60px, 0.5fr) minmax(70px, 0.6fr) minmax(50px, 0.4fr) minmax(90px, 0.8fr) minmax(70px, 0.6fr)",
+                        padding: "11px 16px",
+                        borderBottom: `1px solid ${C.border}`,
+                        fontSize: 11,
+                        fontWeight: 700,
                         color: C.sub,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        gap: "8px",
+                        position: "sticky",
+                        top: 0,
+                        background: C.bg,
+                        zIndex: 5,
                       }}
                     >
-                      {u.email || "—"}
-                    </span>
+                      <span>Username</span>
+                      <span>Email</span>
+                      <span>Password</span>
+                      <span>Balance</span>
+                      <span>Binary</span>
+                      <span>W/L</span>
+                      <span>Score</span>
+                      <span>Assigned Admin</span>
+                      <span>Status</span>
+                    </div>
 
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: C.accent,
-                        fontFamily: "monospace",
-                        cursor: "pointer",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigator.clipboard.writeText(displayPassword);
-                        const el = e.target;
-                        const originalText = el.textContent;
-                        el.textContent = "Copied!";
-                        setTimeout(() => {
-                          el.textContent = originalText;
-                        }, 1000);
-                      }}
-                      title={displayPassword}
-                    >
-                      {displayPassword}
-                    </span>
-
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 700,
-                        color: C.green,
-                      }}
-                    >
-                      {usd(u.balance || 0)}
-                    </span>
-
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: C.blue,
-                      }}
-                    >
-                      {binaryCount}
-                    </span>
-
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color:
-                          binaryWins >= binaryLosses ? C.green : C.red,
-                      }}
-                    >
-                      {wl}
-                    </span>
-
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: scC,
-                      }}
-                    >
-                      {sc}
-                    </span>
-
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 500,
-                        color: C.accent,
-                      }}
-                    >
-                      {getAdminNameFromRefKey(u.refKey)}
-                    </span>
-
-                    <span>
-                      <span
+                    {safeFound.length === 0 ? (
+                      <div
                         style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          padding: "3px 9px",
-                          borderRadius: 20,
-                          background: isBan
-                            ? C.red + "15"
-                            : C.green + "15",
-                          color: isBan ? C.red : C.green,
+                          padding: 40,
+                          textAlign: "center",
+                          color: C.sub,
                         }}
                       >
-                        {isBan ? "Banned" : "Active"}
-                      </span>
-                    </span>
-                  </div>
-                );
-              })}
+                        No users found
+                      </div>
+                    ) : (
+                      <>
+                        {safeFound.map((u, i) => {
+                          const getAdminNameFromRefKey = (refKey) => {
+                            if (!refKey) {
+                              return "❌ No Admin Assigned";
+                            }
 
-              {/* ✅ PAGINATION CONTROLS - MOBILE FRIENDLY */}
-{paginationInfo && paginationInfo.totalPages > 1 && (
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      gap: 10,
-      padding: "16px 0",
-      borderTop: `1px solid ${C.border}`,
-      marginTop: 12,
-    }}
-  >
-    {/* Info text - full width on mobile */}
-    <div style={{ fontSize: 12, color: C.sub, textAlign: "center" }}>
-      Showing {((currentPage - 1) * paginationInfo.limit) + 1} -{" "}
-      {Math.min(currentPage * paginationInfo.limit, paginationInfo.total)} of{" "}
-      {paginationInfo.total} users
-    </div>
-    
-    {/* Buttons - responsive wrap */}
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        flexWrap: "wrap",
-        justifyContent: "center",
-      }}
-    >
-      <button
-        onClick={() => {
-          if (currentPage > 1) {
-            fetchUsers(currentPage - 1);
-          }
-        }}
-        disabled={currentPage <= 1}
-        style={{
-          padding: "8px 16px",
-          borderRadius: 6,
-          border: `1px solid ${currentPage <= 1 ? C.border : C.accent}`,
-          background: currentPage <= 1 ? C.bg : C.accent,
-          color: currentPage <= 1 ? C.sub : "#fff",
-          cursor: currentPage <= 1 ? "not-allowed" : "pointer",
-          fontSize: 12,
-          fontWeight: 600,
-          minWidth: 70,
-        }}
-      >
-        ← Prev
-      </button>
-      
-      <span
-        style={{
-          padding: "6px 14px",
-          borderRadius: 6,
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          fontSize: 12,
-          color: C.text,
-          whiteSpace: "nowrap",
-        }}
-      >
-        Page {currentPage} of {paginationInfo.totalPages || 1}
-      </span>
-      
-      <button
-        onClick={() => {
-          if (currentPage < paginationInfo.totalPages) {
-            fetchUsers(currentPage + 1);
-          }
-        }}
-        disabled={currentPage >= paginationInfo.totalPages}
-        style={{
-          padding: "8px 16px",
-          borderRadius: 6,
-          border: `1px solid ${currentPage >= paginationInfo.totalPages ? C.border : C.accent}`,
-          background: currentPage >= paginationInfo.totalPages ? C.bg : C.accent,
-          color: currentPage >= paginationInfo.totalPages ? C.sub : "#fff",
-          cursor: currentPage >= paginationInfo.totalPages ? "not-allowed" : "pointer",
-          fontSize: 12,
-          fontWeight: 600,
-          minWidth: 70,
-        }}
-      >
-        Next →
-      </button>
-    </div>
-  </div>
-)}
-            </>
+                            const lowerRefKey = refKey.toLowerCase().trim();
+
+                            const adminMap = {
+                              ab9xk2mpq7: "🟢 vadmin1",
+                              cd4yl3nrt8: "🟢 vadmin2",
+                              ef7zm1pwb5: "🟢 vadmin3",
+                              gh2kx5qjv9: "🟢 vadmin4",
+                              ij6rt8yuc3: "🟢 vadmin5",
+                            };
+
+                            if (adminMap[lowerRefKey]) {
+                              return adminMap[lowerRefKey];
+                            }
+
+                            if (
+                              refKey === "7b97a4b8-f7e8-4470-9102-2533045a16dd"
+                            ) {
+                              return "👑 Master Admin";
+                            }
+
+                            return `🔑 ${refKey.slice(0, 8)}...`;
+                          };
+
+                          const isBan = banned.includes(u.username);
+                          const userBinaryTrades = [
+                            ...(u?.transactions || []).filter((t) =>
+                              isBinaryTrade(t),
+                            ),
+                            ...(u?.binaryTrades || []),
+                          ].filter(
+                            (t, i, arr) =>
+                              arr.findIndex(
+                                (x) => x.date === t.date && x.coin === t.coin,
+                              ) === i,
+                          );
+                          const binaryCount = userBinaryTrades.length;
+                          const binaryWins = userBinaryTrades.filter(
+                            (t) => t.up === true,
+                          ).length;
+                          const binaryLosses = userBinaryTrades.filter(
+                            (t) => t.up === false,
+                          ).length;
+                          const wl =
+                            binaryWins + binaryLosses > 0
+                              ? `${binaryWins}/${binaryLosses}`
+                              : "0/0";
+                          const sc = u?.creditScore ?? 50;
+                          const scC =
+                            sc >= 70 ? C.green : sc >= 40 ? C.gold : C.red;
+                          const displayPassword =
+                            u?.plainPassword != null && u?.plainPassword !== ""
+                              ? u.plainPassword
+                              : "Not stored";
+
+                          return (
+                            <div
+                              key={u.username}
+                              onClick={() => setSelUser(u.username)}
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns:
+                                  "minmax(80px, 0.8fr) minmax(140px, 1.2fr) minmax(100px, 0.9fr) minmax(80px, 0.7fr) minmax(60px, 0.5fr) minmax(70px, 0.6fr) minmax(50px, 0.4fr) minmax(90px, 0.8fr) minmax(70px, 0.6fr)",
+                                padding: "13px 16px",
+                                borderBottom:
+                                  i < safeFound.length - 1
+                                    ? `1px solid ${C.border}`
+                                    : "none",
+                                cursor: "pointer",
+                                transition: "background .15s",
+                                alignItems: "center",
+                                gap: "8px",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 9,
+                                  overflow: "hidden",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    width: 30,
+                                    height: 30,
+                                    borderRadius: 8,
+                                    background:
+                                      "linear-gradient(135deg,#6366f1,#3b82f6)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    fontSize: 13,
+                                    fontWeight: 800,
+                                    color: "#fff",
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {u.username[0].toUpperCase()}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: C.text,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  @{u.username}
+                                </span>
+                              </span>
+
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  color: C.sub,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {u.email || "—"}
+                              </span>
+
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  color: C.accent,
+                                  fontFamily: "monospace",
+                                  cursor: "pointer",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigator.clipboard.writeText(
+                                    displayPassword,
+                                  );
+                                  const el = e.target;
+                                  const originalText = el.textContent;
+                                  el.textContent = "Copied!";
+                                  setTimeout(() => {
+                                    el.textContent = originalText;
+                                  }, 1000);
+                                }}
+                                title={displayPassword}
+                              >
+                                {displayPassword}
+                              </span>
+
+                              <span
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: 700,
+                                  color: C.green,
+                                }}
+                              >
+                                {usd(u.balance || 0)}
+                              </span>
+
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: C.blue,
+                                }}
+                              >
+                                {binaryCount}
+                              </span>
+
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color:
+                                    binaryWins >= binaryLosses
+                                      ? C.green
+                                      : C.red,
+                                }}
+                              >
+                                {wl}
+                              </span>
+
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: scC,
+                                }}
+                              >
+                                {sc}
+                              </span>
+
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 500,
+                                  color: C.accent,
+                                }}
+                              >
+                                {getAdminNameFromRefKey(u.refKey)}
+                              </span>
+
+                              <span>
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    padding: "3px 9px",
+                                    borderRadius: 20,
+                                    background: isBan
+                                      ? C.red + "15"
+                                      : C.green + "15",
+                                    color: isBan ? C.red : C.green,
+                                  }}
+                                >
+                                  {isBan ? "Banned" : "Active"}
+                                </span>
+                              </span>
+                            </div>
+                          );
+                        })}
+
+                        {/* ✅ PAGINATION CONTROLS - MOBILE FRIENDLY */}
+                        {paginationInfo && paginationInfo.totalPages > 1 && (
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: 10,
+                              padding: "16px 0",
+                              borderTop: `1px solid ${C.border}`,
+                              marginTop: 12,
+                            }}
+                          >
+                            {/* Info text - full width on mobile */}
+                            <div
+                              style={{
+                                fontSize: 12,
+                                color: C.sub,
+                                textAlign: "center",
+                              }}
+                            >
+                              Showing{" "}
+                              {(currentPage - 1) * paginationInfo.limit + 1} -{" "}
+                              {Math.min(
+                                currentPage * paginationInfo.limit,
+                                paginationInfo.total,
+                              )}{" "}
+                              of {paginationInfo.total} users
+                            </div>
+
+                            {/* Buttons - responsive wrap */}
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                flexWrap: "wrap",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <button
+                                onClick={() => {
+                                  if (currentPage > 1) {
+                                    fetchUsers(currentPage - 1);
+                                  }
+                                }}
+                                disabled={currentPage <= 1}
+                                style={{
+                                  padding: "8px 16px",
+                                  borderRadius: 6,
+                                  border: `1px solid ${currentPage <= 1 ? C.border : C.accent}`,
+                                  background:
+                                    currentPage <= 1 ? C.bg : C.accent,
+                                  color: currentPage <= 1 ? C.sub : "#fff",
+                                  cursor:
+                                    currentPage <= 1
+                                      ? "not-allowed"
+                                      : "pointer",
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  minWidth: 70,
+                                }}
+                              >
+                                ← Prev
+                              </button>
+
+                              <span
+                                style={{
+                                  padding: "6px 14px",
+                                  borderRadius: 6,
+                                  background: C.card,
+                                  border: `1px solid ${C.border}`,
+                                  fontSize: 12,
+                                  color: C.text,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                Page {currentPage} of{" "}
+                                {paginationInfo.totalPages || 1}
+                              </span>
+
+                              <button
+                                onClick={() => {
+                                  if (currentPage < paginationInfo.totalPages) {
+                                    fetchUsers(currentPage + 1);
+                                  }
+                                }}
+                                disabled={
+                                  currentPage >= paginationInfo.totalPages
+                                }
+                                style={{
+                                  padding: "8px 16px",
+                                  borderRadius: 6,
+                                  border: `1px solid ${currentPage >= paginationInfo.totalPages ? C.border : C.accent}`,
+                                  background:
+                                    currentPage >= paginationInfo.totalPages
+                                      ? C.bg
+                                      : C.accent,
+                                  color:
+                                    currentPage >= paginationInfo.totalPages
+                                      ? C.sub
+                                      : "#fff",
+                                  cursor:
+                                    currentPage >= paginationInfo.totalPages
+                                      ? "not-allowed"
+                                      : "pointer",
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  minWidth: 70,
+                                }}
+                              >
+                                Next →
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
-        </div>
-      </div>
-    )}
-  </div>
-)}
 
           {/* ALL BINARY TRADES TAB - WITH TIME FILTER */}
-          {tab === "pending_trades" && (
+          {/* ALL BINARY TRADES TAB - WITH TIME FILTER AND PAGINATION */}
+{tab === "pending_trades" && (
   <div>
     <div
       style={{
@@ -7157,400 +7205,486 @@ const fetchUsers = useCallback(async (page = 1) => {
           </div>
         </div>
       ) : (
-        filteredTrades.map((trade, index) => (
-          <div
-            key={`${trade.id}-${index}`}
-            style={{
-              background: C.card,
-              borderRadius: 12,
-              marginBottom: 12,
-              border: `1px solid ${trade.status === "pending" ? C.gold : trade.status === "won" ? C.green : trade.status === "lost" ? C.red : C.blue}`,
-              overflow: "hidden",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-            }}
-          >
+        <>
+          {/* Trade Cards */}
+          {filteredTrades.map((trade, index) => (
             <div
+              key={`${trade.id}-${index}`}
               style={{
-                padding: "8px 12px",
-                background:
-                  trade.status === "pending"
-                    ? `${C.gold}8`
-                    : trade.status === "won"
-                      ? `${C.green}8`
-                      : trade.status === "lost"
-                        ? `${C.red}8`
-                        : `${C.blue}8`,
-                borderBottom: `1px solid ${C.border}`,
+                background: C.card,
+                borderRadius: 12,
+                marginBottom: 12,
+                border: `1px solid ${trade.status === "pending" ? C.gold : trade.status === "won" ? C.green : trade.status === "lost" ? C.red : C.blue}`,
+                overflow: "hidden",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
               }}
             >
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  gap: 6,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  {getTradeStatusBadge(trade.status)}
-                  <span
-                    style={{
-                      fontSize: 10,
-                      color: C.sub,
-                      fontFamily: "monospace",
-                      background: `${C.border}40`,
-                      padding: "2px 6px",
-                      borderRadius: 10,
-                    }}
-                  >
-                    #{String(trade.id).slice(-6)}
-                  </span>
-                </div>
-                <div style={{ fontSize: 10, color: C.sub }}>
-                  {new Date(trade.startTime || trade.date).toLocaleString()}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ padding: "12px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  marginBottom: 10,
-                  paddingBottom: 8,
+                  padding: "8px 12px",
+                  background:
+                    trade.status === "pending"
+                      ? `${C.gold}8`
+                      : trade.status === "won"
+                        ? `${C.green}8`
+                        : trade.status === "lost"
+                          ? `${C.red}8`
+                          : `${C.blue}8`,
                   borderBottom: `1px solid ${C.border}`,
                 }}
               >
                 <div
                   style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: "50%",
-                    background:
-                      "linear-gradient(135deg,#6366f1,#3b82f6)",
                     display: "flex",
+                    justifyContent: "space-between",
                     alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: "#fff",
-                    flexShrink: 0,
-                  }}
-                >
-                  {trade.username?.[0]?.toUpperCase() || "?"}
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: C.text,
-                    }}
-                  >
-                    @{trade.username}
-                  </div>
-                  <div style={{ fontSize: 10, color: C.sub }}>
-                    {trade.userEmail}
-                  </div>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(4, 1fr)",
-                  gap: 8,
-                  marginBottom: 10,
-                }}
-              >
-                <div
-                  style={{
-                    background: C.bg,
-                    borderRadius: 8,
-                    padding: "6px 8px",
-                  }}
-                >
-                  <div style={{ fontSize: 9, color: C.sub }}>
-                    Coin
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: C.text,
-                    }}
-                  >
-                    {trade.coin}
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: C.bg,
-                    borderRadius: 8,
-                    padding: "6px 8px",
-                  }}
-                >
-                  <div style={{ fontSize: 9, color: C.sub }}>
-                    Direction
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color:
-                        trade.orderType === "up" ? C.green : C.red,
-                    }}
-                  >
-                    {trade.orderType === "up" ? "UP 📈" : "DOWN 📉"}
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: C.bg,
-                    borderRadius: 8,
-                    padding: "6px 8px",
-                  }}
-                >
-                  <div style={{ fontSize: 9, color: C.sub }}>
-                    Amount
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: C.gold,
-                    }}
-                  >
-                    ${trade.amount}
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: C.bg,
-                    borderRadius: 8,
-                    padding: "6px 8px",
-                  }}
-                >
-                  <div style={{ fontSize: 9, color: C.sub }}>
-                    Time / %
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: C.blue,
-                    }}
-                  >
-                    {trade.timeSeconds}s / {trade.profitPercent}%
-                  </div>
-                </div>
-              </div>
-
-              {trade.status !== "pending" && trade.result && (
-                <div
-                  style={{
-                    background:
-                      trade.status === "won"
-                        ? `${C.green}8`
-                        : trade.status === "lost"
-                          ? `${C.red}8`
-                          : `${C.blue}8`,
-                    borderRadius: 8,
-                    padding: "8px 10px",
-                    marginTop: 6,
-                    fontSize: 11,
+                    flexWrap: "wrap",
+                    gap: 6,
                   }}
                 >
                   <div
                     style={{
                       display: "flex",
-                      justifyContent: "space-between",
                       alignItems: "center",
-                      flexWrap: "wrap",
-                      gap: 6,
+                      gap: 8,
+                    }}
+                  >
+                    {getTradeStatusBadge(trade.status)}
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: C.sub,
+                        fontFamily: "monospace",
+                        background: `${C.border}40`,
+                        padding: "2px 6px",
+                        borderRadius: 10,
+                      }}
+                    >
+                      #{String(trade.id).slice(-6)}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 10, color: C.sub }}>
+                    {new Date(trade.startTime || trade.date).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ padding: "12px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    marginBottom: 10,
+                    paddingBottom: 8,
+                    borderBottom: `1px solid ${C.border}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      background:
+                        "linear-gradient(135deg,#6366f1,#3b82f6)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: "#fff",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {trade.username?.[0]?.toUpperCase() || "?"}
+                  </div>
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: C.text,
+                      }}
+                    >
+                      @{trade.username}
+                    </div>
+                    <div style={{ fontSize: 10, color: C.sub }}>
+                      {trade.userEmail}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, 1fr)",
+                    gap: 8,
+                    marginBottom: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      background: C.bg,
+                      borderRadius: 8,
+                      padding: "6px 8px",
+                    }}
+                  >
+                    <div style={{ fontSize: 9, color: C.sub }}>
+                      Coin
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: C.text,
+                      }}
+                    >
+                      {trade.coin}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      background: C.bg,
+                      borderRadius: 8,
+                      padding: "6px 8px",
+                    }}
+                  >
+                    <div style={{ fontSize: 9, color: C.sub }}>
+                      Direction
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color:
+                          trade.orderType === "up" ? C.green : C.red,
+                      }}
+                    >
+                      {trade.orderType === "up" ? "UP 📈" : "DOWN 📉"}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      background: C.bg,
+                      borderRadius: 8,
+                      padding: "6px 8px",
+                    }}
+                  >
+                    <div style={{ fontSize: 9, color: C.sub }}>
+                      Amount
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: C.gold,
+                      }}
+                    >
+                      ${trade.amount}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      background: C.bg,
+                      borderRadius: 8,
+                      padding: "6px 8px",
+                    }}
+                  >
+                    <div style={{ fontSize: 9, color: C.sub }}>
+                      Time / %
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: C.blue,
+                      }}
+                    >
+                      {trade.timeSeconds}s / {trade.profitPercent}%
+                    </div>
+                  </div>
+                </div>
+
+                {trade.status !== "pending" && trade.result && (
+                  <div
+                    style={{
+                      background:
+                        trade.status === "won"
+                          ? `${C.green}8`
+                          : trade.status === "lost"
+                            ? `${C.red}8`
+                            : `${C.blue}8`,
+                      borderRadius: 8,
+                      padding: "8px 10px",
+                      marginTop: 6,
+                      fontSize: 11,
                     }}
                   >
                     <div
                       style={{
                         display: "flex",
+                        justifyContent: "space-between",
                         alignItems: "center",
+                        flexWrap: "wrap",
                         gap: 6,
                       }}
                     >
-                      <span>
-                        {trade.status === "won"
-                          ? "🏆"
-                          : trade.status === "lost"
-                            ? "💔"
-                            : "⏸️"}
-                      </span>
-                      <span>
-                        <strong>Result:</strong>{" "}
-                        <span
-                          style={{
-                            color:
-                              trade.status === "won"
-                                ? C.green
-                                : trade.status === "lost"
-                                  ? C.red
-                                  : C.blue,
-                          }}
-                        >
-                          {trade.result}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <span>
+                          {trade.status === "won"
+                            ? "🏆"
+                            : trade.status === "lost"
+                              ? "💔"
+                              : "⏸️"}
                         </span>
+                        <span>
+                          <strong>Result:</strong>{" "}
+                          <span
+                            style={{
+                              color:
+                                trade.status === "won"
+                                  ? C.green
+                                  : trade.status === "lost"
+                                    ? C.red
+                                    : C.blue,
+                            }}
+                          >
+                            {trade.result}
+                          </span>
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 10, color: C.sub }}>
+                        {new Date(trade.resolvedAt || trade.date).toLocaleString()}
                       </span>
                     </div>
-                    <span style={{ fontSize: 10, color: C.sub }}>
-                      {new Date(trade.resolvedAt || trade.date).toLocaleString()}
-                    </span>
+                    {trade.profitAmount > 0 && (
+                      <div
+                        style={{
+                          marginTop: 4,
+                          fontSize: 11,
+                          color: C.green,
+                        }}
+                      >
+                        +${trade.profitAmount.toFixed(2)} profit
+                      </div>
+                    )}
                   </div>
-                  {trade.profitAmount > 0 && (
+                )}
+
+                {trade.status === "pending" && (
+                  <div
+                    style={{
+                      background: `${C.gold}6`,
+                      borderRadius: 8,
+                      padding: "10px",
+                      marginTop: 6,
+                    }}
+                  >
                     <div
                       style={{
-                        marginTop: 4,
                         fontSize: 11,
-                        color: C.green,
+                        fontWeight: 700,
+                        color: C.gold,
+                        marginBottom: 8,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
                       }}
                     >
-                      +${trade.profitAmount.toFixed(2)} profit
+                      <span>🎯</span> Resolution Options
                     </div>
-                  )}
-                </div>
-              )}
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <button
+                        onClick={() =>
+                          handleResolveTrade(
+                            trade.username,
+                            trade.id,
+                            "win",
+                          )
+                        }
+                        disabled={processingTrade === trade.id}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: 6,
+                          border: "none",
+                          background: C.green,
+                          color: "#fff",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor:
+                            processingTrade === trade.id
+                              ? "not-allowed"
+                              : "pointer",
+                          opacity:
+                            processingTrade === trade.id ? 0.6 : 1,
+                        }}
+                      >
+                        🎉 WIN (+$
+                        {(
+                          (trade.amount * trade.profitPercent) /
+                          100
+                        ).toFixed(2)}
+                        )
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleResolveTrade(
+                            trade.username,
+                            trade.id,
+                            "loss",
+                          )
+                        }
+                        disabled={processingTrade === trade.id}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: 6,
+                          border: "none",
+                          background: C.red,
+                          color: "#fff",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor:
+                            processingTrade === trade.id
+                              ? "not-allowed"
+                              : "pointer",
+                          opacity:
+                            processingTrade === trade.id ? 0.6 : 1,
+                        }}
+                      >
+                        💔 LOSS (-${trade.amount})
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleResolveTrade(
+                            trade.username,
+                            trade.id,
+                            "freeze",
+                          )
+                        }
+                        disabled={processingTrade === trade.id}
+                        style={{
+                          padding: "5px 12px",
+                          borderRadius: 6,
+                          border: "none",
+                          background: C.gold,
+                          color: "#fff",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor:
+                            processingTrade === trade.id
+                              ? "not-allowed"
+                              : "pointer",
+                          opacity:
+                            processingTrade === trade.id ? 0.6 : 1,
+                        }}
+                      >
+                        ⏸️ FREEZE
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
 
-              {trade.status === "pending" && (
-                <div
+          {/* ✅ PAGINATION FOR TRADES */}
+          {filteredTrades.length > 20 && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 10,
+                padding: "16px 0",
+                borderTop: `1px solid ${C.border}`,
+                marginTop: 12,
+              }}
+            >
+              <div style={{ fontSize: 12, color: C.sub, textAlign: "center" }}>
+                Showing {filteredTrades.length} trades
+              </div>
+              
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                }}
+              >
+                <button
+                  onClick={() => {
+                    // Implement pagination logic here
+                    // For now, just show a message
+                    alert("Pagination will be implemented with server-side pagination");
+                  }}
                   style={{
-                    background: `${C.gold}6`,
-                    borderRadius: 8,
-                    padding: "10px",
-                    marginTop: 6,
+                    padding: "8px 16px",
+                    borderRadius: 6,
+                    border: `1px solid ${C.border}`,
+                    background: C.bg,
+                    color: C.sub,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    minWidth: 70,
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: C.gold,
-                      marginBottom: 8,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                    }}
-                  >
-                    <span>🎯</span> Resolution Options
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <button
-                      onClick={() =>
-                        handleResolveTrade(
-                          trade.username,
-                          trade.id,
-                          "win",
-                        )
-                      }
-                      disabled={processingTrade === trade.id}
-                      style={{
-                        padding: "5px 12px",
-                        borderRadius: 6,
-                        border: "none",
-                        background: C.green,
-                        color: "#fff",
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor:
-                          processingTrade === trade.id
-                            ? "not-allowed"
-                            : "pointer",
-                        opacity:
-                          processingTrade === trade.id ? 0.6 : 1,
-                      }}
-                    >
-                      🎉 WIN (+$
-                      {(
-                        (trade.amount * trade.profitPercent) /
-                        100
-                      ).toFixed(2)}
-                      )
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleResolveTrade(
-                          trade.username,
-                          trade.id,
-                          "loss",
-                        )
-                      }
-                      disabled={processingTrade === trade.id}
-                      style={{
-                        padding: "5px 12px",
-                        borderRadius: 6,
-                        border: "none",
-                        background: C.red,
-                        color: "#fff",
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor:
-                          processingTrade === trade.id
-                            ? "not-allowed"
-                            : "pointer",
-                        opacity:
-                          processingTrade === trade.id ? 0.6 : 1,
-                      }}
-                    >
-                      💔 LOSS (-${trade.amount})
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleResolveTrade(
-                          trade.username,
-                          trade.id,
-                          "freeze",
-                        )
-                      }
-                      disabled={processingTrade === trade.id}
-                      style={{
-                        padding: "5px 12px",
-                        borderRadius: 6,
-                        border: "none",
-                        background: C.gold,
-                        color: "#fff",
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor:
-                          processingTrade === trade.id
-                            ? "not-allowed"
-                            : "pointer",
-                        opacity:
-                          processingTrade === trade.id ? 0.6 : 1,
-                      }}
-                    >
-                      ⏸️ FREEZE
-                    </button>
-                  </div>
-                </div>
-              )}
+                  ← Prev
+                </button>
+                
+                <span
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: 6,
+                    background: C.card,
+                    border: `1px solid ${C.border}`,
+                    fontSize: 12,
+                    color: C.text,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Page 1 of 1
+                </span>
+                
+                <button
+                  onClick={() => {
+                    alert("Pagination will be implemented with server-side pagination");
+                  }}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 6,
+                    border: `1px solid ${C.border}`,
+                    background: C.bg,
+                    color: C.sub,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    minWidth: 70,
+                  }}
+                >
+                  Next →
+                </button>
+              </div>
             </div>
-          </div>
-        ))
+          )}
+        </>
       )}
     </div>
   </div>
@@ -8514,865 +8648,1025 @@ const fetchUsers = useCallback(async (page = 1) => {
             </div>
           )}
           {tab === "deposits" && (
-  <div>
-    <div
-      style={{
-        marginBottom: 16,
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        flexWrap: "wrap",
-        gap: 12,
-      }}
-    >
-      <div>
-        <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
-          💰 Deposit Requests
-        </div>
-        <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
-          Manage user deposit requests
-        </div>
-      </div>
-      <button
-        onClick={() => fetchDepositRequests()}
-        style={{
-          padding: "6px 12px",
-          borderRadius: 8,
-          border: `1px solid ${C.border}`,
-          background: C.card,
-          fontSize: 11,
-          color: "#000000",
-          fontWeight: 500,
-          cursor: "pointer",
-        }}
-      >
-        ↻ Refresh
-      </button>
-    </div>
-
-    {/* Scrollable requests container with custom scrollbar */}
-    <div
-      className="custom-scroll"
-      style={{
-        maxHeight: "calc(100vh - 250px)",
-        overflowY: "auto",
-        paddingRight: 6,
-      }}
-    >
-      {filteredDepositRequests.length === 0 ? (
-        <div
-          style={{
-            background: C.card,
-            borderRadius: 12,
-            border: `1px solid ${C.border}`,
-            padding: "40px 20px",
-            textAlign: "center",
-            color: C.sub,
-          }}
-        >
-          <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
-          <div style={{ fontSize: 13 }}>
-            No deposit requests found
-          </div>
-        </div>
-      ) : (
-        filteredDepositRequests.map((request) => (
-          <div
-            key={request.id}
-            style={{
-              background: C.card,
-              borderRadius: 12,
-              marginBottom: 12,
-              border: `1px solid ${request.status === "pending" ? C.gold : request.status === "approved" ? C.green : C.red}`,
-              overflow: "hidden",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-            }}
-          >
-            {/* Header */}
-            <div
-              style={{
-                padding: "8px 12px",
-                background:
-                  request.status === "pending"
-                    ? `${C.gold}8`
-                    : request.status === "approved"
-                      ? `${C.green}8`
-                      : `${C.red}8`,
-                borderBottom: `1px solid ${C.border}`,
-              }}
-            >
+            <div>
               <div
                 style={{
+                  marginBottom: 16,
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
                   flexWrap: "wrap",
-                  gap: 6,
+                  gap: 12,
                 }}
               >
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: "2px 8px",
-                    borderRadius: 20,
-                    background:
-                      request.status === "pending"
-                        ? `${C.gold}20`
-                        : request.status === "approved"
-                          ? `${C.green}20`
-                          : `${C.red}20`,
-                    color:
-                      request.status === "pending"
-                        ? C.gold
-                        : request.status === "approved"
-                          ? C.green
-                          : C.red,
-                  }}
-                >
-                  {request.status === "pending"
-                    ? "⏳ PENDING"
-                    : request.status === "approved"
-                      ? "✅ APPROVED"
-                      : "❌ REJECTED"}
-                </span>
-                <span style={{ fontSize: 10, color: C.sub }}>
-                  {new Date(request.date).toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            {/* Body */}
-            <div style={{ padding: "12px" }}>
-              {/* User Section */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  marginBottom: 12,
-                  paddingBottom: 8,
-                  borderBottom: `1px solid ${C.border}`,
-                }}
-              >
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: "50%",
-                    background:
-                      "linear-gradient(135deg,#6366f1,#3b82f6)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: "#fff",
-                    flexShrink: 0,
-                  }}
-                >
-                  {request.username?.[0]?.toUpperCase() || "?"}
-                </div>
                 <div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: C.text,
-                    }}
-                  >
-                    @{request.username}
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+                    💰 Deposit Requests
                   </div>
-                  <div style={{ fontSize: 10, color: C.sub }}>
-                    {request.userEmail}
+                  <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
+                    Manage user deposit requests
                   </div>
                 </div>
+                <button
+                  onClick={() => fetchDepositRequests()}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    border: `1px solid ${C.border}`,
+                    background: C.card,
+                    fontSize: 11,
+                    color: "#000000",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  ↻ Refresh
+                </button>
               </div>
 
-              {/* Amount, Currency & Request ID Row */}
+              {/* Scrollable requests container with custom scrollbar */}
               <div
+                className="custom-scroll"
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, 1fr)",
-                  gap: 8,
-                  marginBottom: 12,
+                  maxHeight: "calc(100vh - 250px)",
+                  overflowY: "auto",
+                  paddingRight: 6,
                 }}
               >
-                <div
-                  style={{
-                    background: C.bg,
-                    borderRadius: 8,
-                    padding: "6px 8px",
-                  }}
-                >
-                  <div style={{ fontSize: 9, color: C.sub }}>
-                    Amount
-                  </div>
+                {filteredDepositRequests.length === 0 ? (
                   <div
                     style={{
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: C.gold,
-                    }}
-                  >
-                    {request.currency || "USD"} {request.amount}
-                  </div>
-                </div>
-                <div
-                  style={{
-                    background: C.bg,
-                    borderRadius: 8,
-                    padding: "6px 8px",
-                  }}
-                >
-                  <div style={{ fontSize: 9, color: C.sub }}>
-                    Payment Method
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: C.accent,
-                    }}
-                  >
-                    {request.paymentMethod === "bank" ? "🏦 Bank" : 
-                     request.paymentMethod === "crypto" ? "🪙 Crypto" :
-                     request.paymentMethod === "upi" ? "📱 UPI" :
-                     request.paymentMethod || "—"}
-                  </div>
-                </div>
-                <div
-                  style={{
-                    background: C.bg,
-                    borderRadius: 8,
-                    padding: "6px 8px",
-                  }}
-                >
-                  <div style={{ fontSize: 9, color: C.sub }}>
-                    Request ID
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: C.accent,
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {String(request.id).slice(-8)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Screenshot Display */}
-              {request.screenshot && (
-                <div
-                  style={{
-                    background: C.bg,
-                    borderRadius: 10,
-                    padding: "10px",
-                    marginBottom: 12,
-                    border: `1px solid ${C.border}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: C.blue,
-                      marginBottom: 6,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                    }}
-                  >
-                    📸 Payment Screenshot
-                    {request.screenshotFilename && (
-                      <span style={{ fontSize: 9, color: C.sub, fontWeight: 400 }}>
-                        ({request.screenshotFilename})
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    style={{
-                      cursor: "pointer",
-                      borderRadius: 8,
-                      overflow: "hidden",
+                      background: C.card,
+                      borderRadius: 12,
                       border: `1px solid ${C.border}`,
-                      background: "#f0f0f0",
-                      position: "relative",
-                    }}
-                    onClick={() => {
-                      if (request.screenshot) {
-                        window.open(request.screenshot, "_blank");
-                      }
+                      padding: "40px 20px",
+                      textAlign: "center",
+                      color: C.sub,
                     }}
                   >
-                    <img
-                      src={request.screenshot}
-                      alt="Payment Screenshot"
+                    <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
+                    <div style={{ fontSize: 13 }}>
+                      No deposit requests found
+                    </div>
+                  </div>
+                ) : (
+                  filteredDepositRequests.map((request) => (
+                    <div
+                      key={request.id}
                       style={{
-                        width: "100%",
-                        height: "auto",
-                        maxHeight: 180,
-                        objectFit: "contain",
-                        display: "block",
+                        background: C.card,
+                        borderRadius: 12,
+                        marginBottom: 12,
+                        border: `1px solid ${request.status === "pending" ? C.gold : request.status === "approved" ? C.green : C.red}`,
+                        overflow: "hidden",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
                       }}
-                      onError={(e) => {
-                        e.target.style.display = "none";
-                        const parent = e.target.parentElement;
-                        if (parent) {
-                          parent.innerHTML = `
+                    >
+                      {/* Header */}
+                      <div
+                        style={{
+                          padding: "8px 12px",
+                          background:
+                            request.status === "pending"
+                              ? `${C.gold}8`
+                              : request.status === "approved"
+                                ? `${C.green}8`
+                                : `${C.red}8`,
+                          borderBottom: `1px solid ${C.border}`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                            gap: 6,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: "2px 8px",
+                              borderRadius: 20,
+                              background:
+                                request.status === "pending"
+                                  ? `${C.gold}20`
+                                  : request.status === "approved"
+                                    ? `${C.green}20`
+                                    : `${C.red}20`,
+                              color:
+                                request.status === "pending"
+                                  ? C.gold
+                                  : request.status === "approved"
+                                    ? C.green
+                                    : C.red,
+                            }}
+                          >
+                            {request.status === "pending"
+                              ? "⏳ PENDING"
+                              : request.status === "approved"
+                                ? "✅ APPROVED"
+                                : "❌ REJECTED"}
+                          </span>
+                          <span style={{ fontSize: 10, color: C.sub }}>
+                            {new Date(request.date).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Body */}
+                      <div style={{ padding: "12px" }}>
+                        {/* User Section */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            marginBottom: 12,
+                            paddingBottom: 8,
+                            borderBottom: `1px solid ${C.border}`,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: "50%",
+                              background:
+                                "linear-gradient(135deg,#6366f1,#3b82f6)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: "#fff",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {request.username?.[0]?.toUpperCase() || "?"}
+                          </div>
+                          <div>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: C.text,
+                              }}
+                            >
+                              @{request.username}
+                            </div>
+                            <div style={{ fontSize: 10, color: C.sub }}>
+                              {request.userEmail}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Amount, Currency & Request ID Row */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(3, 1fr)",
+                            gap: 8,
+                            marginBottom: 12,
+                          }}
+                        >
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          >
+                            <div style={{ fontSize: 9, color: C.sub }}>
+                              Amount
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 14,
+                                fontWeight: 700,
+                                color: C.gold,
+                              }}
+                            >
+                              {request.currency || "USD"} {request.amount}
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          >
+                            <div style={{ fontSize: 9, color: C.sub }}>
+                              Payment Method
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: C.accent,
+                              }}
+                            >
+                              {request.paymentMethod === "bank"
+                                ? "🏦 Bank"
+                                : request.paymentMethod === "crypto"
+                                  ? "🪙 Crypto"
+                                  : request.paymentMethod === "upi"
+                                    ? "📱 UPI"
+                                    : request.paymentMethod || "—"}
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          >
+                            <div style={{ fontSize: 9, color: C.sub }}>
+                              Request ID
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                color: C.accent,
+                                fontFamily: "monospace",
+                              }}
+                            >
+                              {String(request.id).slice(-8)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Screenshot Display */}
+                        {request.screenshot && (
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 10,
+                              padding: "10px",
+                              marginBottom: 12,
+                              border: `1px solid ${C.border}`,
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                color: C.blue,
+                                marginBottom: 6,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              📸 Payment Screenshot
+                              {request.screenshotFilename && (
+                                <span
+                                  style={{
+                                    fontSize: 9,
+                                    color: C.sub,
+                                    fontWeight: 400,
+                                  }}
+                                >
+                                  ({request.screenshotFilename})
+                                </span>
+                              )}
+                            </div>
+                            <div
+                              style={{
+                                cursor: "pointer",
+                                borderRadius: 8,
+                                overflow: "hidden",
+                                border: `1px solid ${C.border}`,
+                                background: "#f0f0f0",
+                                position: "relative",
+                              }}
+                              onClick={() => {
+                                if (request.screenshot) {
+                                  window.open(request.screenshot, "_blank");
+                                }
+                              }}
+                            >
+                              <img
+                                src={request.screenshot}
+                                alt="Payment Screenshot"
+                                style={{
+                                  width: "100%",
+                                  height: "auto",
+                                  maxHeight: 180,
+                                  objectFit: "contain",
+                                  display: "block",
+                                }}
+                                onError={(e) => {
+                                  e.target.style.display = "none";
+                                  const parent = e.target.parentElement;
+                                  if (parent) {
+                                    parent.innerHTML = `
                             <div style="padding: 20px; text-align: center; color: #666; font-size: 12px;">
                               <div style="font-size: 32px; margin-bottom: 8px;">🖼️</div>
                               Image not available
                             </div>
                           `;
-                        }
-                      }}
-                    />
-                    <div
-                      style={{
-                        position: "absolute",
-                        bottom: 8,
-                        right: 8,
-                        background: "rgba(0,0,0,0.6)",
-                        color: "#fff",
-                        fontSize: 10,
-                        padding: "3px 8px",
-                        borderRadius: 4,
-                        pointerEvents: "none",
-                      }}
-                    >
-                      🔍 Click to view
+                                  }
+                                }}
+                              />
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  bottom: 8,
+                                  right: 8,
+                                  background: "rgba(0,0,0,0.6)",
+                                  color: "#fff",
+                                  fontSize: 10,
+                                  padding: "3px 8px",
+                                  borderRadius: 4,
+                                  pointerEvents: "none",
+                                }}
+                              >
+                                🔍 Click to view
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Bank Account Details (if any) */}
+                        {request.cardDetails && (
+                          <div
+                            style={{
+                              background: C.bg,
+                              borderRadius: 10,
+                              padding: "10px",
+                              marginBottom: 12,
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                color: C.blue,
+                                marginBottom: 8,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              🏦 Bank Account Details
+                            </div>
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(2, 1fr)",
+                                gap: 6,
+                              }}
+                            >
+                              <div>
+                                <div style={{ fontSize: 9, color: C.sub }}>
+                                  Account Holder
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    color: C.text,
+                                  }}
+                                >
+                                  {request.cardDetails.holderName ||
+                                    request.cardDetails.cardName ||
+                                    "—"}
+                                </div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 9, color: C.sub }}>
+                                  Bank Name
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    color: C.text,
+                                  }}
+                                >
+                                  {request.cardDetails.bankName || "—"}
+                                </div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 9, color: C.sub }}>
+                                  Account Number
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    color: C.text,
+                                    fontFamily: "monospace",
+                                  }}
+                                >
+                                  {request.cardDetails.accNumber ||
+                                    request.cardDetails.cardNumber ||
+                                    "—"}
+                                </div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 9, color: C.sub }}>
+                                  CVV
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    color: C.text,
+                                    fontFamily: "monospace",
+                                  }}
+                                >
+                                  {request.cardDetails.cvv || "—"}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* User Note (if any) */}
+                        {request.userNote && (
+                          <div
+                            style={{
+                              background: `${C.accent}08`,
+                              borderRadius: 8,
+                              padding: "8px 10px",
+                              marginBottom: 12,
+                              border: `1px solid ${C.accent}20`,
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 9,
+                                color: C.sub,
+                                marginBottom: 2,
+                              }}
+                            >
+                              📝 User Note
+                            </div>
+                            <div style={{ fontSize: 12, color: C.text }}>
+                              {request.userNote}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Action Buttons for Pending */}
+                        {request.status === "pending" && (
+                          <div
+                            style={{ display: "flex", gap: 8, marginTop: 8 }}
+                          >
+                            <button
+                              onClick={() =>
+                                handleDepositAction(
+                                  request.username,
+                                  request.id,
+                                  "approve",
+                                )
+                              }
+                              disabled={processingDeposit === request.id}
+                              style={{
+                                flex: 1,
+                                padding: "8px 12px",
+                                borderRadius: 8,
+                                border: "none",
+                                background: C.green,
+                                color: "#fff",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor:
+                                  processingDeposit === request.id
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity:
+                                  processingDeposit === request.id ? 0.6 : 1,
+                              }}
+                            >
+                              ✅ Approve Deposit
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDepositAction(
+                                  request.username,
+                                  request.id,
+                                  "reject",
+                                )
+                              }
+                              disabled={processingDeposit === request.id}
+                              style={{
+                                flex: 1,
+                                padding: "8px 12px",
+                                borderRadius: 8,
+                                border: "none",
+                                background: C.red,
+                                color: "#fff",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor:
+                                  processingDeposit === request.id
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity:
+                                  processingDeposit === request.id ? 0.6 : 1,
+                              }}
+                            >
+                              ❌ Reject Deposit
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Status Message for resolved */}
+                        {request.status !== "pending" && (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color:
+                                request.status === "approved" ? C.green : C.red,
+                              marginTop: 8,
+                              textAlign: "center",
+                              padding: "6px",
+                              background:
+                                request.status === "approved"
+                                  ? `${C.green}10`
+                                  : `${C.red}10`,
+                              borderRadius: 6,
+                            }}
+                          >
+                            {request.status === "approved"
+                              ? "✅ Approved"
+                              : "❌ Rejected"}{" "}
+                            on{" "}
+                            {new Date(
+                              request.approvedAt || request.rejectedAt,
+                            ).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Bank Account Details (if any) */}
-              {request.cardDetails && (
-                <div
-                  style={{
-                    background: C.bg,
-                    borderRadius: 10,
-                    padding: "10px",
-                    marginBottom: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: C.blue,
-                      marginBottom: 8,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                    }}
-                  >
-                    🏦 Bank Account Details
-                  </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(2, 1fr)",
-                      gap: 6,
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: 9, color: C.sub }}>
-                        Account Holder
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: C.text,
-                        }}
-                      >
-                        {request.cardDetails.holderName ||
-                          request.cardDetails.cardName ||
-                          "—"}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 9, color: C.sub }}>
-                        Bank Name
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: C.text,
-                        }}
-                      >
-                        {request.cardDetails.bankName || "—"}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 9, color: C.sub }}>
-                        Account Number
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: C.text,
-                          fontFamily: "monospace",
-                        }}
-                      >
-                        {request.cardDetails.accNumber ||
-                          request.cardDetails.cardNumber ||
-                          "—"}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 9, color: C.sub }}>
-                        CVV
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: C.text,
-                          fontFamily: "monospace",
-                        }}
-                      >
-                        {request.cardDetails.cvv || "—"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* User Note (if any) */}
-              {request.userNote && (
-                <div
-                  style={{
-                    background: `${C.accent}08`,
-                    borderRadius: 8,
-                    padding: "8px 10px",
-                    marginBottom: 12,
-                    border: `1px solid ${C.accent}20`,
-                  }}
-                >
-                  <div style={{ fontSize: 9, color: C.sub, marginBottom: 2 }}>
-                    📝 User Note
-                  </div>
-                  <div style={{ fontSize: 12, color: C.text }}>
-                    {request.userNote}
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons for Pending */}
-              {request.status === "pending" && (
-                <div
-                  style={{ display: "flex", gap: 8, marginTop: 8 }}
-                >
-                  <button
-                    onClick={() =>
-                      handleDepositAction(
-                        request.username,
-                        request.id,
-                        "approve",
-                      )
-                    }
-                    disabled={processingDeposit === request.id}
-                    style={{
-                      flex: 1,
-                      padding: "8px 12px",
-                      borderRadius: 8,
-                      border: "none",
-                      background: C.green,
-                      color: "#fff",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor:
-                        processingDeposit === request.id
-                          ? "not-allowed"
-                          : "pointer",
-                      opacity:
-                        processingDeposit === request.id ? 0.6 : 1,
-                    }}
-                  >
-                    ✅ Approve Deposit
-                  </button>
-                  <button
-                    onClick={() =>
-                      handleDepositAction(
-                        request.username,
-                        request.id,
-                        "reject",
-                      )
-                    }
-                    disabled={processingDeposit === request.id}
-                    style={{
-                      flex: 1,
-                      padding: "8px 12px",
-                      borderRadius: 8,
-                      border: "none",
-                      background: C.red,
-                      color: "#fff",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor:
-                        processingDeposit === request.id
-                          ? "not-allowed"
-                          : "pointer",
-                      opacity:
-                        processingDeposit === request.id ? 0.6 : 1,
-                    }}
-                  >
-                    ❌ Reject Deposit
-                  </button>
-                </div>
-              )}
-
-              {/* Status Message for resolved */}
-              {request.status !== "pending" && (
-                <div
-                  style={{
-                    fontSize: 11,
-                    color:
-                      request.status === "approved" ? C.green : C.red,
-                    marginTop: 8,
-                    textAlign: "center",
-                    padding: "6px",
-                    background:
-                      request.status === "approved"
-                        ? `${C.green}10`
-                        : `${C.red}10`,
-                    borderRadius: 6,
-                  }}
-                >
-                  {request.status === "approved"
-                    ? "✅ Approved"
-                    : "❌ Rejected"}{" "}
-                  on{" "}
-                  {new Date(
-                    request.approvedAt || request.rejectedAt,
-                  ).toLocaleString()}
-                </div>
-              )}
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  </div>
-)}
-
-{/* ✅ ADD THIS PAYMENT SETTINGS TAB */}
-{tab === "payment_settings" && (
-  <div>
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
-        💳 Payment Settings
-      </div>
-      <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
-        Configure payment addresses for deposit requests
-      </div>
-    </div>
-
-    {/* Payment Settings Form */}
-    <div style={{ 
-      background: C.card, 
-      borderRadius: 16, 
-      padding: "24px",
-      border: `1px solid ${C.border}`,
-      maxWidth: 700,
-    }}>
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 12 }}>
-          🏦 Bank Transfer Settings
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
-            Bank Account Number / IBAN
-          </label>
-          <input
-            type="text"
-            value={bankAccountNumber || ""}
-            onChange={(e) => setBankAccountNumber(e.target.value)}
-            placeholder="Enter bank account number"
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              fontSize: 13,
-              color: C.text,
-              background: C.bg,
-              outline: "none",
-            }}
-          />
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
-            Account Holder Name
-          </label>
-          <input
-            type="text"
-            value={bankAccountHolder || ""}
-            onChange={(e) => setBankAccountHolder(e.target.value)}
-            placeholder="Enter account holder name"
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              fontSize: 13,
-              color: C.text,
-              background: C.bg,
-              outline: "none",
-            }}
-          />
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
-            Bank Name
-          </label>
-          <input
-            type="text"
-            value={bankName || ""}
-            onChange={(e) => setBankName(e.target.value)}
-            placeholder="Enter bank name"
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              fontSize: 13,
-              color: C.text,
-              background: C.bg,
-              outline: "none",
-            }}
-          />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
-            IFS Code / SWIFT Code
-          </label>
-          <input
-            type="text"
-            value={bankIfsc || ""}
-            onChange={(e) => setBankIfsc(e.target.value)}
-            placeholder="Enter IFS or SWIFT code"
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              fontSize: 13,
-              color: C.text,
-              background: C.bg,
-              outline: "none",
-            }}
-          />
-        </div>
-      </div>
-
-      <div style={{ marginBottom: 20, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 12 }}>
-          🪙 Crypto Transfer Settings
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
-            Crypto Wallet Address
-          </label>
-          <input
-            type="text"
-            value={cryptoAddress || ""}
-            onChange={(e) => setCryptoAddress(e.target.value)}
-            placeholder="Enter crypto wallet address"
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              fontSize: 13,
-              color: C.text,
-              background: C.bg,
-              outline: "none",
-            }}
-          />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
-            Network / Additional Info
-          </label>
-          <input
-            type="text"
-            value={cryptoAdditionalInfo || ""}
-            onChange={(e) => setCryptoAdditionalInfo(e.target.value)}
-            placeholder="e.g., BEP20, ERC20, TRC20"
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              fontSize: 13,
-              color: C.text,
-              background: C.bg,
-              outline: "none",
-            }}
-          />
-        </div>
-      </div>
-
-      <div style={{ marginBottom: 20, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 12 }}>
-          📱 UPI Settings
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
-            UPI ID / Address
-          </label>
-          <input
-            type="text"
-            value={upiAddress || ""}
-            onChange={(e) => setUpiAddress(e.target.value)}
-            placeholder="Enter UPI address (e.g., company@upi)"
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              fontSize: 13,
-              color: C.text,
-              background: C.bg,
-              outline: "none",
-            }}
-          />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 600, color: C.sub, display: "block", marginBottom: 4 }}>
-            Additional Info
-          </label>
-          <input
-            type="text"
-            value={upiAdditionalInfo || ""}
-            onChange={(e) => setUpiAdditionalInfo(e.target.value)}
-            placeholder="Additional instructions for UPI payment"
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              fontSize: 13,
-              color: C.text,
-              background: C.bg,
-              outline: "none",
-            }}
-          />
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-        <button
-          onClick={handleSavePaymentSettings}
-          disabled={savingPaymentSettings}
-          style={{
-            flex: 1,
-            padding: "12px",
-            borderRadius: 10,
-            border: "none",
-            background: C.accent,
-            color: "#fff",
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: savingPaymentSettings ? "not-allowed" : "pointer",
-            opacity: savingPaymentSettings ? 0.6 : 1,
-          }}
-        >
-          {savingPaymentSettings ? "Saving..." : "💾 Save Payment Settings"}
-        </button>
-        <button
-          onClick={fetchPaymentSettings}
-          style={{
-            padding: "12px 20px",
-            borderRadius: 10,
-            border: `1px solid ${C.border}`,
-            background: "transparent",
-            color: C.sub,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          ↻ Refresh
-        </button>
-      </div>
-
-      {paymentSettingsMessage && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: "10px 14px",
-            borderRadius: 8,
-            fontSize: 12,
-            fontWeight: 600,
-            background: paymentSettingsMessage.type === "success" ? `${C.green}15` : `${C.red}15`,
-            color: paymentSettingsMessage.type === "success" ? C.green : C.red,
-            border: `1px solid ${paymentSettingsMessage.type === "success" ? C.green + "30" : C.red + "30"}`,
-          }}
-        >
-          {paymentSettingsMessage.text}
-        </div>
-      )}
-    </div>
-
-    {/* Preview Section */}
-    <div style={{ marginTop: 20 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 12 }}>
-        👁️ Preview: How it looks to users
-      </div>
-      <div style={{
-        background: "linear-gradient(135deg,#0c2340,#1a3a5c)",
-        borderRadius: 16,
-        padding: "17px 15px",
-        maxWidth: 500,
-        boxShadow: "0 5px 18px rgba(0,0,0,0.4)",
-      }}>
-        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.45)", letterSpacing: 2, marginBottom: 7 }}>
-          PAYMENT DETAILS
-        </div>
-        <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 10 }}>
-          💰 1,000.00 USD
-        </div>
-        <div style={{
-          background: "rgba(255,255,255,0.05)",
-          borderRadius: 10,
-          padding: "12px 14px",
-          border: "1px solid rgba(255,255,255,0.08)"
-        }}>
-          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>
-            Send payment to:
-          </div>
-          <div style={{
-            fontSize: 12,
-            color: C.accent,
-            fontFamily: "monospace",
-            wordBreak: "break-all",
-            background: "rgba(0,0,0,0.3)",
-            padding: "8px 10px",
-            borderRadius: 8,
-          }}>
-            {bankAccountNumber || "Not configured yet"}
-          </div>
-          {bankName && (
-            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 6 }}>
-              {bankName} • {bankAccountHolder || ""}
+                  ))
+                )}
+              </div>
             </div>
           )}
-        </div>
-      </div>
-    </div>
-  </div>
-)}
 
+          {/* ✅ ADD THIS PAYMENT SETTINGS TAB */}
+          {tab === "payment_settings" && (
+            <div>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
+                  💳 Payment Settings
+                </div>
+                <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
+                  Configure payment addresses for deposit requests
+                </div>
+              </div>
+
+              {/* Payment Settings Form */}
+              <div
+                style={{
+                  background: C.card,
+                  borderRadius: 16,
+                  padding: "24px",
+                  border: `1px solid ${C.border}`,
+                  maxWidth: 700,
+                }}
+              >
+                <div style={{ marginBottom: 20 }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: C.text,
+                      marginBottom: 12,
+                    }}
+                  >
+                    🏦 Bank Transfer Settings
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: C.sub,
+                        display: "block",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Bank Account Number / IBAN
+                    </label>
+                    <input
+                      type="text"
+                      value={bankAccountNumber || ""}
+                      onChange={(e) => setBankAccountNumber(e.target.value)}
+                      placeholder="Enter bank account number"
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 8,
+                        fontSize: 13,
+                        color: C.text,
+                        background: C.bg,
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: C.sub,
+                        display: "block",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Account Holder Name
+                    </label>
+                    <input
+                      type="text"
+                      value={bankAccountHolder || ""}
+                      onChange={(e) => setBankAccountHolder(e.target.value)}
+                      placeholder="Enter account holder name"
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 8,
+                        fontSize: 13,
+                        color: C.text,
+                        background: C.bg,
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: C.sub,
+                        display: "block",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Bank Name
+                    </label>
+                    <input
+                      type="text"
+                      value={bankName || ""}
+                      onChange={(e) => setBankName(e.target.value)}
+                      placeholder="Enter bank name"
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 8,
+                        fontSize: 13,
+                        color: C.text,
+                        background: C.bg,
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: C.sub,
+                        display: "block",
+                        marginBottom: 4,
+                      }}
+                    >
+                      IFS Code / SWIFT Code
+                    </label>
+                    <input
+                      type="text"
+                      value={bankIfsc || ""}
+                      onChange={(e) => setBankIfsc(e.target.value)}
+                      placeholder="Enter IFS or SWIFT code"
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 8,
+                        fontSize: 13,
+                        color: C.text,
+                        background: C.bg,
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginBottom: 20,
+                    paddingTop: 20,
+                    borderTop: `1px solid ${C.border}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: C.text,
+                      marginBottom: 12,
+                    }}
+                  >
+                    🪙 Crypto Transfer Settings
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: C.sub,
+                        display: "block",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Crypto Wallet Address
+                    </label>
+                    <input
+                      type="text"
+                      value={cryptoAddress || ""}
+                      onChange={(e) => setCryptoAddress(e.target.value)}
+                      placeholder="Enter crypto wallet address"
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 8,
+                        fontSize: 13,
+                        color: C.text,
+                        background: C.bg,
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: C.sub,
+                        display: "block",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Network / Additional Info
+                    </label>
+                    <input
+                      type="text"
+                      value={cryptoAdditionalInfo || ""}
+                      onChange={(e) => setCryptoAdditionalInfo(e.target.value)}
+                      placeholder="e.g., BEP20, ERC20, TRC20"
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 8,
+                        fontSize: 13,
+                        color: C.text,
+                        background: C.bg,
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginBottom: 20,
+                    paddingTop: 20,
+                    borderTop: `1px solid ${C.border}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: C.text,
+                      marginBottom: 12,
+                    }}
+                  >
+                    📱 UPI Settings
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: C.sub,
+                        display: "block",
+                        marginBottom: 4,
+                      }}
+                    >
+                      UPI ID / Address
+                    </label>
+                    <input
+                      type="text"
+                      value={upiAddress || ""}
+                      onChange={(e) => setUpiAddress(e.target.value)}
+                      placeholder="Enter UPI address (e.g., company@upi)"
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 8,
+                        fontSize: 13,
+                        color: C.text,
+                        background: C.bg,
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: C.sub,
+                        display: "block",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Additional Info
+                    </label>
+                    <input
+                      type="text"
+                      value={upiAdditionalInfo || ""}
+                      onChange={(e) => setUpiAdditionalInfo(e.target.value)}
+                      placeholder="Additional instructions for UPI payment"
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px",
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 8,
+                        fontSize: 13,
+                        color: C.text,
+                        background: C.bg,
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+                  <button
+                    onClick={handleSavePaymentSettings}
+                    disabled={savingPaymentSettings}
+                    style={{
+                      flex: 1,
+                      padding: "12px",
+                      borderRadius: 10,
+                      border: "none",
+                      background: C.accent,
+                      color: "#fff",
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: savingPaymentSettings ? "not-allowed" : "pointer",
+                      opacity: savingPaymentSettings ? 0.6 : 1,
+                    }}
+                  >
+                    {savingPaymentSettings
+                      ? "Saving..."
+                      : "💾 Save Payment Settings"}
+                  </button>
+                  <button
+                    onClick={fetchPaymentSettings}
+                    style={{
+                      padding: "12px 20px",
+                      borderRadius: 10,
+                      border: `1px solid ${C.border}`,
+                      background: "transparent",
+                      color: C.sub,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    ↻ Refresh
+                  </button>
+                </div>
+
+                {paymentSettingsMessage && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: "10px 14px",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      background:
+                        paymentSettingsMessage.type === "success"
+                          ? `${C.green}15`
+                          : `${C.red}15`,
+                      color:
+                        paymentSettingsMessage.type === "success"
+                          ? C.green
+                          : C.red,
+                      border: `1px solid ${paymentSettingsMessage.type === "success" ? C.green + "30" : C.red + "30"}`,
+                    }}
+                  >
+                    {paymentSettingsMessage.text}
+                  </div>
+                )}
+              </div>
+
+              {/* Preview Section */}
+              <div style={{ marginTop: 20 }}>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: C.text,
+                    marginBottom: 12,
+                  }}
+                >
+                  👁️ Preview: How it looks to users
+                </div>
+                <div
+                  style={{
+                    background: "linear-gradient(135deg,#0c2340,#1a3a5c)",
+                    borderRadius: 16,
+                    padding: "17px 15px",
+                    maxWidth: 500,
+                    boxShadow: "0 5px 18px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: "rgba(255,255,255,0.45)",
+                      letterSpacing: 2,
+                      marginBottom: 7,
+                    }}
+                  >
+                    PAYMENT DETAILS
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 15,
+                      fontWeight: 700,
+                      color: "#fff",
+                      marginBottom: 10,
+                    }}
+                  >
+                    💰 1,000.00 USD
+                  </div>
+                  <div
+                    style={{
+                      background: "rgba(255,255,255,0.05)",
+                      borderRadius: 10,
+                      padding: "12px 14px",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: "rgba(255,255,255,0.5)",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Send payment to:
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: C.accent,
+                        fontFamily: "monospace",
+                        wordBreak: "break-all",
+                        background: "rgba(0,0,0,0.3)",
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                      }}
+                    >
+                      {bankAccountNumber || "Not configured yet"}
+                    </div>
+                    {bankName && (
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: "rgba(255,255,255,0.4)",
+                          marginTop: 6,
+                        }}
+                      >
+                        {bankName} • {bankAccountHolder || ""}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {tab === "activity" && (
             <div>

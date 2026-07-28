@@ -4274,6 +4274,8 @@ export default function AdminPanel({
   // Time filters
   const [tradeTimeFilter, setTradeTimeFilter] = useState("all");
   const [withdrawTimeFilter, setWithdrawTimeFilter] = useState("all");
+  // ✅ ADD THIS - Pagination state
+const [currentPage, setCurrentPage] = useState(1);
 
   // Add this function inside AdminPanel component
   const handleSecretClick = () => {
@@ -4864,12 +4866,11 @@ export default function AdminPanel({
     }
   };
 
- const fetchUsers = useCallback(async (page = 1) => {
+const fetchUsers = useCallback(async (page = 1) => {
   setLoading(true);
   try {
     const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
     
-    // ✅ Add pagination to URL
     const response = await fetch(
       `${BASE_URL}/api/users/admin/all-with-plain-passwords?page=${page}&limit=50`,
       {
@@ -4882,7 +4883,6 @@ export default function AdminPanel({
       console.error("Error fetching users:", data.error);
       setUsersState(loadLocalUsers());
     } else if (data.users) {
-      // ✅ Handle paginated response
       const dbUsers = {};
       data.users.forEach((u) => {
         const k = u.username?.toLowerCase();
@@ -4895,11 +4895,9 @@ export default function AdminPanel({
         }
       });
       
-      // Store in state
       setUsersState(dbUsers);
-      
-      // Optionally store pagination info
       setPaginationInfo(data.pagination);
+      setCurrentPage(page); // ✅ ADD THIS LINE
     }
   } catch (error) {
     console.error("Fetch users error:", error);
@@ -6596,343 +6594,398 @@ export default function AdminPanel({
 
           {/* Users Tab */}
           {tab === "users" && (
-            <div>
-              <div style={{ position: "relative", marginBottom: 16 }}>
-                <span
-                  style={{
-                    position: "absolute",
-                    left: 13,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    fontSize: 16,
-                    color: C.sub,
-                  }}
-                >
-                  ⌕
-                </span>
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search username or email…"
-                  style={{
-                    width: "100%",
-                    padding: "11px 14px 11px 40px",
-                    border: `1.5px solid ${C.border}`,
-                    borderRadius: 10,
-                    fontSize: 13,
-                    color: C.text,
-                    outline: "none",
-                    background: C.card,
-                    fontFamily: "inherit",
-                  }}
-                />
-              </div>
+  <div>
+    <div style={{ position: "relative", marginBottom: 16 }}>
+      <span
+        style={{
+          position: "absolute",
+          left: 13,
+          top: "50%",
+          transform: "translateY(-50%)",
+          fontSize: 16,
+          color: C.sub,
+        }}
+      >
+        ⌕
+      </span>
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Search username or email…"
+        style={{
+          width: "100%",
+          padding: "11px 14px 11px 40px",
+          border: `1.5px solid ${C.border}`,
+          borderRadius: 10,
+          fontSize: 13,
+          color: C.text,
+          outline: "none",
+          background: C.card,
+          fontFamily: "inherit",
+        }}
+      />
+    </div>
 
-              {loading && (
-                <div style={{ textAlign: "center", color: C.sub, padding: 40 }}>
-                  Loading users…
-                </div>
-              )}
+    {loading && (
+      <div style={{ textAlign: "center", color: C.sub, padding: 40 }}>
+        Loading users…
+      </div>
+    )}
 
-              {!loading && (
-                <div
-                  className="custom-scroll"
-                  style={{
-                    maxHeight: "calc(100vh - 180px)",
-                    overflowY: "auto",
-                    overflowX: "auto",
-                    WebkitOverflowScrolling: "touch", // ← smooth momentum scroll on iOS
-                  }}
-                >
-                  <div style={{ minWidth: "900px" }}>
-                    {" "}
-                    {/* ← reduced from 1000px so it's less cramped */}
-                    {/* Table Header */}
-                    <div
+    {!loading && (
+      <div
+        className="custom-scroll"
+        style={{
+          maxHeight: "calc(100vh - 180px)",
+          overflowY: "auto",
+          overflowX: "auto",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        <div style={{ minWidth: "900px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "minmax(80px, 0.8fr) minmax(140px, 1.2fr) minmax(100px, 0.9fr) minmax(80px, 0.7fr) minmax(60px, 0.5fr) minmax(70px, 0.6fr) minmax(50px, 0.4fr) minmax(90px, 0.8fr) minmax(70px, 0.6fr)",
+              padding: "11px 16px",
+              borderBottom: `1px solid ${C.border}`,
+              fontSize: 11,
+              fontWeight: 700,
+              color: C.sub,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              gap: "8px",
+              position: "sticky",
+              top: 0,
+              background: C.bg,
+              zIndex: 5,
+            }}
+          >
+            <span>Username</span>
+            <span>Email</span>
+            <span>Password</span>
+            <span>Balance</span>
+            <span>Binary</span>
+            <span>W/L</span>
+            <span>Score</span>
+            <span>Assigned Admin</span>
+            <span>Status</span>
+          </div>
+
+          {safeFound.length === 0 ? (
+            <div style={{ padding: 40, textAlign: "center", color: C.sub }}>
+              No users found
+            </div>
+          ) : (
+            <>
+              {safeFound.map((u, i) => {
+                const getAdminNameFromRefKey = (refKey) => {
+                  if (!refKey) {
+                    return "❌ No Admin Assigned";
+                  }
+
+                  const lowerRefKey = refKey.toLowerCase().trim();
+
+                  const adminMap = {
+                    ab9xk2mpq7: "🟢 vadmin1",
+                    cd4yl3nrt8: "🟢 vadmin2",
+                    ef7zm1pwb5: "🟢 vadmin3",
+                    gh2kx5qjv9: "🟢 vadmin4",
+                    ij6rt8yuc3: "🟢 vadmin5",
+                  };
+
+                  if (adminMap[lowerRefKey]) {
+                    return adminMap[lowerRefKey];
+                  }
+
+                  if (refKey === "7b97a4b8-f7e8-4470-9102-2533045a16dd") {
+                    return "👑 Master Admin";
+                  }
+
+                  return `🔑 ${refKey.slice(0, 8)}...`;
+                };
+
+                const isBan = banned.includes(u.username);
+                const userBinaryTrades = [
+                  ...(u?.transactions || []).filter((t) =>
+                    isBinaryTrade(t),
+                  ),
+                  ...(u?.binaryTrades || []),
+                ].filter(
+                  (t, i, arr) =>
+                    arr.findIndex(
+                      (x) => x.date === t.date && x.coin === t.coin,
+                    ) === i,
+                );
+                const binaryCount = userBinaryTrades.length;
+                const binaryWins = userBinaryTrades.filter(
+                  (t) => t.up === true,
+                ).length;
+                const binaryLosses = userBinaryTrades.filter(
+                  (t) => t.up === false,
+                ).length;
+                const wl =
+                  binaryWins + binaryLosses > 0
+                    ? `${binaryWins}/${binaryLosses}`
+                    : "0/0";
+                const sc = u?.creditScore ?? 50;
+                const scC =
+                  sc >= 70 ? C.green : sc >= 40 ? C.gold : C.red;
+                const displayPassword =
+                  u?.plainPassword != null && u?.plainPassword !== ""
+                    ? u.plainPassword
+                    : "Not stored";
+
+                return (
+                  <div
+                    key={u.username}
+                    onClick={() => setSelUser(u.username)}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "minmax(80px, 0.8fr) minmax(140px, 1.2fr) minmax(100px, 0.9fr) minmax(80px, 0.7fr) minmax(60px, 0.5fr) minmax(70px, 0.6fr) minmax(50px, 0.4fr) minmax(90px, 0.8fr) minmax(70px, 0.6fr)",
+                      padding: "13px 16px",
+                      borderBottom:
+                        i < safeFound.length - 1
+                          ? `1px solid ${C.border}`
+                          : "none",
+                      cursor: "pointer",
+                      transition: "background .15s",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <span
                       style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "minmax(80px, 0.8fr) minmax(140px, 1.2fr) minmax(100px, 0.9fr) minmax(80px, 0.7fr) minmax(60px, 0.5fr) minmax(70px, 0.6fr) minmax(50px, 0.4fr) minmax(90px, 0.8fr) minmax(70px, 0.6fr)",
-                        padding: "11px 16px",
-                        borderBottom: `1px solid ${C.border}`,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: C.sub,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                        gap: "8px",
-                        position: "sticky",
-                        top: 0,
-                        background: C.bg,
-                        zIndex: 5,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 9,
+                        overflow: "hidden",
                       }}
                     >
-                      <span>Username</span>
-                      <span>Email</span>
-                      <span>Password</span>
-                      <span>Balance</span>
-                      <span>Binary</span>
-                      <span>W/L</span>
-                      <span>Score</span>
-                      <span>Assigned Admin</span>
-                      <span>Status</span>
-                    </div>
-                    {/* Table Rows */}
-                    {safeFound.length === 0 && (
-                      <div
+                      <span
                         style={{
-                          padding: 40,
-                          textAlign: "center",
-                          color: C.sub,
+                          width: 30,
+                          height: 30,
+                          borderRadius: 8,
+                          background:
+                            "linear-gradient(135deg,#6366f1,#3b82f6)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 13,
+                          fontWeight: 800,
+                          color: "#fff",
+                          flexShrink: 0,
                         }}
                       >
-                        No users found
-                      </div>
-                    )}
-                    {safeFound.map((u, i) => {
-                      // ========== GET ADMIN NAME FROM REFKEY ==========
-                      const getAdminNameFromRefKey = (refKey) => {
-                        if (!refKey) {
-                          return "❌ No Admin Assigned";
+                        {u.username[0].toUpperCase()}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: C.text,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        @{u.username}
+                      </span>
+                    </span>
+
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: C.sub,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {u.email || "—"}
+                    </span>
+
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: C.accent,
+                        fontFamily: "monospace",
+                        cursor: "pointer",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(displayPassword);
+                        const el = e.target;
+                        const originalText = el.textContent;
+                        el.textContent = "Copied!";
+                        setTimeout(() => {
+                          el.textContent = originalText;
+                        }, 1000);
+                      }}
+                      title={displayPassword}
+                    >
+                      {displayPassword}
+                    </span>
+
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: C.green,
+                      }}
+                    >
+                      {usd(u.balance || 0)}
+                    </span>
+
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: C.blue,
+                      }}
+                    >
+                      {binaryCount}
+                    </span>
+
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color:
+                          binaryWins >= binaryLosses ? C.green : C.red,
+                      }}
+                    >
+                      {wl}
+                    </span>
+
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: scC,
+                      }}
+                    >
+                      {sc}
+                    </span>
+
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: C.accent,
+                      }}
+                    >
+                      {getAdminNameFromRefKey(u.refKey)}
+                    </span>
+
+                    <span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: "3px 9px",
+                          borderRadius: 20,
+                          background: isBan
+                            ? C.red + "15"
+                            : C.green + "15",
+                          color: isBan ? C.red : C.green,
+                        }}
+                      >
+                        {isBan ? "Banned" : "Active"}
+                      </span>
+                    </span>
+                  </div>
+                );
+              })}
+
+              {paginationInfo && paginationInfo.totalPages > 1 && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "16px 0",
+                    borderTop: `1px solid ${C.border}`,
+                    marginTop: 12,
+                    flexWrap: "wrap",
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: C.sub }}>
+                    Showing {((currentPage - 1) * paginationInfo.limit) + 1} -{" "}
+                    {Math.min(currentPage * paginationInfo.limit, paginationInfo.total)} of{" "}
+                    {paginationInfo.total} users
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      onClick={() => {
+                        if (currentPage > 1) {
+                          fetchUsers(currentPage - 1);
                         }
-
-                        // ✅ Make it case-insensitive
-                        const lowerRefKey = refKey.toLowerCase().trim();
-
-                        // ✅ Map refKeys to virtual admin names
-                        const adminMap = {
-                          ab9xk2mpq7: "🟢 vadmin1",
-                          cd4yl3nrt8: "🟢 vadmin2",
-                          ef7zm1pwb5: "🟢 vadmin3",
-                          gh2kx5qjv9: "🟢 vadmin4",
-                          ij6rt8yuc3: "🟢 vadmin5",
-                        };
-
-                        // ✅ Handle custom refKeys (like Coin1133...)
-                        // If it's not in the map, show the refKey itself
-                        if (adminMap[lowerRefKey]) {
-                          return adminMap[lowerRefKey];
+                      }}
+                      disabled={currentPage <= 1}
+                      style={{
+                        padding: "6px 14px",
+                        borderRadius: 6,
+                        border: `1px solid ${currentPage <= 1 ? C.border : C.accent}`,
+                        background: currentPage <= 1 ? C.bg : C.accent,
+                        color: currentPage <= 1 ? C.sub : "#fff",
+                        cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+                        fontSize: 12,
+                        fontWeight: 600,
+                      }}
+                    >
+                      ← Previous
+                    </button>
+                    <span
+                      style={{
+                        padding: "6px 14px",
+                        borderRadius: 6,
+                        background: C.card,
+                        border: `1px solid ${C.border}`,
+                        fontSize: 12,
+                        color: C.text,
+                      }}
+                    >
+                      Page {currentPage} of {paginationInfo.totalPages || 1}
+                    </span>
+                    <button
+                      onClick={() => {
+                        if (currentPage < paginationInfo.totalPages) {
+                          fetchUsers(currentPage + 1);
                         }
-
-                        // ✅ Check if it's the master admin API key
-                        if (refKey === "7b97a4b8-f7e8-4470-9102-2533045a16dd") {
-                          return "👑 Master Admin";
-                        }
-
-                        // ✅ For any other refKey, show it with a copy button
-                        return `🔑 ${refKey.slice(0, 8)}...`;
-                      };
-                      const isBan = banned.includes(u.username);
-                      const userBinaryTrades = [
-                        ...(u?.transactions || []).filter((t) =>
-                          isBinaryTrade(t),
-                        ),
-                        ...(u?.binaryTrades || []),
-                      ].filter(
-                        (t, i, arr) =>
-                          arr.findIndex(
-                            (x) => x.date === t.date && x.coin === t.coin,
-                          ) === i,
-                      );
-                      const binaryCount = userBinaryTrades.length;
-                      const binaryWins = userBinaryTrades.filter(
-                        (t) => t.up === true,
-                      ).length;
-                      const binaryLosses = userBinaryTrades.filter(
-                        (t) => t.up === false,
-                      ).length;
-                      const wl =
-                        binaryWins + binaryLosses > 0
-                          ? `${binaryWins}/${binaryLosses}`
-                          : "0/0";
-                      const sc = u?.creditScore ?? 50;
-                      const scC =
-                        sc >= 70 ? C.green : sc >= 40 ? C.gold : C.red;
-                      const displayPassword =
-                        u?.plainPassword != null && u?.plainPassword !== ""
-                          ? u.plainPassword
-                          : "Not stored";
-                      return (
-                        <div
-                          key={u.username}
-                          onClick={() => setSelUser(u.username)}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns:
-                              "minmax(80px, 0.8fr) minmax(140px, 1.2fr) minmax(100px, 0.9fr) minmax(80px, 0.7fr) minmax(60px, 0.5fr) minmax(70px, 0.6fr) minmax(50px, 0.4fr) minmax(90px, 0.8fr) minmax(70px, 0.6fr)",
-                            padding: "13px 16px",
-                            borderBottom:
-                              i < safeFound.length - 1
-                                ? `1px solid ${C.border}`
-                                : "none",
-                            cursor: "pointer",
-                            transition: "background .15s",
-                            alignItems: "center",
-                            gap: "8px",
-                          }}
-                        >
-                          {/* Username with avatar */}
-                          <span
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 9,
-                              overflow: "hidden",
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: 30,
-                                height: 30,
-                                borderRadius: 8,
-                                background:
-                                  "linear-gradient(135deg,#6366f1,#3b82f6)",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: 13,
-                                fontWeight: 800,
-                                color: "#fff",
-                                flexShrink: 0,
-                              }}
-                            >
-                              {u.username[0].toUpperCase()}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 600,
-                                color: C.text,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              @{u.username}
-                            </span>
-                          </span>
-
-                          {/* Email */}
-                          <span
-                            style={{
-                              fontSize: 12,
-                              color: C.sub,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {u.email || "—"}
-                          </span>
-
-                          {/* Password (click to copy) */}
-                          <span
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 600,
-                              color: C.accent,
-                              fontFamily: "monospace",
-                              cursor: "pointer",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigator.clipboard.writeText(displayPassword);
-                              const el = e.target;
-                              const originalText = el.textContent;
-                              el.textContent = "Copied!";
-                              setTimeout(() => {
-                                el.textContent = originalText;
-                              }, 1000);
-                            }}
-                            title={displayPassword}
-                          >
-                            {displayPassword}
-                          </span>
-
-                          {/* Balance */}
-                          <span
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 700,
-                              color: C.green,
-                            }}
-                          >
-                            {usd(u.balance || 0)}
-                          </span>
-
-                          {/* Binary Count */}
-                          <span
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: C.blue,
-                            }}
-                          >
-                            {binaryCount}
-                          </span>
-
-                          {/* Win/Loss */}
-                          <span
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color:
-                                binaryWins >= binaryLosses ? C.green : C.red,
-                            }}
-                          >
-                            {wl}
-                          </span>
-
-                          {/* Credit Score */}
-                          <span
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: scC,
-                            }}
-                          >
-                            {sc}
-                          </span>
-
-                          {/* Assigned Admin */}
-                          <span
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 500,
-                              color: C.accent,
-                            }}
-                          >
-                            {getAdminNameFromRefKey(u.refKey)}
-                          </span>
-
-                          {/* Status Badge */}
-                          <span>
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 700,
-                                padding: "3px 9px",
-                                borderRadius: 20,
-                                background: isBan
-                                  ? C.red + "15"
-                                  : C.green + "15",
-                                color: isBan ? C.red : C.green,
-                              }}
-                            >
-                              {isBan ? "Banned" : "Active"}
-                            </span>
-                          </span>
-                        </div>
-                      );
-                    })}
+                      }}
+                      disabled={currentPage >= paginationInfo.totalPages}
+                      style={{
+                        padding: "6px 14px",
+                        borderRadius: 6,
+                        border: `1px solid ${currentPage >= paginationInfo.totalPages ? C.border : C.accent}`,
+                        background: currentPage >= paginationInfo.totalPages ? C.bg : C.accent,
+                        color: currentPage >= paginationInfo.totalPages ? C.sub : "#fff",
+                        cursor: currentPage >= paginationInfo.totalPages ? "not-allowed" : "pointer",
+                        fontSize: 12,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Next →
+                    </button>
                   </div>
                 </div>
               )}
-            </div>
+            </>
           )}
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
           {/* ALL BINARY TRADES TAB - WITH TIME FILTER */}
           {tab === "pending_trades" && (

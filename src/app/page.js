@@ -34,25 +34,11 @@ import { API_URL } from "./lib/config";
 import VirtualAdminLogin from "./components/VirtualAdminLogin";
 import AvatarSelector from "./components/AvatarSelector";
 import Image from "next/image";
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useNotifications } from './hooks/useUserData';
 // Add these to the imports section
 import { useBalance, useDeleteNotification, useDeleteAllNotifications } from './hooks/useUserData';
 
 
-
-// ✅ Create queryClient outside the component
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60000, // 1 minute
-      gcTime: 300000, // 5 minutes
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-  },
-});
 
 function initLocalStorage() {
   if (typeof window === "undefined") return;
@@ -775,344 +761,339 @@ const fetchNotificationsFromDB = useCallback(async () => {
 
   // Main App (authenticated) - full width with max-width container
 return (
-  <QueryClientProvider client={queryClient}>
+  <div
+    style={{
+      minHeight: "100vh",
+      background: "#030508",
+      fontFamily: "'Sora','Segoe UI',sans-serif",
+    }}
+  >
+    {/* Top Bar */}
     <div
+      className="top-bar"
       style={{
-        minHeight: "100vh",
-        background: "#030508",
-        fontFamily: "'Sora','Segoe UI',sans-serif",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "12px 20px",
+        borderBottom: `1px solid ${T.line}`,
+        background: T.bg,
+        position: "sticky",
+        top: 0,
+        zIndex: 10,
       }}
     >
-      {/* Top Bar */}
       <div
-        className="top-bar"
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "12px 20px",
-          borderBottom: `1px solid ${T.line}`,
-          background: T.bg,
-          position: "sticky",
-          top: 0,
-          zIndex: 10,
+          fontSize: 20,
+          fontWeight: 900,
+          background: "linear-gradient(135deg,#00e5b0,#3b82f6)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
         }}
       >
+        CoinBase
+      </div>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        {/* Balance display */}
+        {u && (
+          <div
+            style={{
+              padding: "6px 14px",
+              borderRadius: 20,
+              background: "rgba(0,229,176,0.1)",
+              border: "1px solid rgba(0,229,176,0.2)",
+              fontSize: 13,
+              fontWeight: 600,
+              color: T.acc,
+            }}
+          >
+            {usd(balance || u?.balance || 0)}
+          </div>
+        )}
+        {/* Notification bell */}
         <div
+          onClick={() => snp(true)}
           style={{
-            fontSize: 20,
-            fontWeight: 900,
-            background: "linear-gradient(135deg,#00e5b0,#3b82f6)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
+            width: 38,
+            height: 38,
+            background: T.card,
+            borderRadius: "50%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: `1px solid ${T.line}`,
+            cursor: "pointer",
+            position: "relative",
           }}
         >
-          CoinBase
-        </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          {/* Balance display */}
-          {u && (
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={T.dim}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          {unreadCount > 0 && (
             <div
-  style={{
-    padding: "6px 14px",
-    borderRadius: 20,
-    background: "rgba(0,229,176,0.1)",
-    border: "1px solid rgba(0,229,176,0.2)",
-    fontSize: 13,
-    fontWeight: 600,
-    color: T.acc,
-  }}
->
-  {usd(balance || u?.balance || 0)}
-</div>
+              style={{
+                position: "absolute",
+                top: -2,
+                right: -2,
+                minWidth: 18,
+                height: 18,
+                borderRadius: 9,
+                background: T.red,
+                color: "#fff",
+                fontSize: 10,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0 5px",
+              }}
+            >
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </div>
           )}
-          {/* Notification bell */}
+        </div>
+        {/* Profile icon with dropdown */}
+        <div style={{ position: "relative" }}>
           <div
-            onClick={() => snp(true)}
             style={{
               width: 38,
               height: 38,
-              background: T.card,
               borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              border: `1px solid ${T.line}`,
               cursor: "pointer",
-              position: "relative",
+              overflow: "hidden",
+              border: `2px solid ${T.acc}`,
+            }}
+          >
+            {getAvatarContent(userAvatar)}
+          </div>
+          {showAvatarMenu && (
+            <AvatarSelector
+              currentAvatar={userAvatar}
+              onSelect={handleAvatarSelect}
+              onClose={() => setShowAvatarMenu(false)}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+
+    {/* Main Content - Centered with max-width */}
+    <div
+      className="main-content-container"
+      style={{
+        maxWidth: 1200,
+        margin: "0 auto",
+        width: "100%",
+        padding: "0 20px",
+        flex: 1,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "calc(100vh - 64px)",
+      }}
+    >
+      {renderContent()}
+    </div>
+
+    {/* Responsive styles - remove padding on mobile */}
+    <style>{`
+      @media (max-width: 768px) {
+        .main-content-container {
+          padding: 0 !important;
+        }
+        .top-bar {
+          padding: 12px 16px !important;
+        }
+      }
+    `}</style>
+
+    {/* Bottom Navigation - Visible on all screens */}
+    {!isFloat && !sub && (
+      <div
+        className="bottom-nav"
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 65,
+          background: T.card,
+          borderTop: `1px solid ${T.line}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-around",
+          padding: "0 8px 4px",
+          boxShadow: "0 -4px 16px rgba(0,0,0,0.5)",
+          zIndex: 100,
+        }}
+      >
+        {NAV.slice(0, 2).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => nav(t.id)}
+            style={{
+              flex: 1,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 3,
+              paddingTop: 8,
             }}
           >
             <svg
-              width="18"
-              height="18"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
-              stroke={T.dim}
+              stroke={page === t.id ? T.acc : T.dim}
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
+              <path d={t.d} />
             </svg>
-            {unreadCount > 0 && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: -2,
-                  right: -2,
-                  minWidth: 18,
-                  height: 18,
-                  borderRadius: 9,
-                  background: T.red,
-                  color: "#fff",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "0 5px",
-                }}
-              >
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </div>
-            )}
-          </div>
-          {/* Profile icon with dropdown */}
-          <div style={{ position: "relative" }}>
-            <div
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: "50%",
-                cursor: "pointer",
-                overflow: "hidden",
-                border: `2px solid ${T.acc}`,
-              }}
-            >
-              {getAvatarContent(userAvatar)}
-            </div>
-            {showAvatarMenu && (
-              <AvatarSelector
-                currentAvatar={userAvatar}
-                onSelect={handleAvatarSelect}
-                onClose={() => setShowAvatarMenu(false)}
-              />
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content - Centered with max-width */}
-      <div
-        className="main-content-container"
-        style={{
-          maxWidth: 1200,
-          margin: "0 auto",
-          width: "100%",
-          padding: "0 20px",
-          flex: 1,
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-          minHeight: "calc(100vh - 64px)",
-        }}
-      >
-        {renderContent()}
-      </div>
-
-      {/* Responsive styles - remove padding on mobile */}
-      <style>{`
-        @media (max-width: 768px) {
-          .main-content-container {
-            padding: 0 !important;
-          }
-          .top-bar {
-            padding: 12px 16px !important;
-          }
-        }
-      `}</style>
-
-      {/* Bottom Navigation - Visible on all screens */}
-      {!isFloat && !sub && (
-        <div
-          className="bottom-nav"
-          style={{
-            position: "fixed",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 65,
-            background: T.card,
-            borderTop: `1px solid ${T.line}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-around",
-            padding: "0 8px 4px",
-            boxShadow: "0 -4px 16px rgba(0,0,0,0.5)",
-            zIndex: 100,
-          }}
-        >
-          {NAV.slice(0, 2).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => nav(t.id)}
-              style={{
-                flex: 1,
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 3,
-                paddingTop: 8,
-              }}
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={page === t.id ? T.acc : T.dim}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d={t.d} />
-              </svg>
-              <span
-                style={{
-                  fontSize: 9,
-                  color: page === t.id ? T.acc : T.dim,
-                  fontWeight: page === t.id ? 800 : 500,
-                }}
-              >
-                {t.l}
-              </span>
-            </button>
-          ))}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 2,
-            }}
-          >
-            <div
-              onClick={() => nav("trade")}
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: "50%",
-                background: "linear-gradient(135deg,#00e5b0,#3b82f6)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 4px 16px rgba(0,229,176,0.32)",
-                cursor: "pointer",
-                marginTop: -18,
-              }}
-            >
-              <svg
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="white"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" />
-              </svg>
-            </div>
             <span
               style={{
                 fontSize: 9,
-                color: page === "trade" ? T.acc : T.dim,
-                fontWeight: 500,
+                color: page === t.id ? T.acc : T.dim,
+                fontWeight: page === t.id ? 800 : 500,
               }}
             >
-              Trade
+              {t.l}
             </span>
+          </button>
+        ))}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <div
+            onClick={() => nav("trade")}
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg,#00e5b0,#3b82f6)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 4px 16px rgba(0,229,176,0.32)",
+              cursor: "pointer",
+              marginTop: -18,
+            }}
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" />
+            </svg>
           </div>
-          {NAV.slice(2).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => nav(t.id)}
+          <span
+            style={{
+              fontSize: 9,
+              color: page === "trade" ? T.acc : T.dim,
+              fontWeight: 500,
+            }}
+          >
+            Trade
+          </span>
+        </div>
+        {NAV.slice(2).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => nav(t.id)}
+            style={{
+              flex: 1,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 3,
+              paddingTop: 8,
+            }}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={page === t.id ? T.acc : T.dim}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d={t.d} />
+            </svg>
+            <span
               style={{
-                flex: 1,
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 3,
-                paddingTop: 8,
+                fontSize: 9,
+                color: page === t.id ? T.acc : T.dim,
+                fontWeight: page === t.id ? 800 : 500,
               }}
             >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={page === t.id ? T.acc : T.dim}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d={t.d} />
-              </svg>
-              <span
-                style={{
-                  fontSize: 9,
-                  color: page === t.id ? T.acc : T.dim,
-                  fontWeight: page === t.id ? 800 : 500,
-                }}
-              >
-                {t.l}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
+              {t.l}
+            </span>
+          </button>
+        ))}
+      </div>
+    )}
 
-      {/* Notification Panel */}
-      {nPanel && (
-  <NotifPanel
-    notifs={notifs}
-    onClose={() => snp(false)}
-    onDelete={async (notifId) => {
-      if (user?.username) {
-        try {
-          await deleteNotificationMutation.mutateAsync({
-            username: user.username,
-            notificationId: notifId,
-          });
-          // React Query will automatically refetch notifications
-        } catch (e) {
-          console.error("Failed to delete notification:", e);
-        }
-      }
-    }}
-    onDeleteAll={async () => {
-      if (user?.username) {
-        try {
-          await deleteAllNotificationsMutation.mutateAsync({
-            username: user.username,
-          });
-          // React Query will automatically refetch notifications
-        } catch (e) {
-          console.error("Failed to delete all notifications:", e);
-        }
-      }
-    }}
-  />
-)}
-    </div>
-    <ReactQueryDevtools initialIsOpen={false} />
-  </QueryClientProvider>
+    {/* Notification Panel */}
+    {nPanel && (
+      <NotifPanel
+        notifs={notifs}
+        onClose={() => snp(false)}
+        onDelete={async (notifId) => {
+          if (user?.username) {
+            try {
+              await deleteNotificationMutation.mutateAsync({
+                username: user.username,
+                notificationId: notifId,
+              });
+            } catch (e) {
+              console.error("Failed to delete notification:", e);
+            }
+          }
+        }}
+        onDeleteAll={async () => {
+          if (user?.username) {
+            try {
+              await deleteAllNotificationsMutation.mutateAsync({
+                username: user.username,
+              });
+            } catch (e) {
+              console.error("Failed to delete all notifications:", e);
+            }
+          }
+        }}
+      />
+    )}
+  </div>
 );
 }

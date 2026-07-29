@@ -4842,66 +4842,27 @@ export default function AdminPanel({
 
   // In AdminPanel.jsx - Replace the fetchUsers function
 
-  const fetchUsers = useCallback(
-    async (page = 1, searchQuery = "") => {
-      setLoading(true);
-      try {
-        const adminKey =
-          localStorage.getItem("adminApiKey") ||
-          "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+ // In AdminPanel.jsx - Replace the fetchUsers function
 
-        // ✅ For virtual admin, use the refKey to get only THEIR users
-        if (isVirtualAdminStable && virtualAdminRefKey) {
-          const response = await fetch(
-            `${BASE_URL}/api/users/virtual-admin/${encodeURIComponent(virtualAdminRefKey)}/users`,
-            {
-              headers: { "x-admin-key": adminKey },
-            },
-          );
-          const data = await response.json();
+const fetchUsers = useCallback(
+  async (page = 1, searchQuery = "") => {
+    setLoading(true);
+    try {
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
-          if (data.success && data.users) {
-            const dbUsers = {};
-            data.users.forEach((u) => {
-              const k = u.username?.toLowerCase();
-              if (k && k !== "admin" && k !== "master_admin") {
-                dbUsers[k] = {
-                  ...u,
-                  username: k,
-                  plainPassword: u.plainPassword ?? null,
-                };
-              }
-            });
-            setUsersState(dbUsers);
-            // ✅ Set pagination info for virtual admin
-            setPaginationInfo({
-              total: data.users.length,
-              page: 1,
-              limit: data.users.length,
-              totalPages: 1,
-            });
-            setCurrentPage(1);
-          } else {
-            setUsersState({});
-            setPaginationInfo({ total: 0, page: 1, limit: 50, totalPages: 0 });
-          }
-          setLoading(false);
-          return;
-        }
-
-        // ✅ Master admin - get all users with pagination
+      // ✅ For virtual admin - WITH PAGINATION
+      if (isVirtualAdminStable && virtualAdminRefKey) {
         const response = await fetch(
-          `${BASE_URL}/api/users/admin/all-with-plain-passwords?page=${page}&limit=50&search=${encodeURIComponent(searchQuery)}`,
+          `${BASE_URL}/api/users/virtual-admin/${encodeURIComponent(virtualAdminRefKey)}/users?page=${page}&limit=50&search=${encodeURIComponent(searchQuery)}`,
           {
             headers: { "x-admin-key": adminKey },
           },
         );
         const data = await response.json();
 
-        if (data.error) {
-          console.error("Error fetching users:", data.error);
-          setUsersState(loadLocalUsers());
-        } else if (data.users) {
+        if (data.success && data.users) {
           const dbUsers = {};
           data.users.forEach((u) => {
             const k = u.username?.toLowerCase();
@@ -4913,21 +4874,74 @@ export default function AdminPanel({
               };
             }
           });
-
           setUsersState(dbUsers);
-          setPaginationInfo(data.pagination);
-          setCurrentPage(page);
+          
+          // ✅ Use pagination from backend
+          if (data.pagination) {
+            setPaginationInfo(data.pagination);
+            setCurrentPage(data.pagination.page);
+          } else {
+            // Fallback
+            const totalUsers = data.users.length;
+            setPaginationInfo({
+              total: totalUsers,
+              page: 1,
+              limit: 50,
+              totalPages: Math.ceil(totalUsers / 50),
+            });
+            setCurrentPage(1);
+          }
+        } else {
+          setUsersState({});
+          setPaginationInfo({ 
+            total: 0, 
+            page: 1, 
+            limit: 50, 
+            totalPages: 0 
+          });
         }
-      } catch (error) {
-        console.error("Fetch users error:", error);
-        setUsersState(loadLocalUsers());
-      } finally {
         setLoading(false);
+        return;
       }
-    },
-    [BASE_URL, isVirtualAdminStable, virtualAdminRefKey],
-  );
 
+      // ✅ Master admin - get all users with pagination
+      const response = await fetch(
+        `${BASE_URL}/api/users/admin/all-with-plain-passwords?page=${page}&limit=50&search=${encodeURIComponent(searchQuery)}`,
+        {
+          headers: { "x-admin-key": adminKey },
+        },
+      );
+      const data = await response.json();
+
+      if (data.error) {
+        console.error("Error fetching users:", data.error);
+        setUsersState(loadLocalUsers());
+      } else if (data.users) {
+        const dbUsers = {};
+        data.users.forEach((u) => {
+          const k = u.username?.toLowerCase();
+          if (k && k !== "admin" && k !== "master_admin") {
+            dbUsers[k] = {
+              ...u,
+              username: k,
+              plainPassword: u.plainPassword ?? null,
+            };
+          }
+        });
+
+        setUsersState(dbUsers);
+        setPaginationInfo(data.pagination);
+        setCurrentPage(page);
+      }
+    } catch (error) {
+      console.error("Fetch users error:", error);
+      setUsersState(loadLocalUsers());
+    } finally {
+      setLoading(false);
+    }
+  },
+  [BASE_URL, isVirtualAdminStable, virtualAdminRefKey],
+);
   useEffect(() => {
     fetchUsers();
     fetchWithdrawals();

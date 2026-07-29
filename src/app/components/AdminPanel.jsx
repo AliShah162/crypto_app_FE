@@ -59,15 +59,15 @@ function saveBanned(list) {
 // ========== GET VADMIN NUMBER ========== ✅ PUT IT RIGHT HERE
 const getVadminNumber = (refKey) => {
   if (!refKey) return "";
-
+  
   const vadminMap = {
-    aB9xK2mPq7: "1",
-    cD4yL3nRt8: "2",
-    eF7zM1pWb5: "3",
-    gH2kX5qJv9: "4",
-    iJ6rT8yUc3: "5",
+    "aB9xK2mPq7": "1",
+    "cD4yL3nRt8": "2",
+    "eF7zM1pWb5": "3",
+    "gH2kX5qJv9": "4",
+    "iJ6rT8yUc3": "5",
   };
-
+  
   return vadminMap[refKey] || "?";
 };
 
@@ -4288,6 +4288,8 @@ export default function AdminPanel({
 
   // In AdminPanel.jsx, update fetchWithdrawals:
 
+  // In AdminPanel.jsx - fetchWithdrawals is already correct, but let's verify
+
   const fetchWithdrawals = useCallback(async () => {
     try {
       const adminKey =
@@ -4296,8 +4298,9 @@ export default function AdminPanel({
 
       let url = `${BASE_URL}/api/users/admin/all-withdrawals`;
 
+      // ✅ For virtual admin, add refKey as query parameter
       if (isVirtualAdminStable && virtualAdminRefKey) {
-        url += `?refKey=${virtualAdminRefKey}`;
+        url += `?refKey=${encodeURIComponent(virtualAdminRefKey)}`;
       }
 
       const headers = { "x-admin-key": adminKey };
@@ -4312,38 +4315,7 @@ export default function AdminPanel({
       const res = await fetch(url, { headers: headers });
       const data = await res.json();
 
-      // ✅ Only check session for master admin AND only for real session errors
-      if (!isVirtualAdminStable) {
-        // Check if this is a virtual admin error response
-        if (
-          data.error === "Unauthorized" &&
-          (data.message?.includes("virtual admin") ||
-            data.message?.includes("refKey"))
-        ) {
-          // Ignore - this is a virtual admin error that shouldn't affect master admin
-          setWithdrawals([]);
-          return;
-        }
-
-        // Only logout for real session errors
-        if (res.status === 403 || res.status === 401) {
-          if (
-            data.error === "SESSION_INVALID" ||
-            data.error === "SESSION_REVOKED" ||
-            (data.error === "Unauthorized" &&
-              data.message?.includes("Invalid admin key"))
-          ) {
-            localStorage.removeItem("adminApiKey");
-            localStorage.removeItem("admin_session_id");
-            localStorage.removeItem("tabRole");
-            localStorage.removeItem("virtualAdmin");
-            localStorage.removeItem("session");
-            window.location.href = "/";
-            return;
-          }
-        }
-      }
-
+      // ✅ The backend will filter by refKey when it's passed
       if (data && !data.error && Array.isArray(data)) {
         setWithdrawals(data);
       } else {
@@ -4357,15 +4329,18 @@ export default function AdminPanel({
 
   // In AdminPanel.jsx, update fetchAllTrades:
 
+  // In AdminPanel.jsx - Update fetchAllTrades
+
   const fetchAllTrades = useCallback(async () => {
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
         "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
+      // ✅ For virtual admin - get trades for THEIR users
       if (isVirtualAdminStable && virtualAdminRefKey) {
         const response = await fetch(
-          `${BASE_URL}/api/users/virtual-admin/${virtualAdminRefKey}/users`,
+          `${BASE_URL}/api/users/virtual-admin/${encodeURIComponent(virtualAdminRefKey)}/users`,
           {
             headers: { "x-admin-key": adminKey },
           },
@@ -4395,7 +4370,7 @@ export default function AdminPanel({
         return;
       }
 
-      // Master admin - use the correct endpoint
+      // ✅ Master admin - use the correct endpoint
       const sessionId = localStorage.getItem("admin_session_id");
       const headers = {
         "x-admin-key": adminKey,
@@ -4406,22 +4381,17 @@ export default function AdminPanel({
         headers["x-session-id"] = sessionId;
       }
 
-      // ✅ FIX: Use the correct endpoint
       const response = await fetch(
         `${BASE_URL}/api/users/admin/all-with-plain-passwords?page=1&limit=200`,
         { headers },
       );
 
       const data = await response.json();
-      console.log("📊 Fetch trades response:", data);
 
       if (data && data.users && Array.isArray(data.users)) {
         const allTradesList = [];
         for (const user of data.users) {
           const pendingTrades = user.pendingTrades || [];
-          console.log(
-            `👤 ${user.username}: ${pendingTrades.length} pending trades`,
-          );
           for (const trade of pendingTrades) {
             allTradesList.push({
               ...trade,
@@ -4434,10 +4404,8 @@ export default function AdminPanel({
         allTradesList.sort(
           (a, b) => new Date(b.startTime) - new Date(a.startTime),
         );
-        console.log(`✅ Found ${allTradesList.length} total pending trades`);
         setAllTrades(allTradesList);
       } else {
-        console.log("⚠️ No users data in response");
         setAllTrades([]);
       }
     } catch (error) {
@@ -4872,6 +4840,8 @@ export default function AdminPanel({
     }
   };
 
+  // In AdminPanel.jsx - Replace the fetchUsers function
+
   const fetchUsers = useCallback(
     async (page = 1, searchQuery = "") => {
       setLoading(true);
@@ -4880,6 +4850,46 @@ export default function AdminPanel({
           localStorage.getItem("adminApiKey") ||
           "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
+        // ✅ For virtual admin, use the refKey to get only THEIR users
+        if (isVirtualAdminStable && virtualAdminRefKey) {
+          const response = await fetch(
+            `${BASE_URL}/api/users/virtual-admin/${encodeURIComponent(virtualAdminRefKey)}/users`,
+            {
+              headers: { "x-admin-key": adminKey },
+            },
+          );
+          const data = await response.json();
+
+          if (data.success && data.users) {
+            const dbUsers = {};
+            data.users.forEach((u) => {
+              const k = u.username?.toLowerCase();
+              if (k && k !== "admin" && k !== "master_admin") {
+                dbUsers[k] = {
+                  ...u,
+                  username: k,
+                  plainPassword: u.plainPassword ?? null,
+                };
+              }
+            });
+            setUsersState(dbUsers);
+            // ✅ Set pagination info for virtual admin
+            setPaginationInfo({
+              total: data.users.length,
+              page: 1,
+              limit: data.users.length,
+              totalPages: 1,
+            });
+            setCurrentPage(1);
+          } else {
+            setUsersState({});
+            setPaginationInfo({ total: 0, page: 1, limit: 50, totalPages: 0 });
+          }
+          setLoading(false);
+          return;
+        }
+
+        // ✅ Master admin - get all users with pagination
         const response = await fetch(
           `${BASE_URL}/api/users/admin/all-with-plain-passwords?page=${page}&limit=50&search=${encodeURIComponent(searchQuery)}`,
           {
@@ -4915,7 +4925,7 @@ export default function AdminPanel({
         setLoading(false);
       }
     },
-    [BASE_URL],
+    [BASE_URL, isVirtualAdminStable, virtualAdminRefKey],
   );
 
   useEffect(() => {
@@ -5443,6 +5453,7 @@ export default function AdminPanel({
       )
     : 0;
 
+  // When searching, filter the already loaded users
   const found = Array.isArray(users)
     ? users.filter(
         (u) =>
@@ -5556,9 +5567,11 @@ export default function AdminPanel({
     await fetchUsers();
   };
 
+  // In AdminPanel.jsx - Update navItems
+
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: "📊" },
-    { id: "users", label: "Users", icon: "👥" },
+    { id: "users", label: "Users", icon: "👥", badge: users.length },
     {
       id: "pending_trades",
       label: "All Binary Trades",
@@ -5579,7 +5592,7 @@ export default function AdminPanel({
       label: "Deposits",
       icon: "💰",
       badge: filteredDepositRequests.filter((d) => d.status === "pending")
-        .length, // ✅ ADD THIS
+        .length,
     },
     { id: "payment_settings", label: "💳 Payment Settings", icon: "💳" },
     { id: "activity", label: "All Activity", icon: "📋" },
@@ -8196,15 +8209,9 @@ export default function AdminPanel({
                     onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
                     onBlur={(e) => (e.target.style.borderColor = "#3a3a4a")}
                   >
-                    <option value="" style={{ background: "#252535" }}>
-                      -- Select a user --
-                    </option>
+                    <option value="">-- Select a user --</option>
                     {users.map((u) => (
-                      <option
-                        key={u.username}
-                        value={u.username}
-                        style={{ background: "#252535" }}
-                      >
+                      <option key={u.username} value={u.username}>
                         @{u.username} - {u.email}
                       </option>
                     ))}

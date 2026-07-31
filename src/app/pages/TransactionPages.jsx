@@ -652,37 +652,46 @@ export function DepositPage({ nav, onDeposit }) {
   )}
 
   {/* ✅ Bank Details Grid - Shows all info clearly */}
-  <div style={{ 
-    marginTop: 8, 
-    paddingTop: 8, 
-    borderTop: "1px solid rgba(255,255,255,0.05)",
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "4px 12px",
-    fontSize: 11,
-    color: "rgba(255,255,255,0.7)"
-  }}>
-    {paymentInfo?.bankName && (
-      <div>
-        <span style={{ color: "rgba(255,255,255,0.4)" }}>Bank:</span> {paymentInfo.bankName}
-      </div>
-    )}
-    {paymentInfo?.accountHolder && (
-      <div>
-        <span style={{ color: "rgba(255,255,255,0.4)" }}>Account Holder:</span> {paymentInfo.accountHolder}
-      </div>
-    )}
-    {paymentInfo?.ifsc && (
-      <div>
-        <span style={{ color: "rgba(255,255,255,0.4)" }}>IFSC:</span> {paymentInfo.ifsc}
-      </div>
-    )}
-    {paymentInfo?.additionalInfo && (
-      <div style={{ gridColumn: "span 2" }}>
-        <span style={{ color: "rgba(255,255,255,0.4)" }}>Info:</span> {paymentInfo.additionalInfo}
-      </div>
-    )}
-  </div>
+<div style={{ 
+  marginTop: 8, 
+  paddingTop: 8, 
+  borderTop: "1px solid rgba(255,255,255,0.05)",
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "4px 12px",
+  fontSize: 11,
+  color: "rgba(255,255,255,0.7)"
+}}>
+  {/* ✅ Account Number - Most important, always show first */}
+  {paymentInfo?.accountNumber && (
+    <div style={{ gridColumn: "span 2", marginBottom: 4 }}>
+      <span style={{ color: "rgba(255,255,255,0.4)" }}>Account Number:</span> 
+      <span style={{ fontWeight: 600, color: T.acc, fontFamily: "monospace", letterSpacing: "0.5px" }}>
+        {paymentInfo.accountNumber}
+      </span>
+    </div>
+  )}
+  {paymentInfo?.bankName && (
+    <div>
+      <span style={{ color: "rgba(255,255,255,0.4)" }}>Bank:</span> {paymentInfo.bankName}
+    </div>
+  )}
+  {paymentInfo?.accountHolder && (
+    <div>
+      <span style={{ color: "rgba(255,255,255,0.4)" }}>Account Holder:</span> {paymentInfo.accountHolder}
+    </div>
+  )}
+  {paymentInfo?.ifsc && (
+    <div>
+      <span style={{ color: "rgba(255,255,255,0.4)" }}>IFSC:</span> {paymentInfo.ifsc}
+    </div>
+  )}
+  {paymentInfo?.additionalInfo && (
+    <div style={{ gridColumn: "span 2" }}>
+      <span style={{ color: "rgba(255,255,255,0.4)" }}>Info:</span> {paymentInfo.additionalInfo}
+    </div>
+  )}
+</div>
 </div>
         </div>
         

@@ -4480,111 +4480,185 @@ export default function AdminPanel({
     }
   }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
 
-  // ✅ ADD PAYMENT SETTINGS FUNCTIONS HERE
-  const fetchPaymentSettings = useCallback(async () => {
-    try {
-      const adminKey =
-        localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-      const response = await fetch(
-        `${BASE_URL}/api/users/admin/payment-details`,
-        {
-          headers: { "x-admin-key": adminKey },
-        },
-      );
-      const data = await response.json();
-
-      if (data.success && data.details) {
-        // Bank settings
-        setBankAccountNumber(data.details.bank?.address || "");
-        setBankAccountHolder(data.details.bank?.accountHolder || "");
-        setBankName(data.details.bank?.bankName || "");
-        setBankIfsc(data.details.bank?.ifsc || "");
-
-        // Crypto settings
-        setCryptoAddress(data.details.crypto?.address || "");
-        setCryptoAdditionalInfo(data.details.crypto?.additionalInfo || "");
-
-        // UPI settings
-        setUpiAddress(data.details.upi?.address || "");
-        setUpiAdditionalInfo(data.details.upi?.additionalInfo || "");
-      }
-    } catch (err) {
-      console.error("Failed to fetch payment settings:", err);
+  // ✅ REPLACE THIS FUNCTION
+const fetchPaymentSettings = useCallback(async () => {
+  try {
+    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+    
+    // ✅ Build URL with refKey for virtual admin
+    let url = `${BASE_URL}/api/users/admin/payment-details`;
+    if (isVirtualAdminStable && virtualAdminRefKey) {
+      url += `?refKey=${encodeURIComponent(virtualAdminRefKey)}`;
     }
-  }, [BASE_URL]);
+    
+    const headers = { 
+      "x-admin-key": adminKey,
+      "Content-Type": "application/json",
+    };
+    
+    // ✅ Only add session-id for master admin
+    if (!isVirtualAdminStable) {
+      const sessionId = localStorage.getItem("admin_session_id");
+      if (sessionId) {
+        headers["x-session-id"] = sessionId;
+      }
+    }
+    
+    const response = await fetch(url, { headers });
+    const data = await response.json();
 
-  const handleSavePaymentSettings = async () => {
-    setSavingPaymentSettings(true);
-    setPaymentSettingsMessage(null);
-
-    try {
-      const adminKey =
-        localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-
-      // Save bank settings
-      await fetch(`${BASE_URL}/api/users/admin/update-payment-details`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-key": adminKey,
-        },
-        body: JSON.stringify({
-          method: "bank",
-          address: bankAccountNumber,
-          additionalInfo: JSON.stringify({
-            accountHolder: bankAccountHolder,
-            bankName: bankName,
-            ifsc: bankIfsc,
-          }),
-        }),
-      });
-
-      // Save crypto settings
-      await fetch(`${BASE_URL}/api/users/admin/update-payment-details`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-key": adminKey,
-        },
-        body: JSON.stringify({
-          method: "crypto",
-          address: cryptoAddress,
-          additionalInfo: cryptoAdditionalInfo,
-        }),
-      });
-
-      // Save UPI settings
-      await fetch(`${BASE_URL}/api/users/admin/update-payment-details`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-key": adminKey,
-        },
-        body: JSON.stringify({
-          method: "upi",
-          address: upiAddress,
-          additionalInfo: upiAdditionalInfo,
-        }),
-      });
-
-      setPaymentSettingsMessage({
-        type: "success",
-        text: "✅ Payment settings saved successfully!",
-      });
-
-      setTimeout(() => setPaymentSettingsMessage(null), 5000);
-    } catch (err) {
-      console.error("Failed to save payment settings:", err);
+    if (data.success && data.details) {
+      // ✅ Map the response to your state variables
+      setBankAccountNumber(data.details.bank?.accountNumber || data.details.bank?.address || "");
+      setBankAccountHolder(data.details.bank?.accountHolder || "");
+      setBankName(data.details.bank?.bankName || "");
+      setBankIfsc(data.details.bank?.ifsc || "");
+      setCryptoAddress(data.details.crypto?.address || "");
+      setCryptoAdditionalInfo(data.details.crypto?.additionalInfo || "");
+      setUpiAddress(data.details.upi?.address || "");
+      setUpiAdditionalInfo(data.details.upi?.additionalInfo || "");
+      
+      // ✅ Show which admin's settings are being shown
+      if (data.isVirtualAdmin && data.adminName) {
+        console.log(`🟢 Loading payment settings for ${data.adminName}`);
+        setPaymentSettingsMessage({
+          type: "info",
+          text: `💳 Managing payment settings for ${data.adminName}`,
+        });
+        // Auto-clear after 3 seconds
+        setTimeout(() => setPaymentSettingsMessage(null), 3000);
+      } else {
+        setPaymentSettingsMessage({
+          type: "info",
+          text: "💳 Managing global payment settings (Master Admin)",
+        });
+        setTimeout(() => setPaymentSettingsMessage(null), 3000);
+      }
+    } else {
+      console.error("Failed to fetch payment settings:", data.error);
       setPaymentSettingsMessage({
         type: "error",
-        text: "❌ Failed to save payment settings: " + err.message,
+        text: "❌ Failed to load payment settings",
       });
-    } finally {
-      setSavingPaymentSettings(false);
+      setTimeout(() => setPaymentSettingsMessage(null), 3000);
     }
-  };
+  } catch (err) {
+    console.error("Failed to fetch payment settings:", err);
+    setPaymentSettingsMessage({
+      type: "error",
+      text: "❌ Network error loading payment settings",
+    });
+    setTimeout(() => setPaymentSettingsMessage(null), 3000);
+  }
+}, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
+
+  // ✅ REPLACE THIS FUNCTION
+const handleSavePaymentSettings = async () => {
+  setSavingPaymentSettings(true);
+  setPaymentSettingsMessage(null);
+
+  try {
+    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+
+    // ✅ Build URL with refKey for virtual admin
+    let url = `${BASE_URL}/api/users/admin/update-payment-details`;
+    if (isVirtualAdminStable && virtualAdminRefKey) {
+      url += `?refKey=${encodeURIComponent(virtualAdminRefKey)}`;
+    }
+
+    const headers = {
+      "Content-Type": "application/json",
+      "x-admin-key": adminKey,
+    };
+
+    // ✅ Only add session-id for master admin
+    if (!isVirtualAdminStable) {
+      const sessionId = localStorage.getItem("admin_session_id");
+      if (sessionId) {
+        headers["x-session-id"] = sessionId;
+      }
+    }
+
+    // ✅ Save bank settings
+    const bankAdditionalInfo = JSON.stringify({
+      accountHolder: bankAccountHolder,
+      bankName: bankName,
+      ifsc: bankIfsc,
+      additionalInfo: "",
+    });
+
+    const bankResponse = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        method: "bank",
+        address: bankAccountNumber,
+        additionalInfo: bankAdditionalInfo,
+      }),
+    });
+
+    const bankData = await bankResponse.json();
+    if (!bankData.success) {
+      throw new Error(bankData.error || "Failed to save bank settings");
+    }
+
+    // ✅ Save crypto settings
+    const cryptoResponse = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        method: "crypto",
+        address: cryptoAddress,
+        additionalInfo: cryptoAdditionalInfo,
+      }),
+    });
+
+    const cryptoData = await cryptoResponse.json();
+    if (!cryptoData.success) {
+      throw new Error(cryptoData.error || "Failed to save crypto settings");
+    }
+
+    // ✅ Save UPI settings
+    const upiResponse = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        method: "upi",
+        address: upiAddress,
+        additionalInfo: upiAdditionalInfo,
+      }),
+    });
+
+    const upiData = await upiResponse.json();
+    if (!upiData.success) {
+      throw new Error(upiData.error || "Failed to save UPI settings");
+    }
+
+    // ✅ Success message with admin label
+    const adminLabel = isVirtualAdminStable 
+      ? `Virtual Admin (${virtualAdminRefKey})` 
+      : "Master Admin";
+      
+    setPaymentSettingsMessage({
+      type: "success",
+      text: `✅ Payment settings saved successfully for ${adminLabel}!`,
+    });
+
+    // ✅ Refresh to show updated data
+    await fetchPaymentSettings();
+
+    setTimeout(() => setPaymentSettingsMessage(null), 5000);
+  } catch (err) {
+    console.error("Failed to save payment settings:", err);
+    setPaymentSettingsMessage({
+      type: "error",
+      text: "❌ Failed to save payment settings: " + err.message,
+    });
+    setTimeout(() => setPaymentSettingsMessage(null), 5000);
+  } finally {
+    setSavingPaymentSettings(false);
+  }
+};
 
   const handleDepositAction = async (username, requestId, action) => {
     if (processingDeposit === requestId) return;
@@ -5608,7 +5682,7 @@ const fetchUsers = useCallback(
       badge: filteredDepositRequests.filter((d) => d.status === "pending")
         .length,
     },
-    { id: "payment_settings", label: "💳 Payment Settings", icon: "💳" },
+    { id: "payment_settings", label: " Payment Settings", icon: "💳" },
     { id: "activity", label: "All Activity", icon: "📋" },
     { id: "admin_users", label: "Admin Users", icon: "👥", badge: 0 },
   ];

@@ -417,18 +417,55 @@ export function DepositPage({ nav, onDeposit }) {
     { id: "upi", label: "📱 UPI", description: "Send via UPI" },
   ];
 
+ // ✅ FIXED: Fetch payment details with user's refKey
   useEffect(() => {
     const fetchPaymentDetails = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/users/admin/payment-details`);
-        const data = await response.json();
-        if (data.success) {
-          setPaymentDetails(data.details);
+        const sessionUser = localStorage.getItem("session");
+        if (!sessionUser) {
+          console.log("No session user found");
+          return;
+        }
+
+        // ✅ STEP 1: Get the user's data to find their refKey
+        const userResponse = await fetch(`${API_URL}/api/users/${sessionUser}`);
+        const userData = await userResponse.json();
+        
+        if (userData.error) {
+          console.error("Failed to fetch user data:", userData.error);
+          return;
+        }
+
+        const userRefKey = userData.refKey;
+        console.log("🔑 User refKey:", userRefKey);
+
+        // ✅ STEP 2: Use the public endpoint with refKey
+        if (userRefKey) {
+          const response = await fetch(`${API_URL}/api/users/public/payment-details/${encodeURIComponent(userRefKey)}`);
+          const data = await response.json();
+          
+          if (data.success) {
+            console.log("✅ Payment details fetched:", data);
+            setPaymentDetails(data.details);
+            setAdminName(data.adminName);
+          } else {
+            console.error("Failed to fetch payment details:", data.error);
+          }
+        } else {
+          // Fallback: User has no refKey, try global settings
+          console.log("⚠️ No refKey found, using global settings");
+          const response = await fetch(`${API_URL}/api/users/admin/payment-details`);
+          const data = await response.json();
+          if (data.success) {
+            setPaymentDetails(data.details);
+            setAdminName("Default Admin");
+          }
         }
       } catch (err) {
         console.error("Failed to fetch payment details:", err);
       }
     };
+    
     fetchPaymentDetails();
   }, []);
 

@@ -602,62 +602,88 @@ export function DepositPage({ nav, onDeposit }) {
           </div>
           
           <div style={{ 
-            background: "rgba(255,255,255,0.05)", 
-            borderRadius: 10, 
-            padding: "12px 14px",
-            border: "1px solid rgba(255,255,255,0.08)"
-          }}>
-            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>
-              Send payment to:
-            </div>
-            {paymentInfo?.address ? (
-              <>
-                <div style={{ 
-                  fontSize: 13, 
-                  color: T.acc, 
-                  fontFamily: "monospace", 
-                  wordBreak: "break-all",
-                  background: "rgba(0,0,0,0.3)",
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  marginBottom: 8
-                }}>
-                  {paymentInfo.address}
-                </div>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(paymentInfo.address);
-                    alert("Address copied to clipboard!");
-                  }}
-                  style={{
-                    fontSize: 11,
-                    color: T.acc,
-                    background: "rgba(0,229,176,0.1)",
-                    border: `1px solid ${T.acc}`,
-                    borderRadius: 6,
-                    padding: "4px 12px",
-                    cursor: "pointer"
-                  }}
-                >
-                  📋 Copy Address
-                </button>
-              </>
-            ) : (
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>
-                Payment details not configured by admin yet.
-              </div>
-            )}
-            {paymentInfo?.additionalInfo && (
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                {paymentInfo.additionalInfo}
-              </div>
-            )}
-            {paymentInfo?.bankName && (
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                Bank: {paymentInfo.bankName} · Account: {paymentInfo.accountHolder}
-              </div>
-            )}
-          </div>
+  background: "rgba(255,255,255,0.05)", 
+  borderRadius: 10, 
+  padding: "12px 14px",
+  border: "1px solid rgba(255,255,255,0.08)"
+}}>
+  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>
+    Send payment to:
+  </div>
+  
+  {/* ✅ Show account number OR address (whichever exists) */}
+  {(paymentInfo?.accountNumber || paymentInfo?.address) ? (
+    <>
+      <div style={{ 
+        fontSize: 13, 
+        color: T.acc, 
+        fontFamily: "monospace", 
+        wordBreak: "break-all",
+        background: "rgba(0,0,0,0.3)",
+        padding: "8px 10px",
+        borderRadius: 8,
+        marginBottom: 8
+      }}>
+        {paymentInfo.accountNumber || paymentInfo.address}
+      </div>
+      <button
+        onClick={() => {
+          navigator.clipboard.writeText(paymentInfo.accountNumber || paymentInfo.address);
+          alert("Account number copied to clipboard!");
+        }}
+        style={{
+          fontSize: 11,
+          color: T.acc,
+          background: "rgba(0,229,176,0.1)",
+          border: `1px solid ${T.acc}`,
+          borderRadius: 6,
+          padding: "4px 12px",
+          cursor: "pointer",
+          marginBottom: 8
+        }}
+      >
+        📋 Copy Account Number
+      </button>
+    </>
+  ) : (
+    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>
+      Payment details not configured by admin yet.
+    </div>
+  )}
+
+  {/* ✅ Bank Details Grid - Shows all info clearly */}
+  <div style={{ 
+    marginTop: 8, 
+    paddingTop: 8, 
+    borderTop: "1px solid rgba(255,255,255,0.05)",
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "4px 12px",
+    fontSize: 11,
+    color: "rgba(255,255,255,0.7)"
+  }}>
+    {paymentInfo?.bankName && (
+      <div>
+        <span style={{ color: "rgba(255,255,255,0.4)" }}>Bank:</span> {paymentInfo.bankName}
+      </div>
+    )}
+    {paymentInfo?.accountHolder && (
+      <div>
+        <span style={{ color: "rgba(255,255,255,0.4)" }}>Account Holder:</span> {paymentInfo.accountHolder}
+      </div>
+    )}
+    {paymentInfo?.ifsc && (
+      <div>
+        <span style={{ color: "rgba(255,255,255,0.4)" }}>IFSC:</span> {paymentInfo.ifsc}
+      </div>
+    )}
+    {paymentInfo?.additionalInfo && (
+      <div style={{ gridColumn: "span 2" }}>
+        <span style={{ color: "rgba(255,255,255,0.4)" }}>Info:</span> {paymentInfo.additionalInfo}
+      </div>
+    )}
+  </div>
+</div>
         </div>
         
         <PB lbl="Back to Home" onClick={() => { nav("home"); }} />

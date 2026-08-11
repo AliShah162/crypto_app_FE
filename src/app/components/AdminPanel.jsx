@@ -59,15 +59,15 @@ function saveBanned(list) {
 // ========== GET VADMIN NUMBER ========== ✅ PUT IT RIGHT HERE
 const getVadminNumber = (refKey) => {
   if (!refKey) return "";
-  
+
   const vadminMap = {
-    "aB9xK2mPq7": "1",
-    "cD4yL3nRt8": "2",
-    "eF7zM1pWb5": "3",
-    "gH2kX5qJv9": "4",
-    "iJ6rT8yUc3": "5",
+    aB9xK2mPq7: "1",
+    cD4yL3nRt8: "2",
+    eF7zM1pWb5: "3",
+    gH2kX5qJv9: "4",
+    iJ6rT8yUc3: "5",
   };
-  
+
   return vadminMap[refKey] || "?";
 };
 
@@ -118,6 +118,20 @@ function coinMeta(id) {
     name: id || "Unknown",
   };
 }
+
+const getOptimizedImage = (path) => {
+  if (!path) return null;
+  try {
+    const parts = path.split('/');
+    const filename = parts[parts.length - 1];
+    const publicId = filename.split('.')[0];
+    // ✅ Your actual cloud name
+    const cloudName = 'ddx86a9do';
+    return `https://res.cloudinary.com/${cloudName}/image/upload/w_300,c_limit,q_auto:good,f_auto/kyc_documents/${publicId}`;
+  } catch {
+    return path; // Fallback to original path if parsing fails
+  }
+};
 
 /* ══════════════════════════════════════════════════════
    THEME
@@ -2534,18 +2548,12 @@ function UserDrawer({
                                 onClick={() => handlePreview(frontImage)}
                               >
                                 <img
-                                  src={frontImage}
+                                  src={getOptimizedImage(frontImage)}
                                   alt="Front"
                                   style={{
                                     width: "100%",
                                     height: "100%",
                                     objectFit: "contain",
-                                    background: "#f0f0f0",
-                                  }}
-                                  onError={(e) => {
-                                    e.target.style.display = "none";
-                                    e.target.parentElement.innerHTML =
-                                      '<span style="color:#666;font-size:12px;">Image not found</span>';
                                   }}
                                 />
                               </div>
@@ -4481,184 +4489,190 @@ export default function AdminPanel({
   }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
 
   // ✅ REPLACE THIS FUNCTION
-const fetchPaymentSettings = useCallback(async () => {
-  try {
-    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-    
-    // ✅ Build URL with refKey for virtual admin
-    let url = `${BASE_URL}/api/users/admin/payment-details`;
-    if (isVirtualAdminStable && virtualAdminRefKey) {
-      url += `?refKey=${encodeURIComponent(virtualAdminRefKey)}`;
-    }
-    
-    const headers = { 
-      "x-admin-key": adminKey,
-      "Content-Type": "application/json",
-    };
-    
-    // ✅ Only add session-id for master admin
-    if (!isVirtualAdminStable) {
-      const sessionId = localStorage.getItem("admin_session_id");
-      if (sessionId) {
-        headers["x-session-id"] = sessionId;
-      }
-    }
-    
-    const response = await fetch(url, { headers });
-    const data = await response.json();
+  const fetchPaymentSettings = useCallback(async () => {
+    try {
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
-    if (data.success && data.details) {
-      // ✅ Map the response to your state variables
-      setBankAccountNumber(data.details.bank?.accountNumber || data.details.bank?.address || "");
-      setBankAccountHolder(data.details.bank?.accountHolder || "");
-      setBankName(data.details.bank?.bankName || "");
-      setBankIfsc(data.details.bank?.ifsc || "");
-      setCryptoAddress(data.details.crypto?.address || "");
-      setCryptoAdditionalInfo(data.details.crypto?.additionalInfo || "");
-      setUpiAddress(data.details.upi?.address || "");
-      setUpiAdditionalInfo(data.details.upi?.additionalInfo || "");
-      
-      // ✅ Show which admin's settings are being shown
-      if (data.isVirtualAdmin && data.adminName) {
-        console.log(`🟢 Loading payment settings for ${data.adminName}`);
-        setPaymentSettingsMessage({
-          type: "info",
-          text: `💳 Managing payment settings for ${data.adminName}`,
-        });
-        // Auto-clear after 3 seconds
-        setTimeout(() => setPaymentSettingsMessage(null), 3000);
+      // ✅ Build URL with refKey for virtual admin
+      let url = `${BASE_URL}/api/users/admin/payment-details`;
+      if (isVirtualAdminStable && virtualAdminRefKey) {
+        url += `?refKey=${encodeURIComponent(virtualAdminRefKey)}`;
+      }
+
+      const headers = {
+        "x-admin-key": adminKey,
+        "Content-Type": "application/json",
+      };
+
+      // ✅ Only add session-id for master admin
+      if (!isVirtualAdminStable) {
+        const sessionId = localStorage.getItem("admin_session_id");
+        if (sessionId) {
+          headers["x-session-id"] = sessionId;
+        }
+      }
+
+      const response = await fetch(url, { headers });
+      const data = await response.json();
+
+      if (data.success && data.details) {
+        // ✅ Map the response to your state variables
+        setBankAccountNumber(
+          data.details.bank?.accountNumber || data.details.bank?.address || "",
+        );
+        setBankAccountHolder(data.details.bank?.accountHolder || "");
+        setBankName(data.details.bank?.bankName || "");
+        setBankIfsc(data.details.bank?.ifsc || "");
+        setCryptoAddress(data.details.crypto?.address || "");
+        setCryptoAdditionalInfo(data.details.crypto?.additionalInfo || "");
+        setUpiAddress(data.details.upi?.address || "");
+        setUpiAdditionalInfo(data.details.upi?.additionalInfo || "");
+
+        // ✅ Show which admin's settings are being shown
+        if (data.isVirtualAdmin && data.adminName) {
+          console.log(`🟢 Loading payment settings for ${data.adminName}`);
+          setPaymentSettingsMessage({
+            type: "info",
+            text: `💳 Managing payment settings for ${data.adminName}`,
+          });
+          // Auto-clear after 3 seconds
+          setTimeout(() => setPaymentSettingsMessage(null), 3000);
+        } else {
+          setPaymentSettingsMessage({
+            type: "info",
+            text: "💳 Managing global payment settings (Master Admin)",
+          });
+          setTimeout(() => setPaymentSettingsMessage(null), 3000);
+        }
       } else {
+        console.error("Failed to fetch payment settings:", data.error);
         setPaymentSettingsMessage({
-          type: "info",
-          text: "💳 Managing global payment settings (Master Admin)",
+          type: "error",
+          text: "❌ Failed to load payment settings",
         });
         setTimeout(() => setPaymentSettingsMessage(null), 3000);
       }
-    } else {
-      console.error("Failed to fetch payment settings:", data.error);
+    } catch (err) {
+      console.error("Failed to fetch payment settings:", err);
       setPaymentSettingsMessage({
         type: "error",
-        text: "❌ Failed to load payment settings",
+        text: "❌ Network error loading payment settings",
       });
       setTimeout(() => setPaymentSettingsMessage(null), 3000);
     }
-  } catch (err) {
-    console.error("Failed to fetch payment settings:", err);
-    setPaymentSettingsMessage({
-      type: "error",
-      text: "❌ Network error loading payment settings",
-    });
-    setTimeout(() => setPaymentSettingsMessage(null), 3000);
-  }
-}, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
+  }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
 
   // ✅ REPLACE THIS FUNCTION
-const handleSavePaymentSettings = async () => {
-  setSavingPaymentSettings(true);
-  setPaymentSettingsMessage(null);
+  const handleSavePaymentSettings = async () => {
+    setSavingPaymentSettings(true);
+    setPaymentSettingsMessage(null);
 
-  try {
-    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+    try {
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
-    // ✅ Build URL with refKey for virtual admin
-    let url = `${BASE_URL}/api/users/admin/update-payment-details`;
-    if (isVirtualAdminStable && virtualAdminRefKey) {
-      url += `?refKey=${encodeURIComponent(virtualAdminRefKey)}`;
-    }
-
-    const headers = {
-      "Content-Type": "application/json",
-      "x-admin-key": adminKey,
-    };
-
-    // ✅ Only add session-id for master admin
-    if (!isVirtualAdminStable) {
-      const sessionId = localStorage.getItem("admin_session_id");
-      if (sessionId) {
-        headers["x-session-id"] = sessionId;
+      // ✅ Build URL with refKey for virtual admin
+      let url = `${BASE_URL}/api/users/admin/update-payment-details`;
+      if (isVirtualAdminStable && virtualAdminRefKey) {
+        url += `?refKey=${encodeURIComponent(virtualAdminRefKey)}`;
       }
+
+      const headers = {
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey,
+      };
+
+      // ✅ Only add session-id for master admin
+      if (!isVirtualAdminStable) {
+        const sessionId = localStorage.getItem("admin_session_id");
+        if (sessionId) {
+          headers["x-session-id"] = sessionId;
+        }
+      }
+
+      // ✅ Save bank settings
+      const bankAdditionalInfo = JSON.stringify({
+        accountHolder: bankAccountHolder,
+        bankName: bankName,
+        ifsc: bankIfsc,
+        additionalInfo: "",
+      });
+
+      const bankResponse = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          method: "bank",
+          address: bankAccountNumber,
+          additionalInfo: bankAdditionalInfo,
+        }),
+      });
+
+      const bankData = await bankResponse.json();
+      if (!bankData.success) {
+        throw new Error(bankData.error || "Failed to save bank settings");
+      }
+
+      // ✅ Save crypto settings
+      const cryptoResponse = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          method: "crypto",
+          address: cryptoAddress,
+          additionalInfo: cryptoAdditionalInfo,
+        }),
+      });
+
+      const cryptoData = await cryptoResponse.json();
+      if (!cryptoData.success) {
+        throw new Error(cryptoData.error || "Failed to save crypto settings");
+      }
+
+      // ✅ Save UPI settings
+      const upiResponse = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          method: "upi",
+          address: upiAddress,
+          additionalInfo: upiAdditionalInfo,
+        }),
+      });
+
+      const upiData = await upiResponse.json();
+      if (!upiData.success) {
+        throw new Error(upiData.error || "Failed to save UPI settings");
+      }
+
+      // ✅ Success message with admin label
+      const adminLabel = isVirtualAdminStable
+        ? `Virtual Admin (${virtualAdminRefKey})`
+        : "Master Admin";
+
+      setPaymentSettingsMessage({
+        type: "success",
+        text: `✅ Payment settings saved successfully for ${adminLabel}!`,
+      });
+
+      // ✅ Refresh to show updated data
+      await fetchPaymentSettings();
+
+      setTimeout(() => setPaymentSettingsMessage(null), 5000);
+    } catch (err) {
+      console.error("Failed to save payment settings:", err);
+      setPaymentSettingsMessage({
+        type: "error",
+        text: "❌ Failed to save payment settings: " + err.message,
+      });
+      setTimeout(() => setPaymentSettingsMessage(null), 5000);
+    } finally {
+      setSavingPaymentSettings(false);
     }
-
-    // ✅ Save bank settings
-    const bankAdditionalInfo = JSON.stringify({
-      accountHolder: bankAccountHolder,
-      bankName: bankName,
-      ifsc: bankIfsc,
-      additionalInfo: "",
-    });
-
-    const bankResponse = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        method: "bank",
-        address: bankAccountNumber,
-        additionalInfo: bankAdditionalInfo,
-      }),
-    });
-
-    const bankData = await bankResponse.json();
-    if (!bankData.success) {
-      throw new Error(bankData.error || "Failed to save bank settings");
-    }
-
-    // ✅ Save crypto settings
-    const cryptoResponse = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        method: "crypto",
-        address: cryptoAddress,
-        additionalInfo: cryptoAdditionalInfo,
-      }),
-    });
-
-    const cryptoData = await cryptoResponse.json();
-    if (!cryptoData.success) {
-      throw new Error(cryptoData.error || "Failed to save crypto settings");
-    }
-
-    // ✅ Save UPI settings
-    const upiResponse = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        method: "upi",
-        address: upiAddress,
-        additionalInfo: upiAdditionalInfo,
-      }),
-    });
-
-    const upiData = await upiResponse.json();
-    if (!upiData.success) {
-      throw new Error(upiData.error || "Failed to save UPI settings");
-    }
-
-    // ✅ Success message with admin label
-    const adminLabel = isVirtualAdminStable 
-      ? `Virtual Admin (${virtualAdminRefKey})` 
-      : "Master Admin";
-      
-    setPaymentSettingsMessage({
-      type: "success",
-      text: `✅ Payment settings saved successfully for ${adminLabel}!`,
-    });
-
-    // ✅ Refresh to show updated data
-    await fetchPaymentSettings();
-
-    setTimeout(() => setPaymentSettingsMessage(null), 5000);
-  } catch (err) {
-    console.error("Failed to save payment settings:", err);
-    setPaymentSettingsMessage({
-      type: "error",
-      text: "❌ Failed to save payment settings: " + err.message,
-    });
-    setTimeout(() => setPaymentSettingsMessage(null), 5000);
-  } finally {
-    setSavingPaymentSettings(false);
-  }
-};
+  };
 
   const handleDepositAction = async (username, requestId, action) => {
     if (processingDeposit === requestId) return;
@@ -4916,27 +4930,81 @@ const handleSavePaymentSettings = async () => {
 
   // In AdminPanel.jsx - Replace the fetchUsers function
 
- // In AdminPanel.jsx - Replace the fetchUsers function
+  // In AdminPanel.jsx - Replace the fetchUsers function
 
-const fetchUsers = useCallback(
-  async (page = 1, searchQuery = "") => {
-    setLoading(true);
-    try {
-      const adminKey =
-        localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+  const fetchUsers = useCallback(
+    async (page = 1, searchQuery = "") => {
+      setLoading(true);
+      try {
+        const adminKey =
+          localStorage.getItem("adminApiKey") ||
+          "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
-      // ✅ For virtual admin - WITH PAGINATION
-      if (isVirtualAdminStable && virtualAdminRefKey) {
+        // ✅ For virtual admin - WITH PAGINATION
+        if (isVirtualAdminStable && virtualAdminRefKey) {
+          const response = await fetch(
+            `${BASE_URL}/api/users/virtual-admin/${encodeURIComponent(virtualAdminRefKey)}/users?page=${page}&limit=50&search=${encodeURIComponent(searchQuery)}`,
+            {
+              headers: { "x-admin-key": adminKey },
+            },
+          );
+          const data = await response.json();
+
+          if (data.success && data.users) {
+            const dbUsers = {};
+            data.users.forEach((u) => {
+              const k = u.username?.toLowerCase();
+              if (k && k !== "admin" && k !== "master_admin") {
+                dbUsers[k] = {
+                  ...u,
+                  username: k,
+                  plainPassword: u.plainPassword ?? null,
+                };
+              }
+            });
+            setUsersState(dbUsers);
+
+            // ✅ Use pagination from backend
+            if (data.pagination) {
+              setPaginationInfo(data.pagination);
+              setCurrentPage(data.pagination.page);
+            } else {
+              // Fallback
+              const totalUsers = data.users.length;
+              setPaginationInfo({
+                total: totalUsers,
+                page: 1,
+                limit: 50,
+                totalPages: Math.ceil(totalUsers / 50),
+              });
+              setCurrentPage(1);
+            }
+          } else {
+            setUsersState({});
+            setPaginationInfo({
+              total: 0,
+              page: 1,
+              limit: 50,
+              totalPages: 0,
+            });
+          }
+          setLoading(false);
+          return;
+        }
+
+        // ✅ Master admin - get all users with pagination
         const response = await fetch(
-          `${BASE_URL}/api/users/virtual-admin/${encodeURIComponent(virtualAdminRefKey)}/users?page=${page}&limit=50&search=${encodeURIComponent(searchQuery)}`,
+          `${BASE_URL}/api/users/admin/all-with-plain-passwords?page=${page}&limit=50&search=${encodeURIComponent(searchQuery)}`,
           {
             headers: { "x-admin-key": adminKey },
           },
         );
         const data = await response.json();
 
-        if (data.success && data.users) {
+        if (data.error) {
+          console.error("Error fetching users:", data.error);
+          setUsersState(loadLocalUsers());
+        } else if (data.users) {
           const dbUsers = {};
           data.users.forEach((u) => {
             const k = u.username?.toLowerCase();
@@ -4948,74 +5016,20 @@ const fetchUsers = useCallback(
               };
             }
           });
+
           setUsersState(dbUsers);
-          
-          // ✅ Use pagination from backend
-          if (data.pagination) {
-            setPaginationInfo(data.pagination);
-            setCurrentPage(data.pagination.page);
-          } else {
-            // Fallback
-            const totalUsers = data.users.length;
-            setPaginationInfo({
-              total: totalUsers,
-              page: 1,
-              limit: 50,
-              totalPages: Math.ceil(totalUsers / 50),
-            });
-            setCurrentPage(1);
-          }
-        } else {
-          setUsersState({});
-          setPaginationInfo({ 
-            total: 0, 
-            page: 1, 
-            limit: 50, 
-            totalPages: 0 
-          });
+          setPaginationInfo(data.pagination);
+          setCurrentPage(page);
         }
-        setLoading(false);
-        return;
-      }
-
-      // ✅ Master admin - get all users with pagination
-      const response = await fetch(
-        `${BASE_URL}/api/users/admin/all-with-plain-passwords?page=${page}&limit=50&search=${encodeURIComponent(searchQuery)}`,
-        {
-          headers: { "x-admin-key": adminKey },
-        },
-      );
-      const data = await response.json();
-
-      if (data.error) {
-        console.error("Error fetching users:", data.error);
+      } catch (error) {
+        console.error("Fetch users error:", error);
         setUsersState(loadLocalUsers());
-      } else if (data.users) {
-        const dbUsers = {};
-        data.users.forEach((u) => {
-          const k = u.username?.toLowerCase();
-          if (k && k !== "admin" && k !== "master_admin") {
-            dbUsers[k] = {
-              ...u,
-              username: k,
-              plainPassword: u.plainPassword ?? null,
-            };
-          }
-        });
-
-        setUsersState(dbUsers);
-        setPaginationInfo(data.pagination);
-        setCurrentPage(page);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error("Fetch users error:", error);
-      setUsersState(loadLocalUsers());
-    } finally {
-      setLoading(false);
-    }
-  },
-  [BASE_URL, isVirtualAdminStable, virtualAdminRefKey],
-);
+    },
+    [BASE_URL, isVirtualAdminStable, virtualAdminRefKey],
+  );
   useEffect(() => {
     fetchUsers();
     fetchWithdrawals();

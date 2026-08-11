@@ -122,11 +122,11 @@ function coinMeta(id) {
 const getOptimizedImage = (path) => {
   if (!path) return null;
   try {
-    const parts = path.split('/');
+    const parts = path.split("/");
     const filename = parts[parts.length - 1];
-    const publicId = filename.split('.')[0];
+    const publicId = filename.split(".")[0];
     // ✅ Your actual cloud name
-    const cloudName = 'ddx86a9do';
+    const cloudName = "ddx86a9do";
     return `https://res.cloudinary.com/${cloudName}/image/upload/w_300,c_limit,q_auto:good,f_auto/kyc_documents/${publicId}`;
   } catch {
     return path; // Fallback to original path if parsing fails
@@ -2979,7 +2979,6 @@ function UserDrawer({
                                     localStorage.getItem("adminApiKey") ||
                                     "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
-                                  // ✅ Now these are available
                                   let url = `${API_URL}/api/users/admin/verify-kyc`;
                                   if (
                                     isVirtualAdminStable &&
@@ -2993,7 +2992,6 @@ function UserDrawer({
                                     "x-admin-key": adminKey,
                                   };
 
-                                  // Only add session-id for master admin
                                   if (!isVirtualAdminStable) {
                                     const sessionId =
                                       localStorage.getItem("admin_session_id");
@@ -3016,18 +3014,31 @@ function UserDrawer({
 
                                   if (result.success) {
                                     alert("✅ KYC approved successfully!");
-                                    // Refresh the user data
-                                    const freshUser = await fetch(
+
+                                    // ✅ ✅ ✅ FORCE REFRESH THE USER DATA ✅ ✅ ✅
+
+                                    // 1. Fetch fresh user data
+                                    const freshUserResponse = await fetch(
                                       `${API_URL}/api/users/${username}`,
-                                    ).then((r) => r.json());
+                                      {
+                                        headers: { "x-admin-key": adminKey },
+                                      },
+                                    );
+                                    const freshUser =
+                                      await freshUserResponse.json();
+
                                     if (freshUser && !freshUser.error) {
+                                      // 2. Update all states
                                       const ns = {
                                         ...usersState,
                                         [username]: freshUser,
                                       };
                                       setUsersState(ns);
                                       S.users[username] = freshUser;
+                                      saveUsers(ns);
                                     }
+
+                                    // 3. Force reload the component
                                     window.location.reload();
                                   } else {
                                     alert("❌ Failed: " + result.error);

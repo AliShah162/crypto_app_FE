@@ -1035,30 +1035,39 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
   const [kycVerified, setKycVerified] = useState(false);
   const [kycPending, setKycPending] = useState(false);
 
-  // Check KYC status on mount and periodically
   const checkKYCStatus = useCallback(async () => {
-    const sessionUser = localStorage.getItem("session");
-    if (!sessionUser) return;
+  const sessionUser = localStorage.getItem("session");
+  if (!sessionUser) return;
+  
+  try {
+    // ✅ ADD CACHE-BUSTER TIMESTAMP
+    const timestamp = Date.now();
+    const response = await fetch(
+      `${API_URL}/api/users/${sessionUser}/kyc-status?t=${timestamp}`
+    );
+    const data = await response.json();
     
-    try {
-      const response = await fetch(`${API_URL}/api/users/${sessionUser}/kyc-status`);
-      const data = await response.json();
-      setKycStatus(data);
-      
-      if (data.kycVerified === true) {
-        setKycVerified(true);
-        setKycPending(false);
-      } else if (data.kycSubmitted === true && data.kycStatus === "pending") {
-        setKycVerified(false);
-        setKycPending(true);
-      } else {
-        setKycVerified(false);
-        setKycPending(false);
-      }
-    } catch (err) {
-      console.error("Failed to check KYC status:", err);
+    console.log("📊 KYC Status Response:", data); // Debug log
+    
+    setKycStatus(data);
+    
+    if (data.kycVerified === true) {
+      setKycVerified(true);
+      setKycPending(false);
+    } else if (data.kycSubmitted === true && data.kycStatus === "pending") {
+      setKycVerified(false);
+      setKycPending(true);
+    } else {
+      setKycVerified(false);
+      setKycPending(false);
     }
-  }, []);
+  } catch (err) {
+    console.error("Failed to check KYC status:", err);
+  }
+}, []);
+
+
+
 
   useEffect(() => {
     checkKYCStatus();

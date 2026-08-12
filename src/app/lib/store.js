@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════
 
 export const ADMIN_USER = "admin";
-export const ADMIN_PASS = "KK8051200$$#";
+export const ADMIN_PASS = "Sabi805120#$";
 
 // ───── Safe LocalStorage Helpers ─────
 export function loadLS(key, fallback) {

@@ -22,7 +22,6 @@ function KYCUploadModal({ isOpen, onClose, onComplete }) {
   const [errors, setErrors] = useState({});
   const [uploading, setUploading] = useState(false);
   
-  // Refs for file inputs
   const aadhaarFrontRef = useRef(null);
   const aadhaarBackRef = useRef(null);
   const panFrontRef = useRef(null);
@@ -68,7 +67,6 @@ function KYCUploadModal({ isOpen, onClose, onComplete }) {
     if (e.target.files && e.target.files[0]) {
       processFile(e.target.files[0], 'aadhaarFront', setAadhaarFrontPreview, setAadhaarFrontFile);
     }
-    // Reset the input value so the same file can be selected again if needed
     if (aadhaarFrontRef.current) aadhaarFrontRef.current.value = '';
   };
 
@@ -93,6 +91,39 @@ function KYCUploadModal({ isOpen, onClose, onComplete }) {
     if (panBackRef.current) panBackRef.current.value = '';
   };
 
+  // ✅ UPLOAD SINGLE IMAGE TO CLOUDINARY DIRECTLY
+  const uploadToCloudinary = async (file) => {
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'ddx86a9do';
+    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'kyc_uploads';
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', uploadPreset);
+    formData.append('folder', 'kyc_documents');
+    
+    try {
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Upload failed');
+      }
+      
+      const data = await response.json();
+      console.log('✅ Cloudinary upload success:', data.secure_url);
+      return data.secure_url;
+    } catch (error) {
+      console.error('❌ Cloudinary upload error:', error);
+      throw error;
+    }
+  };
+
   const handleSubmit = async () => {
     console.log("Submitting KYC documents...");
     const newErrors = {};
@@ -108,6 +139,7 @@ function KYCUploadModal({ isOpen, onClose, onComplete }) {
     }
     
     setUploading(true);
+    setErrors({});
     
     try {
       const sessionUser = localStorage.getItem("session");
@@ -115,33 +147,54 @@ function KYCUploadModal({ isOpen, onClose, onComplete }) {
         alert("Please login again");
         return;
       }
+
+      // ✅ Upload all 4 images to Cloudinary directly from browser
+      console.log("📤 Uploading images to Cloudinary...");
       
-      const formData = new FormData();
-      formData.append("aadhaarFront", aadhaarFrontFile);
-      formData.append("aadhaarBack", aadhaarBackFile);
-      formData.append("panFront", panFrontFile);
-      formData.append("panBack", panBackFile);
-      formData.append("username", sessionUser);
+      const [aadhaarFrontUrl, aadhaarBackUrl, panFrontUrl, panBackUrl] = await Promise.all([
+        uploadToCloudinary(aadhaarFrontFile),
+        uploadToCloudinary(aadhaarBackFile),
+        uploadToCloudinary(panFrontFile),
+        uploadToCloudinary(panBackFile),
+      ]);
       
-      console.log("Sending to backend...");
+      console.log("✅ All images uploaded to Cloudinary:", {
+        aadhaarFrontUrl,
+        aadhaarBackUrl,
+        panFrontUrl,
+        panBackUrl,
+      });
+
+      // ✅ Send ONLY the URLs to your backend (tiny payload - under 4.5MB limit!)
       const response = await fetch(`${API_URL}/api/users/kyc-submit`, {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: sessionUser,
+          documents: {
+            aadhaarFront: aadhaarFrontUrl,
+            aadhaarBack: aadhaarBackUrl,
+            panFront: panFrontUrl,
+            panBack: panBackUrl,
+          },
+        }),
       });
-      
+
       const result = await response.json();
-      console.log("Backend response:", result);
+      console.log("📦 Backend response:", result);
       
       if (result.success) {
-        alert("KYC documents submitted successfully! Awaiting admin verification.");
+        alert("✅ KYC documents submitted successfully! Awaiting admin verification.");
         onComplete();
         onClose();
       } else {
-        setErrors({ upload: result.error || "Failed to upload documents" });
+        setErrors({ upload: result.error || "Failed to submit KYC. Please try again." });
       }
     } catch (error) {
-      console.error("KYC upload error:", error);
-      setErrors({ upload: "Failed to upload documents. Please try again." });
+      console.error("❌ KYC upload error:", error);
+      setErrors({ upload: error.message || "Failed to upload documents. Please try again." });
     } finally {
       setUploading(false);
     }
@@ -282,7 +335,6 @@ function KYCUploadModal({ isOpen, onClose, onComplete }) {
             </div>
           </div>
 
-          {/* Hidden file inputs */}
           <input
             ref={aadhaarFrontRef}
             type="file"
@@ -312,7 +364,6 @@ function KYCUploadModal({ isOpen, onClose, onComplete }) {
             style={{ display: "none" }}
           />
 
-          {/* Aadhaar Section */}
           <div style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: T.acc, marginBottom: 16 }}>
               📇 Aadhaar Card
@@ -337,7 +388,6 @@ function KYCUploadModal({ isOpen, onClose, onComplete }) {
             onClick={() => aadhaarBackRef.current?.click()}
           />
 
-          {/* PAN Section */}
           <div style={{ marginTop: 24, marginBottom: 8 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: T.acc, marginBottom: 16 }}>
               💳 PAN Card

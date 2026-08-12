@@ -7206,20 +7206,40 @@ export default function AdminPanel({
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button
-                    onClick={() => fetchAllTrades()}
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: 8,
-                      border: `1px solid ${C.border}`,
-                      background: C.card,
-                      fontSize: 11,
-                      color: "#000000",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                    }}
-                  >
-                    ↻ Refresh
-                  </button>
+  onClick={async () => {
+    const btn = document.activeElement;
+    const originalText = btn.textContent;
+    btn.textContent = "⏳...";
+    btn.disabled = true;
+    
+    try {
+      await fetchAllTrades();
+      btn.textContent = "✅ Done";
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }, 1200);
+    } catch (err) {
+      btn.textContent = "❌ Failed";
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }, 1500);
+    }
+  }}
+  style={{
+    padding: "6px 12px",
+    borderRadius: 8,
+    border: `1px solid ${C.border}`,
+    background: C.card,
+    fontSize: 11,
+    color: "#000000",
+    fontWeight: 500,
+    cursor: "pointer",
+  }}
+>
+  ↻ Refresh
+</button>
                   <button
                     onClick={async () => {
                       if (

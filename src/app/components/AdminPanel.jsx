@@ -195,22 +195,15 @@ function SendNotificationModal({ username, userEmail, onClose, onSent }) {
         }
       }
 
-      // ✅ CORRECT - No extra parenthesis
-      const response = await fetch(
-        `${BASE_URL}/api/users/admin/send-notification`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": adminKey,
-          },
-          body: JSON.stringify({
-            username,
-            title: title.trim(),
-            body: body.trim(),
-          }),
-        },
-      ); // ← Only ONE closing parenthesis here
+      const response = await fetch(url, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({
+          username,
+          title: title.trim(),
+          body: body.trim(),
+        }),
+      });
 
       const data = await response.json();
 
@@ -7254,11 +7247,19 @@ export default function AdminPanel({
                           const adminKey =
                             localStorage.getItem("adminApiKey") ||
                             "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+                          const headers = { "x-admin-key": adminKey };
+                          if (!isVirtualAdminStable) {
+                            const sessionId =
+                              localStorage.getItem("admin_session_id");
+                            if (sessionId) {
+                              headers["x-session-id"] = sessionId;
+                            }
+                          }
                           const response = await fetch(
                             `${BASE_URL}/api/users/admin/clear-completed-trades`,
                             {
                               method: "DELETE",
-                              headers: { "x-admin-key": adminKey },
+                              headers: headers,
                             },
                           );
                           const result = await response.json();
@@ -7364,7 +7365,7 @@ export default function AdminPanel({
                           <div
                             style={{ fontSize: 10, marginTop: 4, color: C.sub }}
                           >
-                            ⚠️ Make sure trades have status pending and are in
+                            ⚠️ Make sure trades have status "pending" and are in
                             user.pendingTrades array
                           </div>
                         </>

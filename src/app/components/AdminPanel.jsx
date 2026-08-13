@@ -4211,7 +4211,10 @@ export default function AdminPanel({
       // ✅ Only logout for master admin specific errors
       if (
         data.error === "SESSION_INVALID" ||
+        data.error === "SESSION_INVALIDATED" ||
         data.error === "SESSION_REVOKED" ||
+        data.error === "PASSWORD_CHANGED" ||
+        data.error === "SESSION_EXPIRED" ||
         data.error === "ADMIN_BANNED" ||
         (data.error === "Unauthorized" &&
           data.message?.includes("Invalid admin key"))
@@ -4473,7 +4476,10 @@ export default function AdminPanel({
         if (response.status === 403 || response.status === 401) {
           if (
             data.error === "SESSION_INVALID" ||
+            data.error === "SESSION_INVALIDATED" ||
             data.error === "SESSION_REVOKED" ||
+            data.error === "PASSWORD_CHANGED" ||
+            data.error === "SESSION_EXPIRED" ||
             (data.error === "Unauthorized" &&
               data.message?.includes("Invalid admin key"))
           ) {
@@ -5463,26 +5469,23 @@ export default function AdminPanel({
           );
           const data = await response.json();
           if (!data.valid) {
-            console.log("⚠️ Session invalid - clearing and re-registering");
-            localStorage.removeItem("admin_session_id");
-            // Re-register
-            const registerResponse = await fetch(
-              `${BASE_URL}/api/users/admin/register-session`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  adminKey: adminKey,
-                  userAgent: navigator.userAgent,
-                  adminUsername: "master_admin",
-                }),
-              },
+            // ✅ Any explicit invalidation (password change, revoke, ban,
+            // timeout) must force a real logout. Do NOT silently mint a new
+            // session with the same cached key - that just undoes the
+            // invalidation every 10 seconds and the admin never gets logged
+            // out.
+            console.log(
+              "🔴 Master admin session invalid:",
+              data.error || "unknown reason",
+              "- logging out",
             );
-            const registerData = await registerResponse.json();
-            if (registerData.sessionId) {
-              localStorage.setItem("admin_session_id", registerData.sessionId);
-              console.log("✅ Session re-registered:", registerData.sessionId);
-            }
+            localStorage.removeItem("adminApiKey");
+            localStorage.removeItem("admin_session_id");
+            localStorage.removeItem("tabRole");
+            localStorage.removeItem("virtualAdmin");
+            localStorage.removeItem("session");
+            window.location.href = "/";
+            return;
           } else {
             console.log("✅ Master admin session valid");
           }
@@ -7361,7 +7364,7 @@ export default function AdminPanel({
                           <div
                             style={{ fontSize: 10, marginTop: 4, color: C.sub }}
                           >
-                            ⚠️ Make sure trades have status "pending" and are in
+                            ⚠️ Make sure trades have status pending and are in
                             user.pendingTrades array
                           </div>
                         </>

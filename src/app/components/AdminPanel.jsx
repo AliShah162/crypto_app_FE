@@ -5062,25 +5062,16 @@ export default function AdminPanel({
     return dateB - dateA; // Newest first
   });
 
-  // Filter trades for virtual admin
-  const filteredAllTrades = useMemo(() => {
-    if (!isVirtualAdmin) return allTrades;
-    const userSet = new Set(users.map((u) => u.username));
-    return allTrades.filter((trade) => userSet.has(trade.username));
-  }, [allTrades, users, isVirtualAdmin]);
+  // ✅ Backend already scopes these to the virtual admin's own users via
+  // refKey. Do NOT re-filter against `users` here - that state is
+  // paginated (50/page), so any record belonging to a user outside the
+  // currently-loaded page would get silently dropped from view.
+  const filteredAllTrades = allTrades;
 
   // Filter withdrawals for virtual admin
-  const filteredWithdrawalsData = useMemo(() => {
-    if (!isVirtualAdmin) return withdrawals;
-    const userSet = new Set(users.map((u) => u.username));
-    return withdrawals.filter((w) => userSet.has(w.username));
-  }, [withdrawals, users, isVirtualAdmin]);
+  const filteredWithdrawalsData = withdrawals;
   // Filter deposit requests for virtual admin
-  const filteredDepositRequests = useMemo(() => {
-    if (!isVirtualAdmin) return depositRequests;
-    const userSet = new Set(users.map((u) => u.username));
-    return depositRequests.filter((req) => userSet.has(req.username));
-  }, [depositRequests, users, isVirtualAdmin]);
+  const filteredDepositRequests = depositRequests;
 
   useEffect(() => {
     const interval = setInterval(() => {

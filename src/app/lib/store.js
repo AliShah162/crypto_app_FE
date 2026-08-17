@@ -4,9 +4,6 @@
 // ADMIN LOGIN
 // ═══════════════════════════════════════════════
 
-export const ADMIN_USER = "admin";
-export const ADMIN_PASS = "Sabi805120#$";
-
 // ───── Safe LocalStorage Helpers ─────
 export function loadLS(key, fallback) {
   if (typeof window === "undefined") return fallback;

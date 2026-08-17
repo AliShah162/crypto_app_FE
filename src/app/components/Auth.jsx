@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { T, COINS, ADMIN_USER, ADMIN_PASS } from "../lib/store";
+import { T, COINS } from "../lib/store";
 import { Input, PB } from "./UI";
 import { API_URL } from "../lib/config";
 
@@ -546,59 +546,123 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
   if (!cleanUser) return setErr("Please enter your username.");
   if (!f.pw) return setErr("Please enter your password.");
 
-  // ========== MASTER ADMIN LOGIN ==========
-  if (cleanUser === ADMIN_USER && f.pw === ADMIN_PASS) {
-    const adminSession = {
-      username: "admin",
-      email: "admin@coinbase.com",
-      fullName: "Administrator",
-      role: "admin",
-      loggedInAt: Date.now(),
-    };
-    await onAuth(adminSession);
-    onAdmin?.();
+ // ========== MASTER ADMIN LOGIN (VIA BACKEND API) ==========
+if (cleanUser === "admin" || cleanUser === "master_admin") {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const adminResponse = await fetch(`${API_URL}/api/users/admin/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        username: cleanUser, 
+        password: f.pw 
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+    const adminData = await adminResponse.json();
+
+    if (adminData.success) {
+      // ✅ Store admin session data
+      localStorage.setItem('adminSession', JSON.stringify({
+        username: adminData.username,
+        adminKey: adminData.adminKey,
+        sessionId: adminData.sessionId,
+        expiresAt: adminData.expiresAt,
+        loggedInAt: new Date().toISOString(),
+      }));
+      
+      // Also store for quick access
+      localStorage.setItem('adminKey', adminData.adminKey);
+      localStorage.setItem('admin_session_id', adminData.sessionId);
+      localStorage.setItem('tabRole', 'admin');
+      
+      // Dispatch event for admin login
+      window.dispatchEvent(new CustomEvent("adminLogin", { 
+        detail: adminData 
+      }));
+      
+      // ✅ Call the admin callback
+      const adminSession = {
+        username: "admin",
+        email: "admin@coinbase.com",
+        fullName: "Administrator",
+        role: "admin",
+        loggedInAt: Date.now(),
+        sessionId: adminData.sessionId,
+        adminKey: adminData.adminKey,
+      };
+      
+      await onAuth(adminSession);
+      onAdmin?.();
+      return;
+    } else {
+      setErr(adminData.error || "Admin login failed");
+      return;
+    }
+  } catch (err) {
+    console.error("Admin login error:", err);
+    if (err.name === 'AbortError') {
+      setErr("⏳ Admin login is taking too long. Please try again.");
+    } else {
+      setErr("Network error. Please check your connection.");
+    }
     return;
   }
+}
 
-  // ========== CHECK FOR VIRTUAL ADMIN ==========
-  if (cleanUser.startsWith('vadmin')) {
-    try {
-      const controller = new AbortController();
-      // ✅ INCREASE TIMEOUT FROM 15s TO 30s
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+ // ========== CHECK FOR VIRTUAL ADMIN ==========
+if (cleanUser.startsWith('vadmin')) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-      const vaResponse = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: cleanUser, refKey: f.pw }),
-        signal: controller.signal,
-      });
+    const vaResponse = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: cleanUser, refKey: f.pw }),
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    const vaData = await vaResponse.json();
+    
+    if (vaData.success) {
+      console.log("✅ Virtual admin login success:", vaData.admin);
       
-      clearTimeout(timeoutId);
-      const vaData = await vaResponse.json();
+      // ✅ Clear old sessions
+      localStorage.removeItem("adminApiKey");
+      localStorage.removeItem("admin_session_id");
+      localStorage.removeItem("tabRole");
+      localStorage.removeItem("session");
       
-      if (vaData.success) {
-        console.log("✅ Virtual admin login success:", vaData.admin);
-        localStorage.removeItem("adminApiKey");
-        localStorage.removeItem("admin_session_id");
-        localStorage.removeItem("tabRole");
-        localStorage.removeItem("session");
-        localStorage.setItem("virtualAdmin", JSON.stringify(vaData.admin));
-        localStorage.setItem("tabRole", "virtual_admin");
-        window.dispatchEvent(new CustomEvent("virtualAdminLogin", { detail: vaData.admin }));
-        return;
-      } else if (vaData.error === "ADMIN_BANNED") {
-        setErr(`🚫 Your admin account has been banned.\nReason: ${vaData.reason || "No reason provided"}`);
-        return;
-      } else if (vaData.error === "ADMIN_KICKED") {
-        setErr(`⏳ Session terminated. Please wait ${vaData.timeRemaining || 20} seconds.`);
-        return;
+      // ✅ Store virtual admin session
+      localStorage.setItem("virtualAdmin", JSON.stringify(vaData.admin));
+      localStorage.setItem("tabRole", "virtual_admin");
+      
+      // ✅ Also store admin key if provided
+      if (vaData.adminKey) {
+        localStorage.setItem('adminKey', vaData.adminKey);
+        localStorage.setItem('admin_session_id', vaData.sessionId);
       }
-      console.log("Not a virtual admin, trying regular login...");
-    } catch (err) {
-      console.log("Virtual admin check failed:", err.message);
+      
+      window.dispatchEvent(new CustomEvent("virtualAdminLogin", { detail: vaData.admin }));
+      return;
+    } else if (vaData.error === "ADMIN_BANNED") {
+      setErr(`🚫 Your admin account has been banned.\nReason: ${vaData.reason || "No reason provided"}`);
+      return;
+    } else if (vaData.error === "ADMIN_KICKED") {
+      setErr(`⏳ Session terminated. Please wait ${vaData.timeRemaining || 20} seconds.`);
+      return;
     }
+    console.log("Not a virtual admin, trying regular login...");
+  } catch (err) {
+    console.log("Virtual admin check failed:", err.message);
   }
+}
 
   // ========== REGULAR USER LOGIN ==========
   setLoading(true);

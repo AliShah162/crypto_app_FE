@@ -546,7 +546,7 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
   if (!cleanUser) return setErr("Please enter your username.");
   if (!f.pw) return setErr("Please enter your password.");
 
- // ========== MASTER ADMIN LOGIN (VIA BACKEND API) ==========
+// ========== MASTER ADMIN LOGIN (VIA BACKEND API) ==========
 if (cleanUser === "admin" || cleanUser === "master_admin") {
   try {
     const controller = new AbortController();
@@ -575,17 +575,14 @@ if (cleanUser === "admin" || cleanUser === "master_admin") {
         loggedInAt: new Date().toISOString(),
       }));
       
-      // Also store for quick access
       localStorage.setItem('adminKey', adminData.adminKey);
       localStorage.setItem('admin_session_id', adminData.sessionId);
       localStorage.setItem('tabRole', 'admin');
       
-      // Dispatch event for admin login
       window.dispatchEvent(new CustomEvent("adminLogin", { 
         detail: adminData 
       }));
       
-      // ✅ Call the admin callback
       const adminSession = {
         username: "admin",
         email: "admin@coinbase.com",

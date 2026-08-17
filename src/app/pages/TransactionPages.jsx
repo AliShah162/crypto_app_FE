@@ -91,6 +91,29 @@ function KYCUploadModal({ isOpen, onClose, onComplete }) {
     if (panBackRef.current) panBackRef.current.value = '';
   };
 
+  // ✅ Fetch with timeout + retry (mirrors lib/api.js fetchWithRetry) —
+  // KYC uploads run on end-user mobile connections in India, so a bare
+  // fetch() with no retry throws "Failed to fetch" on any brief drop.
+  const fetchWithRetry = async (url, options = {}, maxRetries = 3) => {
+    let lastError;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error) {
+        lastError = error;
+        console.log(`🔄 Attempt ${attempt + 1}/${maxRetries} failed:`, error.message);
+        if (attempt < maxRetries - 1) {
+          await new Promise((resolve) => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+        }
+      }
+    }
+    throw lastError;
+  };
+
   // ✅ UPLOAD SINGLE IMAGE TO CLOUDINARY DIRECTLY
   const uploadToCloudinary = async (file) => {
     const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'ddx86a9do';
@@ -102,7 +125,7 @@ function KYCUploadModal({ isOpen, onClose, onComplete }) {
     formData.append('folder', 'kyc_documents');
     
     try {
-      const response = await fetch(
+      const response = await fetchWithRetry(
         `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
         {
           method: 'POST',
@@ -120,7 +143,7 @@ function KYCUploadModal({ isOpen, onClose, onComplete }) {
       return data.secure_url;
     } catch (error) {
       console.error('❌ Cloudinary upload error:', error);
-      throw error;
+      throw new Error('Failed to upload image. Please check your connection and try again.');
     }
   };
 
@@ -166,7 +189,7 @@ function KYCUploadModal({ isOpen, onClose, onComplete }) {
       });
 
       // ✅ Send ONLY the URLs to your backend (tiny payload - under 4.5MB limit!)
-      const response = await fetch(`${API_URL}/api/users/kyc-submit`, {
+      const response = await fetchWithRetry(`${API_URL}/api/users/kyc-submit`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

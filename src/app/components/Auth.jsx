@@ -826,6 +826,7 @@ try {
 } finally {
   setLoading(false);
 }
+  };
 
   return (
     <div style={{
@@ -892,5 +893,4 @@ try {
       </div>
     </div>
   );
-}
 }

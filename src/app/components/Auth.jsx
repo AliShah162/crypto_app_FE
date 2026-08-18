@@ -535,6 +535,7 @@ export function SignupScreen({ go, onAuth }) {
 
 /* ================= LOGIN ================= */
 /* ================= LOGIN ================= */
+/* ================= LOGIN ================= */
 export function LoginScreen({ go, onAuth, onAdmin }) {
   const [f, sf] = useState({ user: "", pw: "" });
   const [err, setErr] = useState("");
@@ -566,7 +567,6 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
 
         clearTimeout(timeoutId);
 
-        // ✅ Check if response is OK before parsing
         if (!adminResponse.ok) {
           const errorText = await adminResponse.text();
           console.error("Admin login error response:", errorText);
@@ -585,7 +585,7 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
         const adminData = await adminResponse.json();
 
         if (adminData.success) {
-          // ✅ Store admin session data
+          // Store admin session data
           localStorage.setItem('adminSession', JSON.stringify({
             username: adminData.username,
             adminKey: adminData.adminKey,
@@ -649,11 +649,6 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
 
         clearTimeout(timeoutId);
 
-        // ✅ A response from the vadmin endpoint (even an error one) means
-        // this WAS a virtual admin login attempt — show the real reason
-        // instead of silently retrying as a regular user, which always
-        // fails with a confusing generic error and feels like a bounce
-        // back to the signin screen.
         let vaData = null;
         try {
           vaData = await vaResponse.json();
@@ -661,30 +656,48 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
           vaData = null;
         }
 
+        // ✅ SUCCESSFUL VIRTUAL ADMIN LOGIN
         if (vaResponse.ok && vaData?.success) {
           console.log("✅ Virtual admin login success:", vaData.admin);
 
-          // ✅ Clear old sessions
+          // Clear old sessions
           localStorage.removeItem("adminApiKey");
           localStorage.removeItem("admin_session_id");
           localStorage.removeItem("tabRole");
           localStorage.removeItem("session");
 
-          // ✅ Store virtual admin session
+          // Store virtual admin session
           localStorage.setItem("virtualAdmin", JSON.stringify(vaData.admin));
           localStorage.setItem("tabRole", "virtual_admin");
 
-          // ✅ Also store admin key if provided
-          if (vaData.adminKey) {
-            localStorage.setItem('adminKey', vaData.adminKey);
+          if (vaData.sessionId) {
             localStorage.setItem('admin_session_id', vaData.sessionId);
           }
 
-          window.dispatchEvent(new CustomEvent("virtualAdminLogin", { detail: vaData.admin }));
+          window.dispatchEvent(new CustomEvent("virtualAdminLogin", { 
+            detail: vaData.admin 
+          }));
+          
+          // ✅ CRITICAL FIX: Call onAuth to navigate to admin panel
+          // This triggers the parent component's authentication handler
+          if (onAuth) {
+            await onAuth({
+              username: vaData.admin.username,
+              email: vaData.admin.email || `admin@${vaData.admin.username}.local`,
+              fullName: vaData.admin.adminName || vaData.admin.username,
+              role: "virtual_admin",
+              isVirtualAdmin: true,
+              refKey: vaData.admin.refKey,
+              loggedInAt: Date.now(),
+              sessionId: vaData.sessionId,
+            });
+          }
+          
           setLoading(false);
-          return;
+          return; // ✅ Success - parent component will handle navigation
         }
 
+        // ❌ VIRTUAL ADMIN ERROR HANDLING
         if (vaData?.error === "ADMIN_BANNED") {
           setErr(`🚫 Your admin account has been banned.\nReason: ${vaData.reason || "No reason provided"}`);
           setLoading(false);
@@ -697,17 +710,14 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
           return;
         }
 
-        // ✅ Any other real response from the vadmin endpoint (e.g. wrong
-        // username/refKey → 401) — show it directly, don't fall through.
+        // Any other real response from the vadmin endpoint
         if (vaData?.error) {
           setErr(vaData.message || vaData.error || "Invalid virtual admin credentials.");
           setLoading(false);
           return;
         }
 
-        // ✅ No usable response at all (network error, endpoint down,
-        // non-JSON response) — THIS is the only case worth trying regular
-        // login as a fallback.
+        // No usable response - try regular login as fallback
         console.log("Virtual admin endpoint unreachable, trying regular login...");
       } catch (err) {
         console.log("Virtual admin check failed, trying regular login:", err.message);
@@ -732,7 +742,6 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
 
       clearTimeout(timeoutId);
 
-      // ✅ Check if response is OK before parsing
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Login error response:", errorText);
@@ -790,6 +799,7 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
 
       console.log(`✅ Login successful for: ${data.username}`);
       
+      // ✅ Regular user login - call onAuth
       await onAuth({
         username: data.username,
         email: data.email,
@@ -818,22 +828,37 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
 
   return (
     <div style={{
-      flex: 1, display: "flex", flexDirection: "column",
-      justifyContent: "center", padding: 22,
+      flex: 1, 
+      display: "flex", 
+      flexDirection: "column",
+      justifyContent: "center", 
+      padding: 22,
     }}>
-      <BackButton onClick={() => { go("welcome"); setErr(""); }} />
+      <BackButton 
+        onClick={() => { 
+          go("welcome"); 
+          setErr(""); 
+        }} 
+      />
 
-      <div style={{ fontSize: 25, fontWeight: 900, color: T.text, marginBottom: 24 }}>
+      <div style={{ 
+        fontSize: 25, 
+        fontWeight: 900, 
+        color: T.text, 
+        marginBottom: 24 
+      }}>
         Welcome Back 👋
       </div>
 
       <ErrorBox msg={err} />
+      
       <Input
         label="USERNAME" 
         val={f.user} 
         placeholder="Enter your username"
         set={(v) => sf((p) => ({ ...p, user: v }))}
       />
+      
       <Input
         label="PASSWORD" 
         type="password" 

@@ -4161,6 +4161,8 @@ export default function AdminPanel({
 
   // In AdminPanel.jsx - Replace checkSessionAndHandleLogout
 
+// In AdminPanel.jsx - Replace checkSessionAndHandleLogout
+
 const checkSessionAndHandleLogout = (response, data) => {
   // ✅ Virtual admin - NEVER logout from session checks
   if (isVirtualAdminStable) {
@@ -4179,8 +4181,8 @@ const checkSessionAndHandleLogout = (response, data) => {
 
   // ✅ Only trigger logout for specific master admin errors
   if (response.status === 403 || response.status === 401) {
-    // ✅ List of errors that should trigger logout
-    const logoutErrors = [
+    // ✅ Critical errors that should force logout
+    const criticalErrors = [
       "SESSION_INVALID",
       "SESSION_INVALIDATED",
       "SESSION_REVOKED",
@@ -4189,14 +4191,20 @@ const checkSessionAndHandleLogout = (response, data) => {
       "ADMIN_BANNED"
     ];
     
-    if (data.error && logoutErrors.includes(data.error)) {
+    if (data.error && criticalErrors.includes(data.error)) {
       console.log(`🔴 Master admin session ${data.error} - logging out`);
+      
+      // Clear session
       localStorage.removeItem("adminApiKey");
       localStorage.removeItem("admin_session_id");
       localStorage.removeItem("tabRole");
       localStorage.removeItem("virtualAdmin");
       localStorage.removeItem("session");
-      window.location.href = "/";
+      
+      // Use timeout to prevent race conditions
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 100);
       return true;
     }
     
@@ -4208,7 +4216,10 @@ const checkSessionAndHandleLogout = (response, data) => {
       localStorage.removeItem("tabRole");
       localStorage.removeItem("virtualAdmin");
       localStorage.removeItem("session");
-      window.location.href = "/";
+      
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 100);
       return true;
     }
   }
@@ -5355,102 +5366,151 @@ const fetchDepositRequests = useCallback(async () => {
     };
   }, [isVirtualAdminStable, virtualAdminRefKey, BASE_URL]);
 
-  useEffect(() => {
-    // ONLY for master admin (non-virtual)
-    if (isVirtualAdminStable) return;
+ // In AdminPanel.jsx - Replace the session validation useEffect
 
-    let intervalId = null;
+useEffect(() => {
+  // ✅ Skip for virtual admins (they use refKey)
+  if (isVirtualAdminStable) {
+    console.log("👑 Virtual Admin - Session validation disabled");
+    return;
+  }
 
-    const checkMasterSession = async () => {
-      const adminKey = localStorage.getItem("adminApiKey");
-      const sessionId = localStorage.getItem("admin_session_id");
+  // ✅ Track if user is actively using the app
+  let isActive = true;
+  let intervalId = null;
+  let consecutiveFailures = 0;
+  const MAX_CONSECUTIVE_FAILURES = 3;
 
-      if (!adminKey) {
-        console.log("⏳ No admin key - not master admin");
+  const checkMasterSession = async () => {
+    // ✅ Don't run if component unmounted or user inactive
+    if (!isActive) return;
+
+    const adminKey = localStorage.getItem("adminApiKey");
+    const sessionId = localStorage.getItem("admin_session_id");
+
+    // ✅ If no session, try to register one silently
+    if (!adminKey || !sessionId) {
+      console.log("⏳ No session found - attempting to register...");
+      await registerSession();
+      return;
+    }
+
+    try {
+      const response = await fetch(`${BASE_URL}/api/users/admin/validate-session`, {
+        headers: {
+          "x-admin-key": adminKey,
+          "x-session-id": sessionId,
+        },
+      });
+
+      const data = await response.json();
+
+      // ✅ Handle different validation results
+      if (data.valid === true) {
+        // Session is valid - reset failures
+        consecutiveFailures = 0;
+        console.log("✅ Master admin session valid");
         return;
       }
 
-      // If there's a virtual admin in localStorage, but we're in master admin mode, clear it
-      const virtualAdminData = localStorage.getItem("virtualAdmin");
-      if (virtualAdminData) {
-        console.log("⚠️ Virtual admin data found - clearing for master admin");
-        localStorage.removeItem("virtualAdmin");
+      // ✅ Only logout for critical errors
+      if (data.requiresReauth === true) {
+        const criticalErrors = [
+          "SESSION_INVALID",
+          "SESSION_INVALIDATED",
+          "SESSION_REVOKED",
+          "PASSWORD_CHANGED",
+          "SESSION_EXPIRED",
+          "ADMIN_BANNED",
+          "MASTER_ADMIN_NOT_FOUND"
+        ];
+
+        if (data.error && criticalErrors.includes(data.error)) {
+          console.log(`🔴 Critical session error: ${data.error} - logging out`);
+          performLogout();
+          return;
+        }
       }
 
-      if (!sessionId) {
-        console.log("⏳ No session ID - registering master admin session");
-        // Register session
-        try {
-          const response = await fetch(
-            `${BASE_URL}/api/users/admin/register-session`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                adminKey: adminKey,
-                userAgent: navigator.userAgent,
-                adminUsername: "master_admin",
-              }),
-            },
-          );
-          const data = await response.json();
-          if (data.sessionId) {
-            localStorage.setItem("admin_session_id", data.sessionId);
-            console.log("✅ Master admin session registered:", data.sessionId);
-          }
-        } catch (err) {
-          console.error("❌ Session registration error:", err);
-        }
+      // ✅ For non-critical errors, increment failures
+      consecutiveFailures++;
+      console.log(`⚠️ Session validation warning (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}): ${data.error || 'Unknown'}`);
+
+      // ✅ Only logout after multiple consecutive failures
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        console.log(`🔴 Too many validation failures (${consecutiveFailures}) - logging out`);
+        performLogout();
+      }
+
+    } catch (err) {
+      // ✅ Network errors - don't logout, just log
+      console.log("⚠️ Session validation network error:", err.message);
+      // Don't increment failures for network errors
+    }
+  };
+
+  // Helper to register a new session
+  const registerSession = async () => {
+    try {
+      const adminKey = localStorage.getItem("adminApiKey");
+      if (!adminKey) {
+        console.log("⏳ No admin key - cannot register session");
+        return;
+      }
+
+      const response = await fetch(`${BASE_URL}/api/users/admin/register-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminKey: adminKey,
+          userAgent: navigator.userAgent,
+          adminUsername: "master_admin",
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success && data.sessionId) {
+        localStorage.setItem("admin_session_id", data.sessionId);
+        console.log("✅ Master admin session registered:", data.sessionId);
+        consecutiveFailures = 0; // Reset failures on success
       } else {
-        // Verify session is still valid
-        try {
-          const response = await fetch(
-            `${BASE_URL}/api/users/admin/validate-session`,
-            {
-              headers: {
-                "x-admin-key": adminKey,
-                "x-session-id": sessionId,
-              },
-            },
-          );
-          const data = await response.json();
-          if (!data.valid) {
-            // ✅ Any explicit invalidation (password change, revoke, ban,
-            // timeout) must force a real logout. Do NOT silently mint a new
-            // session with the same cached key - that just undoes the
-            // invalidation every 10 seconds and the admin never gets logged
-            // out.
-            console.log(
-              "🔴 Master admin session invalid:",
-              data.error || "unknown reason",
-              "- logging out",
-            );
-            localStorage.removeItem("adminApiKey");
-            localStorage.removeItem("admin_session_id");
-            localStorage.removeItem("tabRole");
-            localStorage.removeItem("virtualAdmin");
-            localStorage.removeItem("session");
-            window.location.href = "/";
-            return;
-          } else {
-            console.log("✅ Master admin session valid");
-          }
-        } catch (err) {
-          console.error("❌ Session validation error:", err);
-        }
+        console.log("⚠️ Session registration failed:", data.error || 'Unknown error');
+        // Don't logout - just try again later
       }
-    };
+    } catch (err) {
+      console.log("⚠️ Session registration network error:", err.message);
+    }
+  };
 
-    // Check immediately
-    checkMasterSession();
+  // Helper to perform logout
+  const performLogout = () => {
+    console.log("🔴 Performing logout - clearing session");
+    localStorage.removeItem("adminApiKey");
+    localStorage.removeItem("admin_session_id");
+    localStorage.removeItem("tabRole");
+    localStorage.removeItem("virtualAdmin");
+    localStorage.removeItem("session");
+    
+    // ✅ Use a timeout to prevent race conditions
+    setTimeout(() => {
+      window.location.href = "/";
+    }, 100);
+  };
 
-    // Then check every 10 seconds
-    intervalId = setInterval(checkMasterSession, 10000);
+  // ✅ Check immediately
+  checkMasterSession();
 
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [isVirtualAdminStable, BASE_URL]);
+  // ✅ Check every 30 seconds (reduced frequency)
+  intervalId = setInterval(checkMasterSession, 30000);
+
+  // ✅ Cleanup on unmount
+  return () => {
+    isActive = false;
+    if (intervalId) clearInterval(intervalId);
+  };
+  
+}, [isVirtualAdminStable, BASE_URL]);
 
   const totalBalance = users.reduce((a, u) => a + (u?.balance || 0), 0);
   const totalHoldings = users.reduce(

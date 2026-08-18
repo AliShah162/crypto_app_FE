@@ -692,7 +692,7 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
       username: vaData.admin.username,
       email: vaData.admin.email || `admin@${vaData.admin.username}.local`,
       fullName: vaData.admin.adminName || vaData.admin.username,
-      role: "virtual_admin",
+      role: "admin",
       isVirtualAdmin: true,
       refKey: vaData.admin.refKey,
       loggedInAt: Date.now(),

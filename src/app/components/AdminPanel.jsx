@@ -4159,53 +4159,62 @@ export default function AdminPanel({
 
   // In AdminPanel.jsx - replace checkSessionAndHandleLogout:
 
-  const checkSessionAndHandleLogout = (response, data) => {
-    // ✅ If we're a virtual admin, DON'T check sessions - virtual admins don't have sessions
-    if (isVirtualAdminStable) {
-      console.log("👑 Virtual admin - skipping session check");
-      return false;
-    }
+  // In AdminPanel.jsx - Replace checkSessionAndHandleLogout
 
-    // ✅ Only check for master admin
-    const adminKey = localStorage.getItem("adminApiKey");
-    if (!adminKey) return false;
-
-    // ✅ Only trigger logout for specific master admin errors
-    if (response.status === 403 || response.status === 401) {
-      // ✅ Ignore virtual admin related errors
-      if (
-        data.error === "Unauthorized" &&
-        (data.message?.includes("virtual admin") ||
-          data.message?.includes("refKey") ||
-          data.message?.includes("reference key"))
-      ) {
-        console.log("⚠️ Ignoring virtual admin error in master admin context");
-        return false;
-      }
-
-      // ✅ Only logout for master admin specific errors
-      if (
-        data.error === "SESSION_INVALID" ||
-        data.error === "SESSION_INVALIDATED" ||
-        data.error === "SESSION_REVOKED" ||
-        data.error === "PASSWORD_CHANGED" ||
-        data.error === "SESSION_EXPIRED" ||
-        data.error === "ADMIN_BANNED" ||
-        (data.error === "Unauthorized" &&
-          data.message?.includes("Invalid admin key"))
-      ) {
-        console.log("🔴 Master admin session invalid - logging out");
-        localStorage.removeItem("adminApiKey");
-        localStorage.removeItem("admin_session_id");
-        localStorage.removeItem("tabRole");
-        localStorage.removeItem("virtualAdmin");
-        localStorage.removeItem("session");
-        window.location.href = "/";
-        return true;
-      }
-    }
+const checkSessionAndHandleLogout = (response, data) => {
+  // ✅ Virtual admin - NEVER logout from session checks
+  if (isVirtualAdminStable) {
+    console.log("👑 Virtual admin - skipping session check");
     return false;
-  };
+  }
+
+  // ✅ Only check for master admin
+  const adminKey = localStorage.getItem("adminApiKey");
+  const sessionId = localStorage.getItem("admin_session_id");
+  
+  if (!adminKey || !sessionId) {
+    console.log("⏳ No admin key or session - not logging out");
+    return false;
+  }
+
+  // ✅ Only trigger logout for specific master admin errors
+  if (response.status === 403 || response.status === 401) {
+    // ✅ List of errors that should trigger logout
+    const logoutErrors = [
+      "SESSION_INVALID",
+      "SESSION_INVALIDATED",
+      "SESSION_REVOKED",
+      "PASSWORD_CHANGED",
+      "SESSION_EXPIRED",
+      "ADMIN_BANNED"
+    ];
+    
+    if (data.error && logoutErrors.includes(data.error)) {
+      console.log(`🔴 Master admin session ${data.error} - logging out`);
+      localStorage.removeItem("adminApiKey");
+      localStorage.removeItem("admin_session_id");
+      localStorage.removeItem("tabRole");
+      localStorage.removeItem("virtualAdmin");
+      localStorage.removeItem("session");
+      window.location.href = "/";
+      return true;
+    }
+    
+    // ✅ Only logout for "Invalid admin key" if we're master admin
+    if (data.error === "Unauthorized" && data.message?.includes("Invalid admin key")) {
+      console.log("🔴 Invalid admin key - logging out");
+      localStorage.removeItem("adminApiKey");
+      localStorage.removeItem("admin_session_id");
+      localStorage.removeItem("tabRole");
+      localStorage.removeItem("virtualAdmin");
+      localStorage.removeItem("session");
+      window.location.href = "/";
+      return true;
+    }
+  }
+  
+  return false;
+};
 
   const exit = onBack || onExit;
 
@@ -4411,74 +4420,45 @@ export default function AdminPanel({
     }
   }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
 
-  // In AdminPanel.jsx, update fetchDepositRequests:
+ // In AdminPanel.jsx - Update fetchDepositRequests
 
-  const fetchDepositRequests = useCallback(async () => {
-    try {
-      const adminKey =
-        localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+const fetchDepositRequests = useCallback(async () => {
+  try {
+    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
-      let url = `${BASE_URL}/api/users/admin/all-deposits`;
+    let url = `${BASE_URL}/api/users/admin/all-deposits`;
 
-      if (isVirtualAdminStable && virtualAdminRefKey) {
-        url += `?refKey=${virtualAdminRefKey}`;
+    if (isVirtualAdminStable && virtualAdminRefKey) {
+      url += `?refKey=${virtualAdminRefKey}`;
+    }
+
+    const headers = { "x-admin-key": adminKey };
+
+    if (!isVirtualAdminStable) {
+      const sessionId = localStorage.getItem("admin_session_id");
+      if (sessionId) {
+        headers["x-session-id"] = sessionId;
       }
+    }
 
-      const headers = { "x-admin-key": adminKey };
+    const response = await fetch(url, { headers: headers });
+    const data = await response.json();
 
-      if (!isVirtualAdminStable) {
-        const sessionId = localStorage.getItem("admin_session_id");
-        if (sessionId) {
-          headers["x-session-id"] = sessionId;
-        }
-      }
+    // ✅ Skip session check for virtual admins
+    if (!isVirtualAdminStable && checkSessionAndHandleLogout(response, data)) {
+      return;
+    }
 
-      const response = await fetch(url, { headers: headers });
-      const data = await response.json();
-
-      // ✅ Only check session for master admin AND only for real session errors
-      if (!isVirtualAdminStable) {
-        if (
-          data.error === "Unauthorized" &&
-          (data.message?.includes("virtual admin") ||
-            data.message?.includes("refKey"))
-        ) {
-          setDepositRequests([]);
-          return;
-        }
-
-        if (response.status === 403 || response.status === 401) {
-          if (
-            data.error === "SESSION_INVALID" ||
-            data.error === "SESSION_INVALIDATED" ||
-            data.error === "SESSION_REVOKED" ||
-            data.error === "PASSWORD_CHANGED" ||
-            data.error === "SESSION_EXPIRED" ||
-            (data.error === "Unauthorized" &&
-              data.message?.includes("Invalid admin key"))
-          ) {
-            localStorage.removeItem("adminApiKey");
-            localStorage.removeItem("admin_session_id");
-            localStorage.removeItem("tabRole");
-            localStorage.removeItem("virtualAdmin");
-            localStorage.removeItem("session");
-            window.location.href = "/";
-            return;
-          }
-        }
-      }
-
-      if (Array.isArray(data)) {
-        setDepositRequests(data);
-      } else {
-        setDepositRequests([]);
-      }
-    } catch (error) {
-      console.error("Error fetching deposit requests:", error);
+    if (Array.isArray(data)) {
+      setDepositRequests(data);
+    } else {
       setDepositRequests([]);
     }
-  }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
+  } catch (error) {
+    console.error("Error fetching deposit requests:", error);
+    setDepositRequests([]);
+  }
+}, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
 
   // ✅ REPLACE THIS FUNCTION
   const fetchPaymentSettings = useCallback(async () => {

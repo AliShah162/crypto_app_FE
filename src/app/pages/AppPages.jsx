@@ -1416,7 +1416,14 @@ export function HistoryPage({ user, onBack }) {
 export function ProfilePage({ user, onLogout, onSub, re }) {
   const [frozenBalance, setFrozenBalance] = useState(0);
   const [frozenTotal, setFrozenTotal] = useState(0);
-  const [currentBalance, setCurrentBalance] = useState(user?.balance || 0);
+  // Do NOT seed from `user?.balance` — that prop is frequently a stale
+  // snapshot (from the legacy S store or an earlier fetch), and doing so
+  // caused a flicker: every re-render/remount briefly showed the stale
+  // value again before the fetch below corrected it. Instead, track
+  // whether we've completed a real fetch and only render the balance
+  // once that's true.
+  const [currentBalance, setCurrentBalance] = useState(0);
+  const [balanceLoaded, setBalanceLoaded] = useState(false);
   const [, setTick] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [selectedAvatar, setSelectedAvatar] = useState("male1");
@@ -1453,6 +1460,7 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
           setFrozenBalance(parseFloat(Number(u.balance || 0).toFixed(2)));
           setFrozenTotal(parseFloat(Number(u.frozenTotal || 0).toFixed(2)));
           setCurrentBalance(parseFloat(Number(u.balance || 0).toFixed(2)));
+          setBalanceLoaded(true);
           setTick((n) => n + 1);
         }
       }
@@ -1464,6 +1472,30 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
   useEffect(() => {
     calc();
     const interval = setInterval(calc, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // unreadCount was declared but never updated anywhere, so the
+  // notification badge was permanently stuck at "0 unread". Fetch the
+  // real count the same way NotifSub does, and keep it polling.
+  useEffect(() => {
+    const fetchUnread = async () => {
+      const sessionUser = localStorage.getItem("session");
+      if (!sessionUser) return;
+      try {
+        const res = await fetch(
+          `${API_URL}/api/users/${sessionUser}/notifications`,
+        );
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setUnreadCount(data.filter((n) => !n.read).length);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1750,7 +1782,7 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
               marginBottom: 14,
             }}
           >
-            {usd((currentBalance + frozenTotal).toFixed(2))}
+            {balanceLoaded ? usd((currentBalance + frozenTotal).toFixed(2)) : "···"}
           </div>
           <div
             style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}
@@ -1772,7 +1804,7 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
                 Cash Balance
               </div>
               <div style={{ fontSize: 13, fontWeight: 700, color: T.green }}>
-                {usd(currentBalance)}
+                {balanceLoaded ? usd(currentBalance) : "···"}
               </div>
             </div>
             <div

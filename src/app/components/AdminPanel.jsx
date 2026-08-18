@@ -771,100 +771,83 @@ function FreezeEditor({
   }, [username, usersState]);
 
   // In FreezeEditor component
-  const applyFreeze = async () => {
-    const n = parseFloat(val);
-    if (!val || isNaN(n) || n < 0) {
-      setMsg({ t: "e", m: "Enter a valid positive number." });
-      return;
+ const applyFreeze = async () => {
+  const n = parseFloat(val);
+  if (!val || isNaN(n) || n < 0) {
+    setMsg({ t: "e", m: "Enter a valid positive number." });
+    return;
+  }
+
+  setLoading(true);
+  setMsg(null);
+
+  try {
+    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+    
+    // ✅ DEBUG: Log what we're sending
+    console.log("🔵 Freeze Debug:", {
+      adminKey,
+      isVirtualAdminStable,
+      virtualAdminRefKey,
+      username,
+      amount: n,
+      url: `${BASE_URL}/api/users/admin/freeze-balance${isVirtualAdminStable && virtualAdminRefKey ? `?refKey=${virtualAdminRefKey}` : ''}`
+    });
+
+    let url = `${BASE_URL}/api/users/admin/freeze-balance`;
+    if (isVirtualAdminStable && virtualAdminRefKey) {
+      url += `?refKey=${virtualAdminRefKey}`;
     }
 
-    setLoading(true);
-    setMsg(null);
+    const headers = {
+      "Content-Type": "application/json",
+      "x-admin-key": adminKey,
+    };
 
-    try {
-      const adminKey =
-        localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-
-      // ✅ Build URL with refKey for virtual admin
-      let url = `${BASE_URL}/api/users/admin/freeze-balance`;
-      if (isVirtualAdminStable && virtualAdminRefKey) {
-        url += `?refKey=${virtualAdminRefKey}`;
+    if (!isVirtualAdminStable) {
+      const sessionId = localStorage.getItem("admin_session_id");
+      if (sessionId) {
+        headers["x-session-id"] = sessionId;
       }
-
-      const headers = {
-        "Content-Type": "application/json",
-        "x-admin-key": adminKey,
-      };
-
-      // ✅ Only add session-id for master admin
-      if (!isVirtualAdminStable) {
-        const sessionId = localStorage.getItem("admin_session_id");
-        if (sessionId) {
-          headers["x-session-id"] = sessionId;
-        }
-      }
-
-      let response;
-      if (mode === "freeze") {
-        response = await fetch(url, {
-          method: "POST",
-          headers: headers,
-          body: JSON.stringify({
-            username,
-            amount: n,
-            action: "freeze",
-            reason: "Admin freeze action",
-          }),
-        });
-      } else {
-        // Unfreeze
-        response = await fetch(url, {
-          method: "POST",
-          headers: headers,
-          body: JSON.stringify({
-            username,
-            amount: n,
-            action: "unfreeze",
-            ...(freezeId ? { freezeId } : {}),
-          }),
-        });
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        setMsg({ t: "s", m: data.message });
-        setVal("");
-        setFreezeId(null);
-
-        // Update local state
-        const fresh = S.users[username] || usersState[username] || {};
-        const updated = {
-          ...fresh,
-          balance:
-            data.newBalance !== undefined ? data.newBalance : fresh.balance,
-          frozenTotal: data.frozenTotal,
-          frozenAmounts: data.frozenAmounts,
-        };
-
-        S.users[username] = updated;
-        const ns = { ...usersState, [username]: updated };
-        setUsersState(ns);
-        saveUsers(ns);
-
-        fetchFrozenData();
-        if (onRefresh) onRefresh();
-      } else {
-        setMsg({ t: "e", m: data.error || "Operation failed" });
-      }
-    } catch (err) {
-      console.error("❌ Freeze error:", err);
-      setMsg({ t: "e", m: "Network error. Try again." });
-    } finally {
-      setLoading(false);
     }
-  };
+
+    // ✅ Also add refKey to body for virtual admin (backend checks both)
+    const body = {
+      username,
+      amount: n,
+      action: "freeze",
+      reason: "Admin freeze action",
+    };
+    
+    if (isVirtualAdminStable && virtualAdminRefKey) {
+      body.refKey = virtualAdminRefKey; // ✅ Send in body too
+    }
+
+    console.log("🔵 Request body:", body);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+    console.log("🔵 Response:", { status: response.status, data });
+
+    if (data.success) {
+      setMsg({ t: "s", m: data.message });
+      setVal("");
+      // ... rest of success handling
+    } else {
+      setMsg({ t: "e", m: data.error || "Operation failed" });
+    }
+  } catch (err) {
+    console.error("❌ Freeze error:", err);
+    setMsg({ t: "e", m: "Network error. Try again." });
+  } finally {
+    setLoading(false);
+  }
+};
 
   const unfreezeSpecific = async (id, amount) => {
     setLoading(true);

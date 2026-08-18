@@ -782,7 +782,7 @@ function FreezeEditor({
   setMsg(null);
 
   try {
-    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
     
     // ✅ DEBUG: Log what we're sending
     console.log("🔵 Freeze Debug:", {
@@ -852,9 +852,8 @@ function FreezeEditor({
   const unfreezeSpecific = async (id, amount) => {
     setLoading(true);
     try {
-      const adminKey =
-        localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+     const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+
 
       // ✅ Build URL with refKey for virtual admin
       let url = `${BASE_URL}/api/users/admin/freeze-balance`;

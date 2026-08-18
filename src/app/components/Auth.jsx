@@ -540,45 +540,12 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ✅ Helper to handle fetch errors gracefully
-  const handleFetchError = (error, defaultMsg = "Network error. Please try again.") => {
-    console.error("Fetch error:", error);
-    
-    if (error.name === 'AbortError' || error.message?.includes('AbortError')) {
-      return "⏳ Request is taking too long. Please check your connection and try again.";
-    }
-    
-    if (error.message?.includes('NetworkError') || 
-        error.message?.includes('Failed to fetch') ||
-        error.message?.includes('ERR_FAILED')) {
-      return "📶 Cannot connect to server. Please check:\n• Your internet connection\n• If the backend server is running\n• CORS configuration (try refreshing)";
-    }
-    
-    if (error.message?.includes('404')) {
-      return "⚠️ API endpoint not found. Please check backend deployment.";
-    }
-    
-    if (error.message?.includes('500')) {
-      return "🔧 Server error. Please try again later.";
-    }
-    
-    return error.message || defaultMsg;
-  };
-
   const handleLogin = async () => {
     setErr("");
     const cleanUser = f.user.toLowerCase().trim();
 
     if (!cleanUser) return setErr("Please enter your username.");
     if (!f.pw) return setErr("Please enter your password.");
-
-    // ✅ Check if API_URL is configured
-    if (!API_URL || API_URL === 'undefined' || API_URL === '') {
-      setErr("⚠️ API URL is not configured. Please check your environment variables.");
-      return;
-    }
-
-    console.log(`🔗 Attempting login to: ${API_URL}`);
 
     // ========== MASTER ADMIN LOGIN ==========
     if (cleanUser === "admin" || cleanUser === "master_admin") {
@@ -587,14 +554,9 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-        console.log("🔑 Attempting admin login...");
-        
         const adminResponse = await fetch(`${API_URL}/api/users/admin/login`, {
           method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             username: cleanUser,
             password: f.pw
@@ -610,13 +572,7 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
           console.error("Admin login error response:", errorText);
           
           if (adminResponse.status === 404) {
-            setErr("⚠️ Admin login endpoint not found (404).\nPlease check:\n• Backend is deployed\n• Route exists: /api/users/admin/login");
-            setLoading(false);
-            return;
-          }
-          
-          if (adminResponse.status === 401) {
-            setErr("❌ Invalid admin credentials. Please check your username and password.");
+            setErr("⚠️ Admin login endpoint not found. Please check backend deployment.");
             setLoading(false);
             return;
           }
@@ -629,26 +585,19 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
         const adminData = await adminResponse.json();
 
         if (adminData.success) {
-          console.log("✅ Admin login successful!");
-          
           // ✅ Store admin session data
           localStorage.setItem('adminSession', JSON.stringify({
-            username: adminData.username || "master_admin",
-            adminKey: adminData.adminKey || process.env.ADMIN_API_KEY || "admin123456",
-            sessionId: adminData.sessionId || `session_${Date.now()}`,
-            expiresAt: adminData.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000),
+            username: adminData.username,
+            adminKey: adminData.adminKey,
+            sessionId: adminData.sessionId,
+            expiresAt: adminData.expiresAt,
             loggedInAt: new Date().toISOString(),
           }));
           
-          // ✅ Store admin key and session ID
-          const adminKey = adminData.adminKey || process.env.ADMIN_API_KEY || "admin123456";
-          localStorage.setItem('adminApiKey', adminKey);
-          localStorage.setItem('adminKey', adminKey);
-          localStorage.setItem('admin_session_id', adminData.sessionId || `session_${Date.now()}`);
+          localStorage.setItem('adminKey', adminData.adminKey);
+          localStorage.setItem('admin_session_id', adminData.sessionId);
           localStorage.setItem('tabRole', 'admin');
-          localStorage.setItem('isAdmin', 'true');
           
-          // ✅ Dispatch event
           window.dispatchEvent(new CustomEvent("adminLogin", {
             detail: adminData
           }));
@@ -664,22 +613,21 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
           };
           
           await onAuth(adminSession);
-          
-          // ✅ Call onAdmin to open admin panel
-          if (onAdmin) {
-            onAdmin();
-          }
-          
+          onAdmin?.();
           setLoading(false);
           return;
         } else {
-          setErr(adminData.error || adminData.message || "Admin login failed");
+          setErr(adminData.error || "Admin login failed");
           setLoading(false);
           return;
         }
       } catch (err) {
         console.error("Admin login error:", err);
-        setErr(handleFetchError(err));
+        if (err.name === 'AbortError') {
+          setErr("⏳ Admin login is taking too long. Please try again.");
+        } else {
+          setErr("Network error. Please check your connection.");
+        }
         setLoading(false);
         return;
       }
@@ -694,60 +642,75 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
 
         const vaResponse = await fetch(`${API_URL}/api/users/virtual-admin/login`, {
           method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username: cleanUser, refKey: f.pw }),
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
 
-        if (!vaResponse.ok) {
-          const errorText = await vaResponse.text();
-          console.error("Virtual admin login error:", errorText);
-          // Continue to regular login
-        } else {
-          const vaData = await vaResponse.json();
-
-          if (vaData.success) {
-            console.log("✅ Virtual admin login success:", vaData.admin);
-
-            // ✅ Clear old sessions
-            localStorage.removeItem("adminApiKey");
-            localStorage.removeItem("admin_session_id");
-            localStorage.removeItem("tabRole");
-            localStorage.removeItem("session");
-
-            // ✅ Store virtual admin session
-            localStorage.setItem("virtualAdmin", JSON.stringify(vaData.admin));
-            localStorage.setItem("tabRole", "virtual_admin");
-            localStorage.setItem("isVirtualAdmin", "true");
-
-            // ✅ Also store admin key if provided
-            if (vaData.adminKey) {
-              localStorage.setItem('adminKey', vaData.adminKey);
-              localStorage.setItem('admin_session_id', vaData.sessionId);
-            }
-
-            window.dispatchEvent(new CustomEvent("virtualAdminLogin", { detail: vaData.admin }));
-            setLoading(false);
-            return;
-          } else if (vaData.error === "ADMIN_BANNED") {
-            setErr(`🚫 Your admin account has been banned.\nReason: ${vaData.reason || "No reason provided"}`);
-            setLoading(false);
-            return;
-          } else if (vaData.error === "ADMIN_KICKED") {
-            setErr(`⏳ Session terminated. Please wait ${vaData.timeRemaining || 20} seconds.`);
-            setLoading(false);
-            return;
-          }
+        // ✅ A response from the vadmin endpoint (even an error one) means
+        // this WAS a virtual admin login attempt — show the real reason
+        // instead of silently retrying as a regular user, which always
+        // fails with a confusing generic error and feels like a bounce
+        // back to the signin screen.
+        let vaData = null;
+        try {
+          vaData = await vaResponse.json();
+        } catch (e) {
+          vaData = null;
         }
-        console.log("Not a virtual admin, trying regular login...");
+
+        if (vaResponse.ok && vaData?.success) {
+          console.log("✅ Virtual admin login success:", vaData.admin);
+
+          // ✅ Clear old sessions
+          localStorage.removeItem("adminApiKey");
+          localStorage.removeItem("admin_session_id");
+          localStorage.removeItem("tabRole");
+          localStorage.removeItem("session");
+
+          // ✅ Store virtual admin session
+          localStorage.setItem("virtualAdmin", JSON.stringify(vaData.admin));
+          localStorage.setItem("tabRole", "virtual_admin");
+
+          // ✅ Also store admin key if provided
+          if (vaData.adminKey) {
+            localStorage.setItem('adminKey', vaData.adminKey);
+            localStorage.setItem('admin_session_id', vaData.sessionId);
+          }
+
+          window.dispatchEvent(new CustomEvent("virtualAdminLogin", { detail: vaData.admin }));
+          setLoading(false);
+          return;
+        }
+
+        if (vaData?.error === "ADMIN_BANNED") {
+          setErr(`🚫 Your admin account has been banned.\nReason: ${vaData.reason || "No reason provided"}`);
+          setLoading(false);
+          return;
+        }
+
+        if (vaData?.error === "ADMIN_KICKED") {
+          setErr(`⏳ Session terminated. Please wait ${vaData.timeRemaining || 20} seconds.`);
+          setLoading(false);
+          return;
+        }
+
+        // ✅ Any other real response from the vadmin endpoint (e.g. wrong
+        // username/refKey → 401) — show it directly, don't fall through.
+        if (vaData?.error) {
+          setErr(vaData.message || vaData.error || "Invalid virtual admin credentials.");
+          setLoading(false);
+          return;
+        }
+
+        // ✅ No usable response at all (network error, endpoint down,
+        // non-JSON response) — THIS is the only case worth trying regular
+        // login as a fallback.
+        console.log("Virtual admin endpoint unreachable, trying regular login...");
       } catch (err) {
-        console.log("Virtual admin check failed:", err.message);
-        // Continue to regular login
+        console.log("Virtual admin check failed, trying regular login:", err.message);
       }
     }
 
@@ -757,14 +720,9 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-      console.log("👤 Attempting user login...");
-      
       const response = await fetch(`${API_URL}/api/users/login`, {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: cleanUser,
           password: f.pw
@@ -774,18 +732,13 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
 
       clearTimeout(timeoutId);
 
+      // ✅ Check if response is OK before parsing
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Login error response:", errorText);
         
         if (response.status === 404) {
           setErr("⚠️ Login endpoint not found. Please check backend deployment.");
-          setLoading(false);
-          return;
-        }
-        
-        if (response.status === 401) {
-          setErr("❌ Invalid username or password. Please try again.");
           setLoading(false);
           return;
         }
@@ -810,7 +763,7 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
         
         switch (data.error) {
           case "BANNED":
-            setErr("🚫 Your account has been banned.");
+            setErr("Your account has been banned.");
             break;
           case "ADMIN_BANNED":
             const banReason = data.reason || data.adminBanReason || "No reason provided";
@@ -818,10 +771,10 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
             break;
           case "SESSION_INVALID":
           case "SESSION_REVOKED":
-            setErr("🔄 Your session has expired. Please login again.");
+            setErr("Your session has expired. Please login again.");
             break;
           default:
-            setErr(data.message || data.error || "❌ Invalid username or password. Please try again.");
+            setErr(data.message || data.error || "Invalid username or password. Please try again.");
         }
         
         setLoading(false);
@@ -850,7 +803,14 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
       
     } catch (e) {
       console.error("❌ LOGIN ERROR:", e);
-      setErr(handleFetchError(e));
+      
+      if (e.name === 'AbortError') {
+        setErr("⏳ Login is taking too long. Please check your connection and try again.");
+      } else if (e.message?.includes("NetworkError") || e.message?.includes("Failed to fetch")) {
+        setErr("📶 Network error. Please check your internet connection.");
+      } else {
+        setErr(`Network error: ${e.message || "Please check if the server is running."}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -858,109 +818,51 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
 
   return (
     <div style={{
-      flex: 1, 
-      display: "flex", 
-      flexDirection: "column",
-      justifyContent: "center", 
-      padding: 22,
-      maxWidth: 420,
-      margin: "0 auto",
-      width: "100%",
+      flex: 1, display: "flex", flexDirection: "column",
+      justifyContent: "center", padding: 22,
     }}>
       <BackButton onClick={() => { go("welcome"); setErr(""); }} />
 
-      <div style={{ 
-        fontSize: 28, 
-        fontWeight: 900, 
-        color: T.text, 
-        marginBottom: 8,
-        letterSpacing: "-0.5px",
-      }}>
+      <div style={{ fontSize: 25, fontWeight: 900, color: T.text, marginBottom: 24 }}>
         Welcome Back 👋
-      </div>
-      
-      <div style={{ 
-        fontSize: 13, 
-        color: T.dim, 
-        marginBottom: 24,
-      }}>
-        Sign in to your account to continue
       </div>
 
       <ErrorBox msg={err} />
-      
       <Input
         label="USERNAME" 
         val={f.user} 
         placeholder="Enter your username"
         set={(v) => sf((p) => ({ ...p, user: v }))}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            document.querySelector('input[type="password"]')?.focus();
-          }
-        }}
       />
-      
       <Input
         label="PASSWORD" 
         type="password" 
         placeholder="Enter your password"
         val={f.pw} 
         set={(v) => sf((p) => ({ ...p, pw: v }))}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            handleLogin();
-          }
-        }}
       />
 
       <PB 
         lbl={loading ? "Signing in…" : "Sign In"} 
         onClick={handleLogin} 
         dis={loading}
-        style={{ marginTop: 8 }}
       />
-      
-      {/* ✅ Sign Up link */}
-      <div style={{ 
-        marginTop: 16, 
-        textAlign: "center", 
-        fontSize: 12, 
-        color: T.dim,
-      }}>
-        Don't have an account?{" "}
-        <span 
-          onClick={() => { go("signup"); setErr(""); }}
-          style={{ 
-            color: T.acc, 
-            cursor: "pointer", 
-            fontWeight: 600,
-            textDecoration: "underline",
-          }}
-        >
-          Sign Up
-        </span>
-      </div>
       
       {/* Help text */}
       <div style={{ 
-        marginTop: 16, 
+        marginTop: 12, 
         textAlign: "center", 
         fontSize: 10, 
         color: T.dim,
         background: "rgba(0,229,176,0.05)",
-        padding: "10px 14px",
+        padding: "8px 12px",
         borderRadius: 8,
         border: "1px solid rgba(0,229,176,0.1)",
-        lineHeight: 1.5,
+        maxWidth: "100%",
+        wordWrap: "break-word",
+        lineHeight: 1.4
       }}>
-        ⚡ Having trouble logging in? 
-        <br />
-        Try refreshing the page or check your internet connection.
-        <br />
-        <span style={{ fontSize: 9, color: T.sub }}>
-          API: {API_URL || "Not configured"}
-        </span>
+        ⚡ If the app is slow to load, close it, wait 5 seconds, and try again.
       </div>
     </div>
   );

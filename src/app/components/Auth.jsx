@@ -501,8 +501,9 @@ export function SignupScreen({ go, onAuth }) {
               const username = f.user.toLowerCase().trim();
 
               if (!username) return setErr("Username is required.");
+              
               if (!/^[a-z0-9._]+$/.test(username)) {
-                return setErr("Username can only contain letters, numbers, dots, or underscores.");
+               return setErr("Username can only contain letters, numbers, dots, or underscores." );
               }
               if (!f.email) return setErr("Email is required.");
               if (!isValidEmail(f.email)) {
@@ -731,107 +732,100 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
       }
     }
 
-    // ========== REGULAR USER LOGIN ==========
-    try {
-      setLoading(true);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+   // ========== REGULAR USER LOGIN ==========
+try {
+  setLoading(true);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-      const response = await fetch(`${API_URL}/api/users/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: cleanUser,
-          password: f.pw
-        }),
-        signal: controller.signal,
-      });
+  const response = await fetch(`${API_URL}/api/users/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username: cleanUser,
+      password: f.pw
+    }),
+    signal: controller.signal,
+  });
 
-      clearTimeout(timeoutId);
+  clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Login error response:", errorText);
-        
-        if (response.status === 404) {
-          setErr("⚠️ Login endpoint not found. Please check backend deployment.");
-          setLoading(false);
-          return;
-        }
-        
-        setErr(`Server error (${response.status}). Please try again.`);
-        setLoading(false);
-        return;
-      }
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        console.error("Failed to parse JSON:", e);
-        setErr("📶 Server returned invalid response. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      if (data.error) {
-        console.log("Login error:", data);
-        
-        switch (data.error) {
-          case "BANNED":
-            setErr("Your account has been banned.");
-            break;
-          case "ADMIN_BANNED":
-            const banReason = data.reason || data.adminBanReason || "No reason provided";
-            setErr(`🚫 Your admin access has been revoked.\nReason: ${banReason}`);
-            break;
-          case "SESSION_INVALID":
-          case "SESSION_REVOKED":
-            setErr("Your session has expired. Please login again.");
-            break;
-          default:
-            setErr(data.message || data.error || "Invalid username or password. Please try again.");
-        }
-        
-        setLoading(false);
-        return;
-      }
-
-      if (!data.username) {
-        console.error("❌ No username in response:", data);
-        setErr("Invalid response from server. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      console.log(`✅ Login successful for: ${data.username}`);
-      
-      // ✅ Regular user login - call onAuth
-      await onAuth({
-        username: data.username,
-        email: data.email,
-        fullName: data.fullName || "",
-        role: data.role || "user",
-        phone: data.phone || "",
-        dob: data.dob || "",
-        country: data.country || "",
-        loggedInAt: Date.now(),
-      });
-      
-    } catch (e) {
-      console.error("❌ LOGIN ERROR:", e);
-      
-      if (e.name === 'AbortError') {
-        setErr("⏳ Login is taking too long. Please check your connection and try again.");
-      } else if (e.message?.includes("NetworkError") || e.message?.includes("Failed to fetch")) {
-        setErr("📶 Network error. Please check your internet connection.");
-      } else {
-        setErr(`Network error: ${e.message || "Please check if the server is running."}`);
-      }
-    } finally {
-      setLoading(false);
+  // ✅ Try to parse the response as JSON first
+  let data;
+  try {
+    data = await response.json();
+  } catch (e) {
+    // If it's not JSON, read as text
+    const errorText = await response.text();
+    console.error("Login error response (non-JSON):", errorText);
+    
+    if (response.status === 404) {
+      setErr("⚠️ Login endpoint not found. Please check backend deployment.");
+    } else {
+      setErr(`Server error (${response.status}). Please try again.`);
     }
-  };
+    setLoading(false);
+    return;
+  }
+
+  // ✅ Now check if there's an error in the JSON response
+  if (!response.ok || data.error) {
+    console.log("Login error:", data);
+    
+    switch (data.error) {
+      case "BANNED":
+        setErr("Your account has been banned.");
+        break;
+      case "ADMIN_BANNED":
+        const banReason = data.reason || data.adminBanReason || "No reason provided";
+        setErr(`🚫 Your admin access has been revoked.\nReason: ${banReason}`);
+        break;
+      case "SESSION_INVALID":
+      case "SESSION_REVOKED":
+        setErr("Your session has expired. Please login again.");
+        break;
+      default:
+        // ✅ Show the actual error message from the backend
+        setErr(data.message || data.error || "Invalid username or password. Please try again.");
+    }
+    
+    setLoading(false);
+    return;
+  }
+
+  if (!data.username) {
+    console.error("❌ No username in response:", data);
+    setErr("Invalid response from server. Please try again.");
+    setLoading(false);
+    return;
+  }
+
+  console.log(`✅ Login successful for: ${data.username}`);
+  
+  await onAuth({
+    username: data.username,
+    email: data.email,
+    fullName: data.fullName || "",
+    role: data.role || "user",
+    phone: data.phone || "",
+    dob: data.dob || "",
+    country: data.country || "",
+    loggedInAt: Date.now(),
+  });
+  
+} catch (e) {
+  console.error("❌ LOGIN ERROR:", e);
+  
+  if (e.name === 'AbortError') {
+    setErr("⏳ Login is taking too long. Please check your connection and try again.");
+  } else if (e.message?.includes("NetworkError") || e.message?.includes("Failed to fetch")) {
+    setErr("📶 Network error. Please check your internet connection.");
+  } else {
+    setErr(`Network error: ${e.message || "Please check if the server is running."}`);
+  }
+} finally {
+  setLoading(false);
+}
 
   return (
     <div style={{

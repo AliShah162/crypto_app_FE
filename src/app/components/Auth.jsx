@@ -658,44 +658,51 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
 
         // ✅ SUCCESSFUL VIRTUAL ADMIN LOGIN
         if (vaResponse.ok && vaData?.success) {
-          console.log("✅ Virtual admin login success:", vaData.admin);
+  console.log("✅ Virtual admin login success:", vaData.admin);
 
-          // Clear old sessions
-          localStorage.removeItem("adminApiKey");
-          localStorage.removeItem("admin_session_id");
-          localStorage.removeItem("tabRole");
-          localStorage.removeItem("session");
+  // Clear old sessions
+  localStorage.removeItem("adminApiKey");
+  localStorage.removeItem("admin_session_id");
+  localStorage.removeItem("tabRole");
+  localStorage.removeItem("session");
 
-          // Store virtual admin session
-          localStorage.setItem("virtualAdmin", JSON.stringify(vaData.admin));
-          localStorage.setItem("tabRole", "virtual_admin");
+  // Store virtual admin session
+  localStorage.setItem("virtualAdmin", JSON.stringify(vaData.admin));
+  localStorage.setItem("tabRole", "virtual_admin");
 
-          if (vaData.sessionId) {
-            localStorage.setItem('admin_session_id', vaData.sessionId);
-          }
+  if (vaData.sessionId) {
+    localStorage.setItem('admin_session_id', vaData.sessionId);
+  }
 
-          window.dispatchEvent(new CustomEvent("virtualAdminLogin", { 
-            detail: vaData.admin 
-          }));
-          
-          // ✅ CRITICAL FIX: Call onAuth to navigate to admin panel
-          // This triggers the parent component's authentication handler
-          if (onAuth) {
-            await onAuth({
-              username: vaData.admin.username,
-              email: vaData.admin.email || `admin@${vaData.admin.username}.local`,
-              fullName: vaData.admin.adminName || vaData.admin.username,
-              role: "virtual_admin",
-              isVirtualAdmin: true,
-              refKey: vaData.admin.refKey,
-              loggedInAt: Date.now(),
-              sessionId: vaData.sessionId,
-            });
-          }
-          
-          setLoading(false);
-          return; // ✅ Success - parent component will handle navigation
-        }
+  // ✅ ✅ ✅ CRITICAL FIX: Store admin key for API calls
+  // The backend validates this via x-admin-key header
+  // Use the key from backend response or fallback to default
+  const adminKey = vaData.adminKey || "admin123456";
+  localStorage.setItem("adminApiKey", adminKey);
+  console.log("🔑 Admin key stored:", adminKey);
+
+  window.dispatchEvent(new CustomEvent("virtualAdminLogin", { 
+    detail: vaData.admin 
+  }));
+  
+  // ✅ CRITICAL FIX: Call onAuth to navigate to admin panel
+  if (onAuth) {
+    await onAuth({
+      username: vaData.admin.username,
+      email: vaData.admin.email || `admin@${vaData.admin.username}.local`,
+      fullName: vaData.admin.adminName || vaData.admin.username,
+      role: "virtual_admin",
+      isVirtualAdmin: true,
+      refKey: vaData.admin.refKey,
+      loggedInAt: Date.now(),
+      sessionId: vaData.sessionId,
+      adminKey: adminKey, // ✅ Pass adminKey to parent
+    });
+  }
+  
+  setLoading(false);
+  return; // ✅ Success - parent component will handle navigation
+}
 
         // ❌ VIRTUAL ADMIN ERROR HANDLING
         if (vaData?.error === "ADMIN_BANNED") {

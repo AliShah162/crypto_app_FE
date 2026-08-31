@@ -71,7 +71,13 @@ export default function VirtualAdminLogin({ onLogin, onBack }) {
       console.log(`🆕 Generated unique session ID: ${uniqueSessionId.slice(0, 20)}...`);
 
       // ✅ STEP 3: Register this specific session
-      const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+      // Use the same fallback key AdminPanel.jsx relies on everywhere else,
+      // and persist it so every later request (including session validation
+      // on refresh) reads a consistent value instead of guessing again.
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      localStorage.setItem("adminApiKey", adminKey);
       const registerResponse = await fetch(`${API_URL}/api/users/admin/register-session`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -54,7 +54,7 @@ export default function AdminSessions({ apiKey, onClose }) {
   // ========== FETCH ALL VIRTUAL ADMINS ==========
   const fetchAllVirtualAdmins = useCallback(async () => {
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
       const response = await fetch(`${API_URL}/api/users/admin/all-virtual-admins`, {
         headers: { "x-admin-key": adminKey },
       });
@@ -71,7 +71,7 @@ export default function AdminSessions({ apiKey, onClose }) {
 
 const fetchSessions = useCallback(async () => {
   try {
-    const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+    const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
     const response = await fetch(`${API_URL}/api/users/admin/sessions`, {
       headers: {
         "x-admin-key": adminKey,
@@ -105,7 +105,7 @@ const fetchSessions = useCallback(async () => {
 
   const fetchBannedUsers = useCallback(async () => {
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
       const response = await fetch(`${API_URL}/api/users/admin/banned-virtual-admins`, {
         headers: { "x-admin-key": adminKey },
       });
@@ -125,7 +125,7 @@ const fetchSessions = useCallback(async () => {
   const renameSingleSession = useCallback(async (sessionId, customName) => {
     try {
       setRenaming(sessionId);
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
       const response = await fetch(`${API_URL}/api/users/admin/rename-session`, {
         method: "POST",
         headers: {
@@ -178,7 +178,7 @@ const fetchSessions = useCallback(async () => {
 
     setRenaming(sessionId);
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
       const response = await fetch(`${API_URL}/api/users/admin/rename-sessions-by-user-and-ip`, {
         method: "POST",
         headers: {
@@ -231,7 +231,7 @@ const fetchSessions = useCallback(async () => {
     if (!confirm(`Change password for @${username}?`)) return;
 
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
       const response = await fetch(`${API_URL}/api/users/admin/change-virtual-admin-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-key": adminKey },
@@ -259,7 +259,7 @@ const fetchSessions = useCallback(async () => {
 
     setBanning(username);
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
       const response = await fetch(`${API_URL}/api/users/admin/ban-virtual-admin`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-key": adminKey },
@@ -287,7 +287,7 @@ const fetchSessions = useCallback(async () => {
     if (!confirm(`✅ Unban @${username}?`)) return;
     setUnbanning(username);
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
       const response = await fetch(`${API_URL}/api/users/admin/unban-virtual-admin`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-key": adminKey },
@@ -314,7 +314,7 @@ const fetchSessions = useCallback(async () => {
     if (!confirm(`⚠️ Revoke session for @${username}?`)) return;
     setRevoking(sessionId);
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
       const response = await fetch(`${API_URL}/api/users/admin/sessions/${sessionId}`, {
         method: "DELETE",
         headers: {
@@ -355,7 +355,7 @@ const fetchSessions = useCallback(async () => {
         const response = await fetch(`${API_URL}/api/users/admin/sessions/${session.sessionId}`, {
           method: "DELETE",
           headers: {
-            "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "admin123456",
+            "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd",
             "x-session-id": localStorage.getItem("admin_session_id") || "",
           },
         });
@@ -379,7 +379,7 @@ const fetchSessions = useCallback(async () => {
   const cleanupSessions = useCallback(async () => {
     if (!confirm("🧹 Clean up old inactive sessions?")) return;
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
       const response = await fetch(`${API_URL}/api/users/admin/cleanup-sessions`, {
         method: "POST",
         headers: { "x-admin-key": adminKey },
@@ -395,7 +395,7 @@ const fetchSessions = useCallback(async () => {
   const clearAllSessions = useCallback(async () => {
     if (!confirm("⚠️ DANGER: This will log out EVERYONE including you!")) return;
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "admin123456";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
       await fetch(`${API_URL}/api/users/admin/clear-all-sessions`, {
         method: "POST",
         headers: { "x-admin-key": adminKey },

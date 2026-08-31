@@ -782,7 +782,7 @@ function FreezeEditor({
   setMsg(null);
 
   try {
-const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
     
     // ✅ DEBUG: Log what we're sending
     console.log("🔵 Freeze Debug:", {
@@ -852,7 +852,7 @@ const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
   const unfreezeSpecific = async (id, amount) => {
     setLoading(true);
     try {
-     const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+     const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
 
       // ✅ Build URL with refKey for virtual admin
@@ -4208,20 +4208,10 @@ const checkSessionAndHandleLogout = (response, data) => {
       return true;
     }
     
-    // ✅ Only logout for "Invalid admin key" if we're master admin
-    if (data.error === "Unauthorized" && data.message?.includes("Invalid admin key")) {
-      console.log("🔴 Invalid admin key - logging out");
-      localStorage.removeItem("adminApiKey");
-      localStorage.removeItem("admin_session_id");
-      localStorage.removeItem("tabRole");
-      localStorage.removeItem("virtualAdmin");
-      localStorage.removeItem("session");
-      
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 100);
-      return true;
-    }
+    // ✅ Don't logout on a generic "Invalid admin key" - this can happen
+    // from a stale/mismatched key rather than an actually revoked session,
+    // and forcing a logout here is what was kicking people out on refresh.
+    // Real invalidation is already covered by the criticalErrors check above.
   }
   
   return false;
@@ -5315,8 +5305,12 @@ const fetchDepositRequests = useCallback(async () => {
 
         console.log("🔵 Virtual admin validation response:", data);
 
-        // ✅ If invalid, logout
-        if (!data.valid) {
+        // ✅ Only logout when the backend explicitly says so (banned/kicked/
+        // actually invalid session). The backend sets requiresReauth: false
+        // for soft failures like a key mismatch or a transient validation
+        // error specifically so those don't force a logout - respect that
+        // instead of logging out on any `!data.valid`.
+        if (!data.valid && data.requiresReauth) {
           console.log(
             "🚫 Virtual admin session invalid:",
             data.error || "unknown reason",
@@ -5328,6 +5322,14 @@ const fetchDepositRequests = useCallback(async () => {
           localStorage.removeItem("session");
           // Don't force reload - let the component handle it
           window.location.href = "/";
+          return;
+        }
+
+        if (!data.valid) {
+          console.log(
+            "⏳ Virtual admin validation soft-failed, not logging out:",
+            data.error || "unknown reason",
+          );
           return;
         }
 

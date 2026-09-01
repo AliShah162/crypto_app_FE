@@ -5054,7 +5054,6 @@ const fetchDepositRequests = useCallback(async () => {
     // ✅ Virtual admin doesn't need session registration - SKIP COMPLETELY
     if (isVirtualAdmin) {
       console.log("👑 Virtual Admin - Skipping session registration");
-      localStorage.removeItem("admin_session_id");
       return;
     }
 
@@ -5120,7 +5119,6 @@ const fetchDepositRequests = useCallback(async () => {
         console.log(
           "👑 Virtual admin detected - skipping session registration",
         );
-        localStorage.removeItem("admin_session_id");
         return;
       }
 

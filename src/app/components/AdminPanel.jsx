@@ -771,89 +771,92 @@ function FreezeEditor({
   }, [username, usersState]);
 
   // In FreezeEditor component
- const applyFreeze = async () => {
-  const n = parseFloat(val);
-  if (!val || isNaN(n) || n < 0) {
-    setMsg({ t: "e", m: "Enter a valid positive number." });
-    return;
-  }
-
-  setLoading(true);
-  setMsg(null);
-
-  try {
-const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-    
-    // ✅ DEBUG: Log what we're sending
-    console.log("🔵 Freeze Debug:", {
-      adminKey,
-      isVirtualAdminStable,
-      virtualAdminRefKey,
-      username,
-      amount: n,
-      url: `${BASE_URL}/api/users/admin/freeze-balance${isVirtualAdminStable && virtualAdminRefKey ? `?refKey=${virtualAdminRefKey}` : ''}`
-    });
-
-    let url = `${BASE_URL}/api/users/admin/freeze-balance`;
-    if (isVirtualAdminStable && virtualAdminRefKey) {
-      url += `?refKey=${virtualAdminRefKey}`;
+  const applyFreeze = async () => {
+    const n = parseFloat(val);
+    if (!val || isNaN(n) || n < 0) {
+      setMsg({ t: "e", m: "Enter a valid positive number." });
+      return;
     }
 
-    const headers = {
-      "Content-Type": "application/json",
-      "x-admin-key": adminKey,
-    };
+    setLoading(true);
+    setMsg(null);
 
-    if (!isVirtualAdminStable) {
-      const sessionId = localStorage.getItem("admin_session_id");
-      if (sessionId) {
-        headers["x-session-id"] = sessionId;
+    try {
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+
+      // ✅ DEBUG: Log what we're sending
+      console.log("🔵 Freeze Debug:", {
+        adminKey,
+        isVirtualAdminStable,
+        virtualAdminRefKey,
+        username,
+        amount: n,
+        url: `${BASE_URL}/api/users/admin/freeze-balance${isVirtualAdminStable && virtualAdminRefKey ? `?refKey=${virtualAdminRefKey}` : ""}`,
+      });
+
+      let url = `${BASE_URL}/api/users/admin/freeze-balance`;
+      if (isVirtualAdminStable && virtualAdminRefKey) {
+        url += `?refKey=${virtualAdminRefKey}`;
       }
+
+      const headers = {
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey,
+      };
+
+      if (!isVirtualAdminStable) {
+        const sessionId = localStorage.getItem("admin_session_id");
+        if (sessionId) {
+          headers["x-session-id"] = sessionId;
+        }
+      }
+
+      // ✅ Also add refKey to body for virtual admin (backend checks both)
+      const body = {
+        username,
+        amount: n,
+        action: "freeze",
+        reason: "Admin freeze action",
+      };
+
+      if (isVirtualAdminStable && virtualAdminRefKey) {
+        body.refKey = virtualAdminRefKey; // ✅ Send in body too
+      }
+
+      console.log("🔵 Request body:", body);
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+      console.log("🔵 Response:", { status: response.status, data });
+
+      if (data.success) {
+        setMsg({ t: "s", m: data.message });
+        setVal("");
+        // ... rest of success handling
+      } else {
+        setMsg({ t: "e", m: data.error || "Operation failed" });
+      }
+    } catch (err) {
+      console.error("❌ Freeze error:", err);
+      setMsg({ t: "e", m: "Network error. Try again." });
+    } finally {
+      setLoading(false);
     }
-
-    // ✅ Also add refKey to body for virtual admin (backend checks both)
-    const body = {
-      username,
-      amount: n,
-      action: "freeze",
-      reason: "Admin freeze action",
-    };
-    
-    if (isVirtualAdminStable && virtualAdminRefKey) {
-      body.refKey = virtualAdminRefKey; // ✅ Send in body too
-    }
-
-    console.log("🔵 Request body:", body);
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify(body),
-    });
-
-    const data = await response.json();
-    console.log("🔵 Response:", { status: response.status, data });
-
-    if (data.success) {
-      setMsg({ t: "s", m: data.message });
-      setVal("");
-      // ... rest of success handling
-    } else {
-      setMsg({ t: "e", m: data.error || "Operation failed" });
-    }
-  } catch (err) {
-    console.error("❌ Freeze error:", err);
-    setMsg({ t: "e", m: "Network error. Try again." });
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const unfreezeSpecific = async (id, amount) => {
     setLoading(true);
     try {
-     const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
       // ✅ Build URL with refKey for virtual admin
       let url = `${BASE_URL}/api/users/admin/freeze-balance`;
@@ -4161,61 +4164,61 @@ export default function AdminPanel({
 
   // In AdminPanel.jsx - Replace checkSessionAndHandleLogout
 
-// In AdminPanel.jsx - Replace checkSessionAndHandleLogout
+  // In AdminPanel.jsx - Replace checkSessionAndHandleLogout
 
-const checkSessionAndHandleLogout = (response, data) => {
-  // ✅ Virtual admin - NEVER logout from session checks
-  if (isVirtualAdminStable) {
-    console.log("👑 Virtual admin - skipping session check");
-    return false;
-  }
-
-  // ✅ Only check for master admin
-  const adminKey = localStorage.getItem("adminApiKey");
-  const sessionId = localStorage.getItem("admin_session_id");
-  
-  if (!adminKey || !sessionId) {
-    console.log("⏳ No admin key or session - not logging out");
-    return false;
-  }
-
-  // ✅ Only trigger logout for specific master admin errors
-  if (response.status === 403 || response.status === 401) {
-    // ✅ Critical errors that should force logout
-    const criticalErrors = [
-      "SESSION_INVALID",
-      "SESSION_INVALIDATED",
-      "SESSION_REVOKED",
-      "PASSWORD_CHANGED",
-      "SESSION_EXPIRED",
-      "ADMIN_BANNED"
-    ];
-    
-    if (data.error && criticalErrors.includes(data.error)) {
-      console.log(`🔴 Master admin session ${data.error} - logging out`);
-      
-      // Clear session
-      localStorage.removeItem("adminApiKey");
-      localStorage.removeItem("admin_session_id");
-      localStorage.removeItem("tabRole");
-      localStorage.removeItem("virtualAdmin");
-      localStorage.removeItem("session");
-      
-      // Use timeout to prevent race conditions
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 100);
-      return true;
+  const checkSessionAndHandleLogout = (response, data) => {
+    // ✅ Virtual admin - NEVER logout from session checks
+    if (isVirtualAdminStable) {
+      console.log("👑 Virtual admin - skipping session check");
+      return false;
     }
-    
-    // ✅ Don't logout on a generic "Invalid admin key" - this can happen
-    // from a stale/mismatched key rather than an actually revoked session,
-    // and forcing a logout here is what was kicking people out on refresh.
-    // Real invalidation is already covered by the criticalErrors check above.
-  }
-  
-  return false;
-};
+
+    // ✅ Only check for master admin
+    const adminKey = localStorage.getItem("adminApiKey");
+    const sessionId = localStorage.getItem("admin_session_id");
+
+    if (!adminKey || !sessionId) {
+      console.log("⏳ No admin key or session - not logging out");
+      return false;
+    }
+
+    // ✅ Only trigger logout for specific master admin errors
+    if (response.status === 403 || response.status === 401) {
+      // ✅ Critical errors that should force logout
+      const criticalErrors = [
+        "SESSION_INVALID",
+        "SESSION_INVALIDATED",
+        "SESSION_REVOKED",
+        "PASSWORD_CHANGED",
+        "SESSION_EXPIRED",
+        "ADMIN_BANNED",
+      ];
+
+      if (data.error && criticalErrors.includes(data.error)) {
+        console.log(`🔴 Master admin session ${data.error} - logging out`);
+
+        // Clear session
+        localStorage.removeItem("adminApiKey");
+        localStorage.removeItem("admin_session_id");
+        localStorage.removeItem("tabRole");
+        localStorage.removeItem("virtualAdmin");
+        localStorage.removeItem("session");
+
+        // Use timeout to prevent race conditions
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 100);
+        return true;
+      }
+
+      // ✅ Don't logout on a generic "Invalid admin key" - this can happen
+      // from a stale/mismatched key rather than an actually revoked session,
+      // and forcing a logout here is what was kicking people out on refresh.
+      // Real invalidation is already covered by the criticalErrors check above.
+    }
+
+    return false;
+  };
 
   const exit = onBack || onExit;
 
@@ -4421,45 +4424,50 @@ const checkSessionAndHandleLogout = (response, data) => {
     }
   }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
 
- // In AdminPanel.jsx - Update fetchDepositRequests
+  // In AdminPanel.jsx - Update fetchDepositRequests
 
-const fetchDepositRequests = useCallback(async () => {
-  try {
-    const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+  const fetchDepositRequests = useCallback(async () => {
+    try {
+      const adminKey =
+        localStorage.getItem("adminApiKey") ||
+        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
-    let url = `${BASE_URL}/api/users/admin/all-deposits`;
+      let url = `${BASE_URL}/api/users/admin/all-deposits`;
 
-    if (isVirtualAdminStable && virtualAdminRefKey) {
-      url += `?refKey=${virtualAdminRefKey}`;
-    }
-
-    const headers = { "x-admin-key": adminKey };
-
-    if (!isVirtualAdminStable) {
-      const sessionId = localStorage.getItem("admin_session_id");
-      if (sessionId) {
-        headers["x-session-id"] = sessionId;
+      if (isVirtualAdminStable && virtualAdminRefKey) {
+        url += `?refKey=${virtualAdminRefKey}`;
       }
-    }
 
-    const response = await fetch(url, { headers: headers });
-    const data = await response.json();
+      const headers = { "x-admin-key": adminKey };
 
-    // ✅ Skip session check for virtual admins
-    if (!isVirtualAdminStable && checkSessionAndHandleLogout(response, data)) {
-      return;
-    }
+      if (!isVirtualAdminStable) {
+        const sessionId = localStorage.getItem("admin_session_id");
+        if (sessionId) {
+          headers["x-session-id"] = sessionId;
+        }
+      }
 
-    if (Array.isArray(data)) {
-      setDepositRequests(data);
-    } else {
+      const response = await fetch(url, { headers: headers });
+      const data = await response.json();
+
+      // ✅ Skip session check for virtual admins
+      if (
+        !isVirtualAdminStable &&
+        checkSessionAndHandleLogout(response, data)
+      ) {
+        return;
+      }
+
+      if (Array.isArray(data)) {
+        setDepositRequests(data);
+      } else {
+        setDepositRequests([]);
+      }
+    } catch (error) {
+      console.error("Error fetching deposit requests:", error);
       setDepositRequests([]);
     }
-  } catch (error) {
-    console.error("Error fetching deposit requests:", error);
-    setDepositRequests([]);
-  }
-}, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
+  }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
 
   // ✅ REPLACE THIS FUNCTION
   const fetchPaymentSettings = useCallback(async () => {
@@ -5366,151 +5374,164 @@ const fetchDepositRequests = useCallback(async () => {
     };
   }, [isVirtualAdminStable, virtualAdminRefKey, BASE_URL]);
 
- // In AdminPanel.jsx - Replace the session validation useEffect
+  // In AdminPanel.jsx - Replace the session validation useEffect
 
-useEffect(() => {
-  // ✅ Skip for virtual admins (they use refKey)
-  if (isVirtualAdminStable) {
-    console.log("👑 Virtual Admin - Session validation disabled");
-    return;
-  }
-
-  // ✅ Track if user is actively using the app
-  let isActive = true;
-  let intervalId = null;
-  let consecutiveFailures = 0;
-  const MAX_CONSECUTIVE_FAILURES = 3;
-
-  const checkMasterSession = async () => {
-    // ✅ Don't run if component unmounted or user inactive
-    if (!isActive) return;
-
-    const adminKey = localStorage.getItem("adminApiKey");
-    const sessionId = localStorage.getItem("admin_session_id");
-
-    // ✅ If no session, try to register one silently
-    if (!adminKey || !sessionId) {
-      console.log("⏳ No session found - attempting to register...");
-      await registerSession();
+  useEffect(() => {
+    // ✅ Skip for virtual admins (they use refKey)
+    if (isVirtualAdminStable) {
+      console.log("👑 Virtual Admin - Session validation disabled");
       return;
     }
 
-    try {
-      const response = await fetch(`${BASE_URL}/api/users/admin/validate-session`, {
-        headers: {
-          "x-admin-key": adminKey,
-          "x-session-id": sessionId,
-        },
-      });
+    // ✅ Track if user is actively using the app
+    let isActive = true;
+    let intervalId = null;
+    let consecutiveFailures = 0;
+    const MAX_CONSECUTIVE_FAILURES = 3;
 
-      const data = await response.json();
+    const checkMasterSession = async () => {
+      // ✅ Don't run if component unmounted or user inactive
+      if (!isActive) return;
 
-      // ✅ Handle different validation results
-      if (data.valid === true) {
-        // Session is valid - reset failures
-        consecutiveFailures = 0;
-        console.log("✅ Master admin session valid");
+      const adminKey = localStorage.getItem("adminApiKey");
+      const sessionId = localStorage.getItem("admin_session_id");
+
+      // ✅ If no session, try to register one silently
+      if (!adminKey || !sessionId) {
+        console.log("⏳ No session found - attempting to register...");
+        await registerSession();
         return;
       }
 
-      // ✅ Only logout for critical errors
-      if (data.requiresReauth === true) {
-        const criticalErrors = [
-          "SESSION_INVALID",
-          "SESSION_INVALIDATED",
-          "SESSION_REVOKED",
-          "PASSWORD_CHANGED",
-          "SESSION_EXPIRED",
-          "ADMIN_BANNED",
-          "MASTER_ADMIN_NOT_FOUND"
-        ];
+      try {
+        const response = await fetch(
+          `${BASE_URL}/api/users/admin/validate-session`,
+          {
+            headers: {
+              "x-admin-key": adminKey,
+              "x-session-id": sessionId,
+            },
+          },
+        );
 
-        if (data.error && criticalErrors.includes(data.error)) {
-          console.log(`🔴 Critical session error: ${data.error} - logging out`);
-          performLogout();
+        const data = await response.json();
+
+        // ✅ Handle different validation results
+        if (data.valid === true) {
+          // Session is valid - reset failures
+          consecutiveFailures = 0;
+          console.log("✅ Master admin session valid");
           return;
         }
+
+        // ✅ Only logout for critical errors
+        if (data.requiresReauth === true) {
+          const criticalErrors = [
+            "SESSION_INVALID",
+            "SESSION_INVALIDATED",
+            "SESSION_REVOKED",
+            "PASSWORD_CHANGED",
+            "SESSION_EXPIRED",
+            "ADMIN_BANNED",
+            "MASTER_ADMIN_NOT_FOUND",
+          ];
+
+          if (data.error && criticalErrors.includes(data.error)) {
+            console.log(
+              `🔴 Critical session error: ${data.error} - logging out`,
+            );
+            performLogout();
+            return;
+          }
+        }
+
+        // ✅ For non-critical errors, increment failures
+        consecutiveFailures++;
+        console.log(
+          `⚠️ Session validation warning (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}): ${data.error || "Unknown"}`,
+        );
+
+        // ✅ Only logout after multiple consecutive failures
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+          console.log(
+            `🔴 Too many validation failures (${consecutiveFailures}) - logging out`,
+          );
+          performLogout();
+        }
+      } catch (err) {
+        // ✅ Network errors - don't logout, just log
+        console.log("⚠️ Session validation network error:", err.message);
+        // Don't increment failures for network errors
       }
+    };
 
-      // ✅ For non-critical errors, increment failures
-      consecutiveFailures++;
-      console.log(`⚠️ Session validation warning (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}): ${data.error || 'Unknown'}`);
+    // Helper to register a new session
+    const registerSession = async () => {
+      try {
+        const adminKey = localStorage.getItem("adminApiKey");
+        if (!adminKey) {
+          console.log("⏳ No admin key - cannot register session");
+          return;
+        }
 
-      // ✅ Only logout after multiple consecutive failures
-      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-        console.log(`🔴 Too many validation failures (${consecutiveFailures}) - logging out`);
-        performLogout();
+        const response = await fetch(
+          `${BASE_URL}/api/users/admin/register-session`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              adminKey: adminKey,
+              userAgent: navigator.userAgent,
+              adminUsername: "master_admin",
+            }),
+          },
+        );
+
+        const data = await response.json();
+
+        if (data.success && data.sessionId) {
+          localStorage.setItem("admin_session_id", data.sessionId);
+          console.log("✅ Master admin session registered:", data.sessionId);
+          consecutiveFailures = 0; // Reset failures on success
+        } else {
+          console.log(
+            "⚠️ Session registration failed:",
+            data.error || "Unknown error",
+          );
+          // Don't logout - just try again later
+        }
+      } catch (err) {
+        console.log("⚠️ Session registration network error:", err.message);
       }
+    };
 
-    } catch (err) {
-      // ✅ Network errors - don't logout, just log
-      console.log("⚠️ Session validation network error:", err.message);
-      // Don't increment failures for network errors
-    }
-  };
+    // Helper to perform logout
+    const performLogout = () => {
+      console.log("🔴 Performing logout - clearing session");
+      localStorage.removeItem("adminApiKey");
+      localStorage.removeItem("admin_session_id");
+      localStorage.removeItem("tabRole");
+      localStorage.removeItem("virtualAdmin");
+      localStorage.removeItem("session");
 
-  // Helper to register a new session
-  const registerSession = async () => {
-    try {
-      const adminKey = localStorage.getItem("adminApiKey");
-      if (!adminKey) {
-        console.log("⏳ No admin key - cannot register session");
-        return;
-      }
+      // ✅ Use a timeout to prevent race conditions
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 100);
+    };
 
-      const response = await fetch(`${BASE_URL}/api/users/admin/register-session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          adminKey: adminKey,
-          userAgent: navigator.userAgent,
-          adminUsername: "master_admin",
-        }),
-      });
+    // ✅ Check immediately
+    checkMasterSession();
 
-      const data = await response.json();
-      
-      if (data.success && data.sessionId) {
-        localStorage.setItem("admin_session_id", data.sessionId);
-        console.log("✅ Master admin session registered:", data.sessionId);
-        consecutiveFailures = 0; // Reset failures on success
-      } else {
-        console.log("⚠️ Session registration failed:", data.error || 'Unknown error');
-        // Don't logout - just try again later
-      }
-    } catch (err) {
-      console.log("⚠️ Session registration network error:", err.message);
-    }
-  };
+    // ✅ Check every 30 seconds (reduced frequency)
+    intervalId = setInterval(checkMasterSession, 30000);
 
-  // Helper to perform logout
-  const performLogout = () => {
-    console.log("🔴 Performing logout - clearing session");
-    localStorage.removeItem("adminApiKey");
-    localStorage.removeItem("admin_session_id");
-    localStorage.removeItem("tabRole");
-    localStorage.removeItem("virtualAdmin");
-    localStorage.removeItem("session");
-    
-    // ✅ Use a timeout to prevent race conditions
-    setTimeout(() => {
-      window.location.href = "/";
-    }, 100);
-  };
-
-  // ✅ Check immediately
-  checkMasterSession();
-
-  // ✅ Check every 30 seconds (reduced frequency)
-  intervalId = setInterval(checkMasterSession, 30000);
-
-  // ✅ Cleanup on unmount
-  return () => {
-    isActive = false;
-    if (intervalId) clearInterval(intervalId);
-  };
-  
-}, [isVirtualAdminStable, BASE_URL]);
+    // ✅ Cleanup on unmount
+    return () => {
+      isActive = false;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isVirtualAdminStable, BASE_URL]);
 
   const totalBalance = users.reduce((a, u) => a + (u?.balance || 0), 0);
   const totalHoldings = users.reduce(
@@ -6757,9 +6778,15 @@ useEffect(() => {
                 <input
                   value={q}
                   onChange={(e) => {
-                    setQ(e.target.value);
-                    // Fetch users with search query
-                    fetchUsers(1, e.target.value);
+                    const val = e.target.value;
+                    setQ(val); // updates instantly, no flicker — local `found` filter covers this
+
+                    if (searchDebounceRef.current) {
+                      clearTimeout(searchDebounceRef.current);
+                    }
+                    searchDebounceRef.current = setTimeout(() => {
+                      fetchUsers(1, val); // only hits the backend after typing pauses
+                    }, 400);
                   }}
                   placeholder="Search username or email…"
                   style={{
@@ -7215,40 +7242,40 @@ useEffect(() => {
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button
-  onClick={async () => {
-    const btn = document.activeElement;
-    const originalText = btn.textContent;
-    btn.textContent = "⏳...";
-    btn.disabled = true;
-    
-    try {
-      await fetchAllTrades();
-      btn.textContent = "✅ Done";
-      setTimeout(() => {
-        btn.textContent = originalText;
-        btn.disabled = false;
-      }, 1200);
-    } catch (err) {
-      btn.textContent = "❌ Failed";
-      setTimeout(() => {
-        btn.textContent = originalText;
-        btn.disabled = false;
-      }, 1500);
-    }
-  }}
-  style={{
-    padding: "6px 12px",
-    borderRadius: 8,
-    border: `1px solid ${C.border}`,
-    background: C.card,
-    fontSize: 11,
-    color: "#000000",
-    fontWeight: 500,
-    cursor: "pointer",
-  }}
->
-  ↻ Refresh
-</button>
+                    onClick={async () => {
+                      const btn = document.activeElement;
+                      const originalText = btn.textContent;
+                      btn.textContent = "⏳...";
+                      btn.disabled = true;
+
+                      try {
+                        await fetchAllTrades();
+                        btn.textContent = "✅ Done";
+                        setTimeout(() => {
+                          btn.textContent = originalText;
+                          btn.disabled = false;
+                        }, 1200);
+                      } catch (err) {
+                        btn.textContent = "❌ Failed";
+                        setTimeout(() => {
+                          btn.textContent = originalText;
+                          btn.disabled = false;
+                        }, 1500);
+                      }
+                    }}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: `1px solid ${C.border}`,
+                      background: C.card,
+                      fontSize: 11,
+                      color: "#000000",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    ↻ Refresh
+                  </button>
                   <button
                     onClick={async () => {
                       if (

@@ -354,6 +354,20 @@ const fetchNotificationsFromDB = useCallback(async () => {
   const auth = async (u) => {
   if (!u) return;
 
+  // ── Virtual admin ── must be handled first: Auth.jsx already wrote the
+  // correct localStorage (virtualAdmin, tabRole, adminApiKey, admin_session_id)
+  // before calling onAuth, so we just need to set React state and return —
+  // NOT fall through to the generic cleanup/regular-user logic below, which
+  // was wiping that data and breaking session restore on refresh.
+  if (u.isVirtualAdmin) {
+    setVirtualAdmin({
+      username: u.username,
+      refKey: u.refKey,
+      adminName: u.fullName,
+    });
+    return;
+  }
+
   const username = u.username.toLowerCase().trim();
 
   if (typeof window !== "undefined") {
@@ -384,25 +398,25 @@ const fetchNotificationsFromDB = useCallback(async () => {
       _cachedAt: Date.now()
     };
     localStorage.setItem("users_cache", JSON.stringify(cache));
-    
+
     // Set session
     localStorage.setItem("session", username);
     localStorage.removeItem("tabRole");
-    
+
     // Update state
     setUser(u);
-    
+
     // Navigate to app
     ss("app");
     sp("home");
     ssb(null);
-    
+
     // ✅ React Query will fetch notifications automatically
     // Just trigger a refetch
     refetchNotifications();
-    
+
     console.log(`✅ User ${username} logged in successfully`);
-    
+
   } catch (err) {
     console.error("Auth error:", err);
     setErr("Failed to authenticate. Please try again.");

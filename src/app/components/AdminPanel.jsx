@@ -4340,7 +4340,7 @@ const fetchWithdrawals = useCallback(async () => {
 
   // In AdminPanel.jsx - Update fetchAllTrades
 
-  const fetchAllTrades = useCallback(async () => {
+ const fetchAllTrades = useCallback(async () => {
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
@@ -4373,9 +4373,7 @@ const fetchWithdrawals = useCallback(async () => {
             (a, b) => new Date(b.startTime) - new Date(a.startTime),
           );
           setAllTrades(allTradesList);
-          return;
         }
-        setAllTrades([]);
         return;
       }
 
@@ -4414,58 +4412,53 @@ const fetchWithdrawals = useCallback(async () => {
           (a, b) => new Date(b.startTime) - new Date(a.startTime),
         );
         setAllTrades(allTradesList);
-      } else {
-        setAllTrades([]);
       }
+      // else: keep last good data on screen (do NOT blank)
     } catch (error) {
       console.error("❌ Error fetching all trades:", error);
-      setAllTrades([]);
+      // keep last good data (do NOT blank)
     }
   }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
 
   // In AdminPanel.jsx - Update fetchDepositRequests
 
-  const fetchDepositRequests = useCallback(async () => {
-    try {
-      const adminKey =
-        localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+const fetchDepositRequests = useCallback(async () => {
+  try {
+    const adminKey =
+      localStorage.getItem("adminApiKey") ||
+      "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
-      let url = `${BASE_URL}/api/users/admin/all-deposits`;
+    let url = `${BASE_URL}/api/users/admin/all-deposits`;
 
-      if (isVirtualAdminStable && virtualAdminRefKey) {
-        url += `?refKey=${virtualAdminRefKey}`;
-      }
-
-      const headers = { "x-admin-key": adminKey };
-
-      if (!isVirtualAdminStable) {
-        const sessionId = localStorage.getItem("admin_session_id");
-        if (sessionId) {
-          headers["x-session-id"] = sessionId;
-        }
-      }
-
-      const response = await fetch(url, { headers: headers });
-      const data = await response.json();
-
-      // ✅ Skip session check for virtual admins
-      if (
-        !isVirtualAdminStable &&
-        checkSessionAndHandleLogout(response, data)
-      ) {
-        return;
-      }
-
-      if (Array.isArray(data)) {
-        setDepositRequests(data);
-      } else {
-        setDepositRequests([]);
-      }
-    } catch (error) {
-      console.error("Error fetching deposit requests:", error);
+    if (isVirtualAdminStable && virtualAdminRefKey) {
+      url += `?refKey=${virtualAdminRefKey}`;
     }
-  }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
+
+    const headers = { "x-admin-key": adminKey };
+
+    if (!isVirtualAdminStable) {
+      const sessionId = localStorage.getItem("admin_session_id");
+      if (sessionId) {
+        headers["x-session-id"] = sessionId;
+      }
+    }
+
+    const response = await fetch(url, { headers: headers });
+    const data = await response.json();
+
+    if (!isVirtualAdminStable && checkSessionAndHandleLogout(response, data)) {
+      return;
+    }
+
+    if (Array.isArray(data)) {
+      setDepositRequests(data);
+    }
+    // else: keep last good data on screen (do NOT blank)
+  } catch (error) {
+    console.error("Error fetching deposit requests:", error);
+    // keep last good data (do NOT blank)
+  }
+}, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
 
   // ✅ REPLACE THIS FUNCTION
   const fetchPaymentSettings = useCallback(async () => {

@@ -4302,47 +4302,39 @@ export default function AdminPanel({
 
   // In AdminPanel.jsx - fetchWithdrawals is already correct, but let's verify
 
-  const fetchWithdrawals = useCallback(async () => {
-    try {
-      const adminKey =
-        localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+const fetchWithdrawals = useCallback(async () => {
+  try {
+    const adminKey =
+      localStorage.getItem("adminApiKey") ||
+      "7b97a4b8-f7e8-4470-9102-2533045a16dd";
 
-      let url = `${BASE_URL}/api/users/admin/all-withdrawals`;
+    let url = `${BASE_URL}/api/users/admin/all-withdrawals`;
 
-      // ✅ For virtual admin, add refKey as query parameter
-      if (isVirtualAdminStable && virtualAdminRefKey) {
-        url += `?refKey=${encodeURIComponent(virtualAdminRefKey)}`;
-      }
-
-      const headers = { "x-admin-key": adminKey };
-
-      if (!isVirtualAdminStable) {
-        const sessionId = localStorage.getItem("admin_session_id");
-        if (sessionId) {
-          headers["x-session-id"] = sessionId;
-        }
-      }
-
-      const res = await fetch(url, { headers: headers });
-      const data = await res.json();
-
-      // ✅ The backend will filter by refKey when it's passed
-           if (data && !data.error && Array.isArray(data)) {
-        setWithdrawals(data);
-      }
-      // else: keep last good data on screen (do NOT blank)
-    } catch (error) {
-      console.error("Error fetching withdrawals:", error);
-      // keep last good data (do NOT blank)
-    }else {
-        setWithdrawals([]);
-      }
-    } catch (error) {
-      console.error("Error fetching withdrawals:", error);
-      setWithdrawals([]);
+    if (isVirtualAdminStable && virtualAdminRefKey) {
+      url += `?refKey=${encodeURIComponent(virtualAdminRefKey)}`;
     }
-  }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
+
+    const headers = { "x-admin-key": adminKey };
+
+    if (!isVirtualAdminStable) {
+      const sessionId = localStorage.getItem("admin_session_id");
+      if (sessionId) {
+        headers["x-session-id"] = sessionId;
+      }
+    }
+
+    const res = await fetch(url, { headers: headers });
+    const data = await res.json();
+
+    if (data && !data.error && Array.isArray(data)) {
+      setWithdrawals(data);
+    }
+    // else: keep last good data on screen (do NOT blank)
+  } catch (error) {
+    console.error("Error fetching withdrawals:", error);
+    // keep last good data (do NOT blank)
+  }
+}, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
 
   // In AdminPanel.jsx, update fetchAllTrades:
 

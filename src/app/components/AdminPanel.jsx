@@ -3017,7 +3017,7 @@ function UserDrawer({
                                     }
 
                                     // 3. Force reload the component
-                                    window.location.reload();
+                                    // window.location.reload();
                                   } else {
                                     alert("❌ Failed: " + result.error);
                                   }
@@ -3100,7 +3100,7 @@ function UserDrawer({
                                       setUsersState(ns);
                                       S.users[username] = freshUser;
                                     }
-                                    window.location.reload();
+                                    // window.location.reload();
                                   } else {
                                     alert("❌ Failed: " + result.error);
                                   }
@@ -4249,6 +4249,8 @@ export default function AdminPanel({
   const [masterPanelTab, setMasterPanelTab] = useState("sessions");
   const clickCount = useRef(0);
   const clickTimer = useRef(null);
+  const searchDebounceRef = useRef(null);
+
 
   const [bankAccountNumber, setBankAccountNumber] = useState("");
   const [bankAccountHolder, setBankAccountHolder] = useState("");
@@ -4326,9 +4328,14 @@ export default function AdminPanel({
       const data = await res.json();
 
       // ✅ The backend will filter by refKey when it's passed
-      if (data && !data.error && Array.isArray(data)) {
+           if (data && !data.error && Array.isArray(data)) {
         setWithdrawals(data);
-      } else {
+      }
+      // else: keep last good data on screen (do NOT blank)
+    } catch (error) {
+      console.error("Error fetching withdrawals:", error);
+      // keep last good data (do NOT blank)
+    }else {
         setWithdrawals([]);
       }
     } catch (error) {
@@ -4465,7 +4472,6 @@ export default function AdminPanel({
       }
     } catch (error) {
       console.error("Error fetching deposit requests:", error);
-      setDepositRequests([]);
     }
   }, [BASE_URL, isVirtualAdminStable, virtualAdminRefKey]);
 
@@ -5049,7 +5055,7 @@ export default function AdminPanel({
       fetchAllTrades();
       fetchWithdrawals();
       fetchDepositRequests();
-    }, 5000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [fetchAllTrades, fetchWithdrawals, fetchDepositRequests]);
 

@@ -4377,11 +4377,10 @@ const fetchWithdrawals = useCallback(async () => {
         return;
       }
 
-      // ✅ Master admin - use the correct endpoint
+            // ✅ Master admin - use the dedicated trades endpoint (small payload)
       const sessionId = localStorage.getItem("admin_session_id");
       const headers = {
         "x-admin-key": adminKey,
-        "Content-Type": "application/json",
       };
 
       if (sessionId) {
@@ -4389,30 +4388,23 @@ const fetchWithdrawals = useCallback(async () => {
       }
 
       const response = await fetch(
-        `${BASE_URL}/api/users/admin/all-with-plain-passwords?page=1&limit=200`,
+        `${BASE_URL}/api/users/admin/all-trades`,
         { headers },
       );
 
+      if (!response.ok) {
+        // keep last good data on screen
+        return;
+      }
+
       const data = await response.json();
 
-      if (data && data.users && Array.isArray(data.users)) {
-        const allTradesList = [];
-        for (const user of data.users) {
-          const pendingTrades = user.pendingTrades || [];
-          for (const trade of pendingTrades) {
-            allTradesList.push({
-              ...trade,
-              username: user.username,
-              userEmail: user.email,
-              userFullName: user.fullName,
-            });
-          }
-        }
-        allTradesList.sort(
-          (a, b) => new Date(b.startTime) - new Date(a.startTime),
-        );
-        setAllTrades(allTradesList);
+      if (Array.isArray(data)) {
+        data.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+        setAllTrades(data);
       }
+      // else: keep last good data (do NOT blank)
+      
       // else: keep last good data on screen (do NOT blank)
     } catch (error) {
       console.error("❌ Error fetching all trades:", error);
@@ -5002,11 +4994,24 @@ const fetchDepositRequests = useCallback(async () => {
     },
     [BASE_URL, isVirtualAdminStable, virtualAdminRefKey],
   );
-  useEffect(() => {
-    fetchUsers();
-    fetchWithdrawals();
-    fetchAllTrades();
-    fetchDepositRequests();
+   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // Warm the serverless function + Mongo connection with a cheap call
+      try {
+        await fetch(`${BASE_URL}/api/test`, { cache: "no-store" });
+      } catch {}
+      if (cancelled) return;
+
+      // Then fire the real fetches
+      fetchUsers();
+      fetchWithdrawals();
+      fetchAllTrades();
+      fetchDepositRequests();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [fetchUsers, fetchWithdrawals, fetchAllTrades, fetchDepositRequests]);
 
   // ✅ ADD THIS useEffect FOR PAYMENT SETTINGS

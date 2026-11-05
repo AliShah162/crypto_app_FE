@@ -1,0 +1,1114 @@
+"use client";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  startTransition,
+} from "react";
+import { T, PE, usd, f2 } from "./lib/store";
+import { getUser } from "./lib/db";
+import AdminPanel from "./components/AdminPanel";
+import { WelcomeScreen, SignupScreen, LoginScreen } from "./components/Auth";
+import { NotifPanel } from "./components/UI";
+import {
+  HomePage,
+  NewsPage,
+  MarketPage,
+  HistoryPage,
+  ProfilePage,
+  AboutPage,
+} from "./pages/AppPages";
+import TradePage from "./pages/TradePage";
+import { DepositPage, WithdrawPage } from "./pages/TransactionPages";
+import {
+  SecSub,
+  CardSub,
+  NotifSub,
+  LangSub,
+  TermsSub,
+  EditSub,
+  BinaryHistorySub,
+} from "./pages/ProfileSubs";
+import { API_URL } from "./lib/config";
+import VirtualAdminLogin from "./components/VirtualAdminLogin";
+import AvatarSelector from "./components/AvatarSelector";
+import Image from "next/image";
+import { useNotifications } from './hooks/useUserData';
+// Add these to the imports section
+import { useBalance, useDeleteNotification, useDeleteAllNotifications } from './hooks/useUserData';
+
+
+
+function initLocalStorage() {
+  if (typeof window === "undefined") return;
+
+  if (!localStorage.getItem("banned")) {
+    localStorage.setItem("banned", JSON.stringify([]));
+  }
+
+  if (!localStorage.getItem("admin_notifs")) {
+    localStorage.setItem("admin_notifs", JSON.stringify([]));
+  }
+
+  if (localStorage.getItem("users")) {
+    localStorage.removeItem("users");
+    console.log("🗑️ Removed old users key");
+  }
+}
+
+function usePX() {
+  const [p, sp] = useState({ ...PE.p });
+  useEffect(() => PE.on(sp), []);
+  return p;
+}
+
+const NAV = [
+  {
+    id: "home",
+    l: "Home",
+    d: "m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10",
+  },
+  { id: "market", l: "Market", d: "M18 20V10M12 20V4M6 20v-6" },
+  {
+    id: "history",
+    l: "History",
+    d: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zm0-6v-4m0-4h.01",
+  },
+  {
+    id: "profile",
+    l: "Profile",
+    d: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+  },
+];
+
+export default function App() {
+  const [scr, ss] = useState("loading");
+  const [user, setUser] = useState(null);
+  const [page, sp] = useState("home");
+  const [sub, ssb] = useState(null);
+  const [coin, ssCoin] = useState("BTC");
+  const [nPanel, snp] = useState(false);
+  const [notifs, sn] = useState([]);
+  const [, tick] = useState(0);
+  const px = usePX();
+  const [virtualAdmin, setVirtualAdmin] = useState(null);
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  const deleteNotificationMutation = useDeleteNotification();
+const deleteAllNotificationsMutation = useDeleteAllNotifications();
+const sessionUser = typeof window !== 'undefined' ? localStorage.getItem("session") : null;
+const { data: balance = 0 } = useBalance(sessionUser);
+  const [userAvatar, setUserAvatar] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("userAvatar") || "male1";
+    }
+    return "male1";
+  });
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  // Check screen size
+  useEffect(() => {
+    const checkScreen = () => {
+      setIsDesktop(window.innerWidth > 768);
+    };
+    checkScreen();
+    window.addEventListener("resize", checkScreen);
+    return () => window.removeEventListener("resize", checkScreen);
+  }, []);
+
+  // Inside the App component, replace the fetchNotificationsFromDB with:
+const { data: notificationsData, refetch: refetchNotifications } = useNotifications(
+  typeof window !== 'undefined' ? localStorage.getItem("session") : null
+);
+
+// Use useEffect to sync notifications data to state
+useEffect(() => {
+  if (notificationsData && Array.isArray(notificationsData)) {
+    sn(notificationsData);
+  }
+}, [notificationsData]);
+
+// Create a refetch function that matches the old API
+const fetchNotificationsFromDB = useCallback(async () => {
+  const result = await refetchNotifications();
+  return result.data || [];
+}, [refetchNotifications]);
+
+  useEffect(() => {
+    const handleAvatarUpdate = () => {
+      const savedAvatar = localStorage.getItem("userAvatar");
+      if (savedAvatar) {
+        setUserAvatar(savedAvatar);
+      }
+    };
+    window.addEventListener("avatarUpdated", handleAvatarUpdate);
+    return () => window.removeEventListener("avatarUpdated", handleAvatarUpdate);
+  }, []);
+
+ useEffect(() => {
+  initLocalStorage();
+
+  if (typeof window === "undefined") {
+    startTransition(() => ss("welcome"));
+    return;
+  }
+
+  const tabRole = localStorage.getItem("tabRole");
+  const sessionUser = localStorage.getItem("session");
+  const savedVA = localStorage.getItem("virtualAdmin");
+
+  // ── Restore master admin session ──
+  if (tabRole === "admin" && sessionUser === "admin") {
+    setUser({ username: "admin", fullName: "Administrator", role: "admin" });
+    startTransition(() => ss("admin"));
+    return;
+  }
+
+  // ── Restore virtual admin session ──
+  if (savedVA && tabRole === "virtual_admin") {
+    try {
+      const vaData = JSON.parse(savedVA);
+      setVirtualAdmin(vaData);
+      startTransition(() => ss("welcome"));
+      return;
+    } catch {}
+  }
+
+  // ── Restore regular user session ──
+  if (sessionUser && sessionUser !== "admin") {
+    const bannedList = JSON.parse(localStorage.getItem("banned") || "[]");
+    const isBanned = bannedList.some(b => b.toLowerCase() === sessionUser.toLowerCase());
+    if (!isBanned) {
+      const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+      const cached = cache[sessionUser];
+      if (cached) {
+        startTransition(() => {
+          setUser(cached);
+          // ✅ React Query will handle notifications automatically
+          ss("app");
+        });
+        return;
+      }
+    }
+  }
+
+  // ── No valid session — show welcome ──
+  startTransition(() => ss("welcome"));
+}, []); // ✅ Removed fetchNotificationsFromDB dependency
+
+ useEffect(() => {
+  if (scr === "loading") return;
+  if (scr === "admin") return;
+
+  const checkSession = async () => {
+    if (typeof window === "undefined") return;
+
+    const sessionUser = localStorage.getItem("session");
+    if (!sessionUser) {
+      if (scr === "app") {
+        startTransition(() => {
+          setUser(null);
+          ss("login");
+          sp("home");
+          ssb(null);
+          sn([]);
+        });
+      }
+      return;
+    }
+
+    const bannedList = JSON.parse(localStorage.getItem("banned") || "[]");
+    const isBanned = bannedList.some(
+      (b) => b.toLowerCase() === sessionUser.toLowerCase(),
+    );
+
+    if (isBanned) {
+      localStorage.removeItem("session");
+      localStorage.removeItem("tabRole");
+      startTransition(() => {
+        setUser(null);
+        ss("login");
+        sp("home");
+        ssb(null);
+        sn([]);
+      });
+      return;
+    }
+
+    if (scr === "app" && sessionUser && sessionUser !== "admin") {
+      try {
+        const freshUser = await getUser(sessionUser, true);
+
+        if (freshUser && freshUser.error === "User not found") {
+          localStorage.removeItem("session");
+          localStorage.removeItem("tabRole");
+          startTransition(() => {
+            setUser(null);
+            ss("login");
+            sp("home");
+            ssb(null);
+            sn([]);
+          });
+          return;
+        }
+
+        if (freshUser && !freshUser.error) {
+          const cache = JSON.parse(
+            localStorage.getItem("users_cache") || "{}",
+          );
+          const cachedUser = cache[sessionUser] || {};
+
+          const updatedUser = {
+            ...cachedUser,
+            ...freshUser,
+            balance: freshUser.balance ?? cachedUser.balance,
+            transactions: freshUser.transactions || cachedUser.transactions,
+            creditScore: freshUser.creditScore ?? cachedUser.creditScore,
+          };
+
+          cache[sessionUser] = { ...updatedUser, _cachedAt: Date.now() };
+          localStorage.setItem("users_cache", JSON.stringify(cache));
+          setUser(updatedUser);
+
+          // ✅ React Query handles notifications automatically
+          // Just refetch them
+          refetchNotifications();
+        }
+      } catch (err) {
+        console.error("Failed to fetch fresh user data:", err);
+      }
+    }
+  };
+
+  window.addEventListener("storage", checkSession);
+  window.addEventListener("focus", checkSession);
+  const interval = setInterval(checkSession, 30000);
+
+  return () => {
+    window.removeEventListener("storage", checkSession);
+    window.removeEventListener("focus", checkSession);
+    clearInterval(interval);
+  };
+}, [scr, refetchNotifications]); // ✅ Added refetchNotifications
+
+  const re = useCallback(async () => {
+    if (typeof window !== "undefined") {
+      const sessionUser = localStorage.getItem("session");
+      if (sessionUser) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
+          
+          const freshUser = await fetch(
+            `${API_URL}/api/users/${sessionUser}`,
+            { signal: controller.signal }
+          ).then((r) => r.json());
+          
+          clearTimeout(timeoutId);
+          
+          if (freshUser && !freshUser.error) {
+            const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+            cache[sessionUser] = { ...freshUser, _cachedAt: Date.now() };
+            localStorage.setItem("users_cache", JSON.stringify(cache));
+            setUser(freshUser);
+          }
+        } catch (err) {
+          console.error("Refresh user error:", err);
+        }
+      }
+    }
+    tick((n) => n + 1);
+  }, []);
+
+  useEffect(() => {
+    // Check if already logged in as virtual admin
+    const savedVA = localStorage.getItem("virtualAdmin");
+    const tabRole = localStorage.getItem("tabRole");
+    
+    if (savedVA && tabRole === "virtual_admin") {
+      try {
+        const vaData = JSON.parse(savedVA);
+        setVirtualAdmin(vaData);
+        console.log("✅ Restored virtual admin session:", vaData.username);
+      } catch (e) {
+        console.error("Error parsing virtual admin data:", e);
+        localStorage.removeItem("virtualAdmin");
+        setVirtualAdmin(null);
+      }
+    }
+
+    // Listen for virtual admin login event
+    const handleVALogin = (e) => {
+      console.log("🎯 Virtual admin login event received:", e.detail);
+      const adminData = e.detail;
+      setVirtualAdmin(adminData);
+    };
+
+    window.addEventListener("virtualAdminLogin", handleVALogin);
+
+    return () => {
+      window.removeEventListener("virtualAdminLogin", handleVALogin);
+    };
+  }, []);
+
+  const auth = async (u) => {
+  if (!u) return;
+
+  // ── Virtual admin ── must be handled first: Auth.jsx already wrote the
+  // correct localStorage (virtualAdmin, tabRole, adminApiKey, admin_session_id)
+  // before calling onAuth, so we just need to set React state and return —
+  // NOT fall through to the generic cleanup/regular-user logic below, which
+  // was wiping that data and breaking session restore on refresh.
+  if (u.isVirtualAdmin) {
+    setVirtualAdmin({
+      username: u.username,
+      refKey: u.refKey,
+      adminName: u.fullName,
+    });
+    return;
+  }
+
+  const username = u.username.toLowerCase().trim();
+
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("virtualAdmin");
+    if (username !== "admin") {
+      localStorage.removeItem("admin_session_id");
+    }
+  }
+
+  // ── Master admin ──
+  if (username === "admin") {
+    if (u.adminKey) localStorage.setItem("adminApiKey", u.adminKey);
+    localStorage.setItem("session", "admin");
+    localStorage.setItem("tabRole", "admin");
+    setUser({ username: "admin", fullName: "Administrator", role: "admin" });
+    sn([]);
+    ss("admin");
+    return;
+  }
+
+  // ── Regular users ──
+  try {
+    // Save user to localStorage cache
+    const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+    cache[username] = {
+      ...u,
+      _cachedAt: Date.now()
+    };
+    localStorage.setItem("users_cache", JSON.stringify(cache));
+
+    // Set session
+    localStorage.setItem("session", username);
+    if (u.sessionId) localStorage.setItem("user_session_id", u.sessionId);
+    localStorage.removeItem("tabRole");
+
+    // Update state
+    setUser(u);
+
+    // Navigate to app
+    ss("app");
+    sp("home");
+    ssb(null);
+
+    // ✅ React Query will fetch notifications automatically
+    // Just trigger a refetch
+    refetchNotifications();
+
+    console.log(`✅ User ${username} logged in successfully`);
+
+  } catch (err) {
+    console.error("Auth error:", err);
+    setErr("Failed to authenticate. Please try again.");
+  }
+};
+
+  const adm = () => {
+    localStorage.setItem("tabRole", "admin");
+    ss("admin");
+  };
+
+  const logout = () => {
+    localStorage.removeItem("tabRole");
+    localStorage.removeItem("lastNotifUser");
+    localStorage.removeItem("session");
+    localStorage.removeItem("user_session_id");
+    localStorage.removeItem("virtualAdmin");
+    localStorage.removeItem("adminApiKey");
+    localStorage.removeItem("admin_session_id");
+    setUser(null);
+    setVirtualAdmin(null);
+    ss("welcome");
+    sp("home");
+    ssb(null);
+    sn([]);
+  };
+
+  const handleAvatarSelect = (avatarId) => {
+    setUserAvatar(avatarId);
+    localStorage.setItem("userAvatar", avatarId);
+    setShowAvatarMenu(false);
+    window.dispatchEvent(new Event("avatarUpdated"));
+  };
+
+  const nav = (p, coin) => {
+    ssb(null);
+    sp(p);
+    if (p === "trade" && coin) {
+      ssCoin(coin);
+    }
+  };
+
+  const addN = async (title, body) => {
+    if (!user?.username) return;
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(
+        `${API_URL}/api/users/${user.username}/notifications`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: title,
+            body: body,
+            type: "general",
+          }),
+          signal: controller.signal,
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        await fetchNotificationsFromDB();
+      } else {
+        console.error("Failed to save notification to DB");
+      }
+    } catch (e) {
+      console.error("Failed to save notification:", e);
+    }
+  };
+
+  const onDep = (amt) => {
+    const sessionUser =
+      typeof window !== "undefined" ? localStorage.getItem("session") : null;
+    if (!sessionUser) return;
+
+    const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+    const currentUser = cache[sessionUser];
+    if (!currentUser) return;
+
+    const newBalance = (currentUser.balance || 0) + amt;
+    const newTxns = [
+      {
+        type: "Deposit",
+        coin: "USD",
+        usd: amt,
+        date: new Date().toISOString().slice(0, 10),
+        up: true,
+      },
+      ...(currentUser.transactions || []),
+    ];
+
+    currentUser.balance = newBalance;
+    currentUser.transactions = newTxns;
+    cache[sessionUser] = { ...currentUser, _cachedAt: Date.now() };
+    localStorage.setItem("users_cache", JSON.stringify(cache));
+
+    re();
+    addN("Deposit Successful", `${usd(amt)} added to your balance`);
+  };
+
+  const onWith = (amt) => {
+    const sessionUser =
+      typeof window !== "undefined" ? localStorage.getItem("session") : null;
+    if (!sessionUser) return;
+
+    const cache = JSON.parse(localStorage.getItem("users_cache") || "{}");
+    const currentUser = cache[sessionUser];
+    if (!currentUser) return;
+
+    const newBalance = Math.max(0, (currentUser.balance || 0) - amt);
+    const newTxns = [
+      {
+        type: "Withdraw",
+        coin: "USD",
+        usd: amt,
+        date: new Date().toISOString().slice(0, 10),
+        up: false,
+      },
+      ...(currentUser.transactions || []),
+    ];
+
+    currentUser.balance = newBalance;
+    currentUser.transactions = newTxns;
+    cache[sessionUser] = { ...currentUser, _cachedAt: Date.now() };
+    localStorage.setItem("users_cache", JSON.stringify(cache));
+
+    re();
+    addN("Withdrawal Requested", `${usd(amt)} being processed`);
+  };
+
+  const onTrade = (tradeInfo) => {
+    re();
+    if (tradeInfo && tradeInfo.action === "Binary Trade") {
+      const isWin = tradeInfo.result === "WIN";
+      const profitAmount = Math.abs(tradeInfo.profit);
+
+      if (isWin) {
+        addN(
+          `🎉 Binary Trade WIN!`,
+          `You won ${usd(profitAmount)} on ${tradeInfo.coin} (${tradeInfo.tradeDetails?.duration}s ${tradeInfo.tradeDetails?.orderType?.toUpperCase()})`,
+        );
+      } else {
+        addN(
+          `💔 Binary Trade LOSS`,
+          `You lost ${usd(tradeInfo.amount)} on ${tradeInfo.coin}`,
+        );
+      }
+    }
+  };
+
+  const onCardDeposit = (amt) => onDep(amt);
+
+  const isFloat = ["news", "deposit", "withdraw", "about", "trade"].includes(
+    page,
+  );
+  const u = user;
+
+  // Calculate unread count for notification bell
+  const unreadCount = notifs.filter((n) => !n.read).length;
+
+  const getAvatarContent = (avatarId) => {
+    const avatars = {
+      male1: "https://api.dicebear.com/7.x/micah/svg?seed=Michael",
+      male2: "https://api.dicebear.com/7.x/micah/svg?seed=James",
+      male3: "https://api.dicebear.com/7.x/micah/svg?seed=David",
+      female1: "https://api.dicebear.com/7.x/micah/svg?seed=Sarah",
+      female2: "https://api.dicebear.com/7.x/micah/svg?seed=Emma",
+      female3: "https://api.dicebear.com/7.x/micah/svg?seed=Lisa",
+    };
+    const avatarUrl = avatars[avatarId] || avatars.male1;
+    return (
+      <img
+        src={avatarUrl}
+        alt="avatar"
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          borderRadius: "50%",
+        }}
+      />
+    );
+  };
+
+  const renderContent = () => {
+    if (page === "profile" && sub) {
+      const bk = () => ssb(null);
+      const sessionUser =
+        typeof window !== "undefined" ? localStorage.getItem("session") : null;
+      const cache =
+        typeof window !== "undefined"
+          ? JSON.parse(localStorage.getItem("users_cache") || "{}")
+          : {};
+      const uu = (sessionUser && cache[sessionUser]) || user;
+
+      switch (sub) {
+        case "binaryhistory":
+          return <BinaryHistorySub back={bk} user={uu} re={re} />;
+        case "sec":
+          return <SecSub back={bk} />;
+        case "card":
+          return (
+            <CardSub
+              back={bk}
+              user={uu}
+              re={re}
+              onCardDeposit={onCardDeposit}
+            />
+          );
+        case "notif":
+          return (
+            <NotifSub
+              back={bk}
+              userNotifs={notifs}
+              onMarkRead={() => fetchNotificationsFromDB()}
+            />
+          );
+        case "lang":
+          return <LangSub back={bk} />;
+        case "terms":
+          return <TermsSub back={bk} />;
+        case "edit":
+          return <EditSub back={bk} user={uu} re={re} />;
+        default:
+          break;
+      }
+    }
+    switch (page) {
+      case "home":
+        return <HomePage nav={nav} px={px} user={u} />;
+      case "trade":
+        return <TradePage nav={nav} px={px} onTrade={onTrade} coin={coin} />;
+      case "news":
+        return <NewsPage nav={nav} />;
+      case "deposit":
+        return <DepositPage nav={nav} onDeposit={onDep} />;
+      case "withdraw":
+        return <WithdrawPage nav={nav} onWithdraw={onWith} user={u} />;
+      case "about":
+        return <AboutPage nav={nav} />;
+      case "market":
+        return <MarketPage px={px} nav={nav} />;
+      case "history":
+        return <HistoryPage user={u} onBack={() => nav("home")} />;
+      case "profile":
+        return (
+          <ProfilePage
+            nav={nav}
+            user={u}
+            onLogout={logout}
+            onSub={ssb}
+            re={re}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  if (scr === "loading") {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "#030508",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "'Sora','Segoe UI',sans-serif",
+        }}
+      >
+        <div style={{ fontSize: 28, fontWeight: 900, color: "#00e5b0" }}>
+          Coin<span style={{ color: "#3b82f6" }}>Base</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (virtualAdmin) {
+    return (
+      <AdminPanel
+        virtualAdminRefKey={virtualAdmin.refKey}
+        virtualAdminName={virtualAdmin.adminName}
+        onBack={() => {
+          localStorage.removeItem("virtualAdmin");
+          localStorage.removeItem("tabRole");
+          setVirtualAdmin(null);
+          ss("welcome");
+          setUser(null);
+        }}
+      />
+    );
+  }
+
+  if (scr === "admin") {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          fontFamily: "'Sora','Segoe UI',sans-serif",
+        }}
+      >
+        <AdminPanel
+          onBack={() => {
+            localStorage.removeItem("tabRole");
+            localStorage.removeItem("session");
+            localStorage.removeItem("adminApiKey");
+            localStorage.removeItem("admin_session_id");
+            setUser(null);
+            ss("welcome");
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Auth screens (welcome / signup / login)
+  if (scr === "welcome" || scr === "signup" || scr === "login") {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "#030508",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "'Sora','Segoe UI',sans-serif",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            minHeight: "100vh",
+            background: T.bg,
+            borderRadius: 0,
+            boxShadow: "none",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            position: "relative",
+          }}
+        >
+          {scr === "welcome" && <WelcomeScreen go={ss} />}
+          {scr === "signup" && <SignupScreen go={ss} onAuth={auth} />}
+          {scr === "login" && (
+            <LoginScreen go={ss} onAuth={auth} onAdmin={adm} />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Main App (authenticated) - full width with max-width container
+return (
+  <div
+    style={{
+      minHeight: "100vh",
+      background: "#030508",
+      fontFamily: "'Sora','Segoe UI',sans-serif",
+    }}
+  >
+    {/* Top Bar */}
+    <div
+      className="top-bar"
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "12px 20px",
+        borderBottom: `1px solid ${T.line}`,
+        background: T.bg,
+        position: "sticky",
+        top: 0,
+        zIndex: 10,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 20,
+          fontWeight: 900,
+          background: "linear-gradient(135deg,#00e5b0,#3b82f6)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+        }}
+      >
+        CoinBase
+      </div>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        {/* Balance display */}
+        {u && (
+          <div
+            style={{
+              padding: "6px 14px",
+              borderRadius: 20,
+              background: "rgba(0,229,176,0.1)",
+              border: "1px solid rgba(0,229,176,0.2)",
+              fontSize: 13,
+              fontWeight: 600,
+              color: T.acc,
+            }}
+          >
+            {usd(balance || u?.balance || 0)}
+          </div>
+        )}
+        {/* Notification bell */}
+        <div
+          onClick={() => snp(true)}
+          style={{
+            width: 38,
+            height: 38,
+            background: T.card,
+            borderRadius: "50%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: `1px solid ${T.line}`,
+            cursor: "pointer",
+            position: "relative",
+          }}
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={T.dim}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          {unreadCount > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                top: -2,
+                right: -2,
+                minWidth: 18,
+                height: 18,
+                borderRadius: 9,
+                background: T.red,
+                color: "#fff",
+                fontSize: 10,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0 5px",
+              }}
+            >
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </div>
+          )}
+        </div>
+        {/* Profile icon with dropdown */}
+        <div style={{ position: "relative" }}>
+          <div
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: "50%",
+              cursor: "pointer",
+              overflow: "hidden",
+              border: `2px solid ${T.acc}`,
+            }}
+          >
+            {getAvatarContent(userAvatar)}
+          </div>
+          {showAvatarMenu && (
+            <AvatarSelector
+              currentAvatar={userAvatar}
+              onSelect={handleAvatarSelect}
+              onClose={() => setShowAvatarMenu(false)}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+
+    {/* Main Content - Centered with max-width */}
+    <div
+      className="main-content-container"
+      style={{
+        maxWidth: 1200,
+        margin: "0 auto",
+        width: "100%",
+        padding: "0 20px",
+        flex: 1,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "calc(100vh - 64px)",
+      }}
+    >
+      {renderContent()}
+    </div>
+
+    {/* Responsive styles - remove padding on mobile */}
+    <style>{`
+      @media (max-width: 768px) {
+        .main-content-container {
+          padding: 0 !important;
+        }
+        .top-bar {
+          padding: 12px 16px !important;
+        }
+      }
+    `}</style>
+
+    {/* Bottom Navigation - Visible on all screens */}
+    {!isFloat && !sub && (
+      <div
+        className="bottom-nav"
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 65,
+          background: T.card,
+          borderTop: `1px solid ${T.line}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-around",
+          padding: "0 8px 4px",
+          boxShadow: "0 -4px 16px rgba(0,0,0,0.5)",
+          zIndex: 100,
+        }}
+      >
+        {NAV.slice(0, 2).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => nav(t.id)}
+            style={{
+              flex: 1,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 3,
+              paddingTop: 8,
+            }}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={page === t.id ? T.acc : T.dim}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d={t.d} />
+            </svg>
+            <span
+              style={{
+                fontSize: 9,
+                color: page === t.id ? T.acc : T.dim,
+                fontWeight: page === t.id ? 800 : 500,
+              }}
+            >
+              {t.l}
+            </span>
+          </button>
+        ))}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <div
+            onClick={() => nav("trade")}
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg,#00e5b0,#3b82f6)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 4px 16px rgba(0,229,176,0.32)",
+              cursor: "pointer",
+              marginTop: -18,
+            }}
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" />
+            </svg>
+          </div>
+          <span
+            style={{
+              fontSize: 9,
+              color: page === "trade" ? T.acc : T.dim,
+              fontWeight: 500,
+            }}
+          >
+            Trade
+          </span>
+        </div>
+        {NAV.slice(2).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => nav(t.id)}
+            style={{
+              flex: 1,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 3,
+              paddingTop: 8,
+            }}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={page === t.id ? T.acc : T.dim}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d={t.d} />
+            </svg>
+            <span
+              style={{
+                fontSize: 9,
+                color: page === t.id ? T.acc : T.dim,
+                fontWeight: page === t.id ? 800 : 500,
+              }}
+            >
+              {t.l}
+            </span>
+          </button>
+        ))}
+      </div>
+    )}
+
+    {/* Notification Panel */}
+    {nPanel && (
+      <NotifPanel
+        notifs={notifs}
+        onClose={() => snp(false)}
+        onDelete={async (notifId) => {
+          if (user?.username) {
+            try {
+              await deleteNotificationMutation.mutateAsync({
+                username: user.username,
+                notificationId: notifId,
+              });
+            } catch (e) {
+              console.error("Failed to delete notification:", e);
+            }
+          }
+        }}
+        onDeleteAll={async () => {
+          if (user?.username) {
+            try {
+              await deleteAllNotificationsMutation.mutateAsync({
+                username: user.username,
+              });
+            } catch (e) {
+              console.error("Failed to delete all notifications:", e);
+            }
+          }
+        }}
+      />
+    )}
+  </div>
+);
+}

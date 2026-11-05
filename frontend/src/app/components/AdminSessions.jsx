@@ -54,7 +54,7 @@ export default function AdminSessions({ apiKey, onClose }) {
   // ========== FETCH ALL VIRTUAL ADMINS ==========
   const fetchAllVirtualAdmins = useCallback(async () => {
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "";
       const response = await fetch(`${API_URL}/api/users/admin/all-virtual-admins`, {
         headers: { "x-admin-key": adminKey },
       });
@@ -71,7 +71,7 @@ export default function AdminSessions({ apiKey, onClose }) {
 
 const fetchSessions = useCallback(async () => {
   try {
-    const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+    const adminKey = apiKey || localStorage.getItem("adminApiKey") || "";
     const response = await fetch(`${API_URL}/api/users/admin/sessions`, {
       headers: {
         "x-admin-key": adminKey,
@@ -80,18 +80,8 @@ const fetchSessions = useCallback(async () => {
     });
     const data = await response.json();
     
-    console.log("📊 Raw sessions data:", data);
-    
     if (data.sessions && Array.isArray(data.sessions)) {
-      // ✅ ONLY keep sessions that are ACTIVE (isActive !== false)
-      const activeSessions = data.sessions.filter(s => s.isActive !== false);
-      setSessions(activeSessions);
-      console.log(`📊 Fetched ${activeSessions.length} active sessions`);
-      
-      // ✅ Log each session for debugging
-      activeSessions.forEach(s => {
-        console.log(`  - ${s.sessionUser}: ${s.deviceInfo} (${s.ipAddress}) - Active: ${s.isActive}`);
-      });
+      setSessions(data.sessions.filter((s) => s.isActive !== false));
     } else {
       setSessions([]);
     }
@@ -105,7 +95,7 @@ const fetchSessions = useCallback(async () => {
 
   const fetchBannedUsers = useCallback(async () => {
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "";
       const response = await fetch(`${API_URL}/api/users/admin/banned-virtual-admins`, {
         headers: { "x-admin-key": adminKey },
       });
@@ -125,7 +115,7 @@ const fetchSessions = useCallback(async () => {
   const renameSingleSession = useCallback(async (sessionId, customName) => {
     try {
       setRenaming(sessionId);
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "";
       const response = await fetch(`${API_URL}/api/users/admin/rename-session`, {
         method: "POST",
         headers: {
@@ -178,7 +168,7 @@ const fetchSessions = useCallback(async () => {
 
     setRenaming(sessionId);
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "";
       const response = await fetch(`${API_URL}/api/users/admin/rename-sessions-by-user-and-ip`, {
         method: "POST",
         headers: {
@@ -231,7 +221,7 @@ const fetchSessions = useCallback(async () => {
     if (!confirm(`Change password for @${username}?`)) return;
 
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "";
       const response = await fetch(`${API_URL}/api/users/admin/change-virtual-admin-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-key": adminKey },
@@ -259,7 +249,7 @@ const fetchSessions = useCallback(async () => {
 
     setBanning(username);
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "";
       const response = await fetch(`${API_URL}/api/users/admin/ban-virtual-admin`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-key": adminKey },
@@ -287,7 +277,7 @@ const fetchSessions = useCallback(async () => {
     if (!confirm(`✅ Unban @${username}?`)) return;
     setUnbanning(username);
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "";
       const response = await fetch(`${API_URL}/api/users/admin/unban-virtual-admin`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-key": adminKey },
@@ -314,7 +304,7 @@ const fetchSessions = useCallback(async () => {
     if (!confirm(`⚠️ Revoke session for @${username}?`)) return;
     setRevoking(sessionId);
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "";
       const response = await fetch(`${API_URL}/api/users/admin/sessions/${sessionId}`, {
         method: "DELETE",
         headers: {
@@ -349,37 +339,34 @@ const fetchSessions = useCallback(async () => {
     if (!confirm(`⚠️ Revoke ALL sessions for @${username}?`)) return;
     setRevoking(username);
     try {
-      const userSessions = sessions.filter((s) => s.sessionUser === username && s.isActive !== false);
-      let revokedCount = 0;
-      for (const session of userSessions) {
-        const response = await fetch(`${API_URL}/api/users/admin/sessions/${session.sessionId}`, {
-          method: "DELETE",
-          headers: {
-            "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd",
-            "x-session-id": localStorage.getItem("admin_session_id") || "",
-          },
-        });
-        const data = await response.json();
-        if (data.success) revokedCount++;
-      }
-      if (revokedCount > 0) {
-        alert(`✅ Revoked ${revokedCount} session(s)`);
+      const response = await fetch(`${API_URL}/api/users/admin/revoke-user-sessions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "",
+          "x-session-id": localStorage.getItem("admin_session_id") || "",
+        },
+        body: JSON.stringify({ username }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert(`✅ Revoked ${data.revokedCount || 0} session(s)`);
         await fetchSessions();
       } else {
-        alert(`ℹ️ No active sessions found`);
+        alert(`❌ Failed: ${data.error || "Unknown error"}`);
       }
     } catch (error) {
       alert("❌ Error revoking sessions");
     } finally {
       setRevoking(null);
     }
-  }, [sessions, apiKey, fetchSessions]);
+  }, [apiKey, fetchSessions]);
 
   // ================= GLOBAL ACTIONS =================
   const cleanupSessions = useCallback(async () => {
     if (!confirm("🧹 Clean up old inactive sessions?")) return;
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "";
       const response = await fetch(`${API_URL}/api/users/admin/cleanup-sessions`, {
         method: "POST",
         headers: { "x-admin-key": adminKey },
@@ -395,7 +382,7 @@ const fetchSessions = useCallback(async () => {
   const clearAllSessions = useCallback(async () => {
     if (!confirm("⚠️ DANGER: This will log out EVERYONE including you!")) return;
     try {
-      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = apiKey || localStorage.getItem("adminApiKey") || "";
       await fetch(`${API_URL}/api/users/admin/clear-all-sessions`, {
         method: "POST",
         headers: { "x-admin-key": adminKey },
@@ -410,18 +397,8 @@ const fetchSessions = useCallback(async () => {
 
   // AdminSessions.jsx - REPLACE this function
 
-const getActiveSessionsCount = (username) => {
-  // ✅ Debug log
-  console.log(`🔍 Counting sessions for ${username}:`, sessions);
-  
-  // ✅ Only count sessions that are ACTIVE
-  const count = sessions.filter(
-    (s) => s.sessionUser === username && s.isActive !== false
-  ).length;
-  
-  console.log(`📊 ${username} has ${count} active sessions`);
-  return count;
-};
+const getActiveSessionsCount = (username) =>
+  sessions.filter((s) => s.sessionUser === username && s.isActive !== false).length;
 
   // ================= USE EFFECT =================
   useEffect(() => {
@@ -431,10 +408,10 @@ const getActiveSessionsCount = (username) => {
     fetchSessions();
     fetchBannedUsers();
 
-    // ✅ Refresh sessions more frequently (every 5 seconds)
+    // ✅ Refresh while this panel is open, not every few seconds.
     const refreshInterval = setInterval(() => {
       fetchSessions();
-    }, 5000);
+    }, 30000);
 
     return () => clearInterval(refreshInterval);
   }, [apiKey, fetchAllVirtualAdmins, fetchSessions, fetchBannedUsers]);
@@ -745,7 +722,7 @@ const getActiveSessionsCount = (username) => {
           <li><strong>🚫 Ban Permanently</strong> - Completely block from admin panel</li>
           <li><strong>✅ Unban</strong> - Restore admin access for a banned user</li>
           <li style={{ marginTop: 8, color: C.accent }}><strong>Master Admin Actions:</strong></li>
-          <li><strong>🧹 Cleanup Old Sessions</strong> - Remove inactive sessions older than 1 hour</li>
+          <li><strong>🧹 Cleanup Old Sessions</strong> - Drop signed-out and idle sessions. A session stays only while that browser is in use.</li>
           <li><strong>🔴 Clear ALL Sessions</strong> - Emergency: Log out EVERYONE</li>
         </ul>
       </div>

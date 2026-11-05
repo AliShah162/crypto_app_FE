@@ -415,6 +415,7 @@ export function SignupScreen({ go, onAuth }) {
       phone: data.phone || f.ph || "",
       country: data.country || f.co || "",
       loggedInAt: Date.now(),
+      sessionId: data.sessionId,
     });
     
   } catch (e) {
@@ -678,9 +679,9 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
   // ✅ ✅ ✅ CRITICAL FIX: Store admin key for API calls
   // The backend validates this via x-admin-key header
   // Use the key from backend response or fallback to default
-  const adminKey = vaData.adminKey || "admin123456";
-  localStorage.setItem("adminApiKey", adminKey);
-  console.log("🔑 Admin key stored:", adminKey);
+  if (vaData.adminKey) {
+    localStorage.setItem("adminApiKey", vaData.adminKey);
+  }
 
   window.dispatchEvent(new CustomEvent("virtualAdminLogin", { 
     detail: vaData.admin 
@@ -697,7 +698,7 @@ export function LoginScreen({ go, onAuth, onAdmin }) {
       refKey: vaData.admin.refKey,
       loggedInAt: Date.now(),
       sessionId: vaData.sessionId,
-      adminKey: adminKey, // ✅ Pass adminKey to parent
+      adminKey: vaData.adminKey,
     });
   }
   
@@ -811,6 +812,7 @@ try {
     dob: data.dob || "",
     country: data.country || "",
     loggedInAt: Date.now(),
+    sessionId: data.sessionId,
   });
   
 } catch (e) {

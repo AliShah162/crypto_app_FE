@@ -1495,7 +1495,7 @@ export function ProfilePage({ user, onLogout, onSub, re }) {
       }
     };
     fetchUnread();
-    const interval = setInterval(fetchUnread, 5000);
+    const interval = setInterval(fetchUnread, 20000);
     return () => clearInterval(interval);
   }, []);
 

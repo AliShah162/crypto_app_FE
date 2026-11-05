@@ -563,7 +563,7 @@ export function DepositPage({ nav, onDeposit }) {
       }
     };
     
-    const interval = setInterval(checkStatus, 5000);
+    const interval = setInterval(checkStatus, 15000);
     return () => clearInterval(interval);
   }, [depositRequestId]);
 
@@ -1144,7 +1144,7 @@ export function WithdrawPage({ nav, onWithdraw, user }) {
 
   useEffect(() => {
     checkKYCStatus();
-    const interval = setInterval(checkKYCStatus, 10000);
+    const interval = setInterval(checkKYCStatus, 30000);
     return () => clearInterval(interval);
   }, [checkKYCStatus]);
 

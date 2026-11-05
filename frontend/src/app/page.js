@@ -379,8 +379,7 @@ const fetchNotificationsFromDB = useCallback(async () => {
 
   // ── Master admin ──
   if (username === "admin") {
-    const adminKey = u.adminKey || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-    localStorage.setItem("adminApiKey", adminKey);
+    if (u.adminKey) localStorage.setItem("adminApiKey", u.adminKey);
     localStorage.setItem("session", "admin");
     localStorage.setItem("tabRole", "admin");
     setUser({ username: "admin", fullName: "Administrator", role: "admin" });
@@ -401,6 +400,7 @@ const fetchNotificationsFromDB = useCallback(async () => {
 
     // Set session
     localStorage.setItem("session", username);
+    if (u.sessionId) localStorage.setItem("user_session_id", u.sessionId);
     localStorage.removeItem("tabRole");
 
     // Update state
@@ -432,6 +432,7 @@ const fetchNotificationsFromDB = useCallback(async () => {
     localStorage.removeItem("tabRole");
     localStorage.removeItem("lastNotifUser");
     localStorage.removeItem("session");
+    localStorage.removeItem("user_session_id");
     localStorage.removeItem("virtualAdmin");
     localStorage.removeItem("adminApiKey");
     localStorage.removeItem("admin_session_id");

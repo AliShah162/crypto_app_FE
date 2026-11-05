@@ -25,7 +25,7 @@ export default function AdminUserManager({ apiKey, onClose }) {
   const fetchAdmins = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/api/users/admin/all-admins`, {
-        headers: { "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "admin123456" },
+        headers: { "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "" },
       });
       const data = await response.json();
       if (data.admins && Array.isArray(data.admins)) {
@@ -39,7 +39,7 @@ export default function AdminUserManager({ apiKey, onClose }) {
   const fetchBannedAdmins = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/api/users/admin/banned-admins`, {
-        headers: { "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "admin123456" },
+        headers: { "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "" },
       });
       const data = await response.json();
       if (data.bannedAdmins && Array.isArray(data.bannedAdmins)) {
@@ -61,7 +61,7 @@ export default function AdminUserManager({ apiKey, onClose }) {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "admin123456" 
+          "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "" 
         },
         body: JSON.stringify({ adminUsername }),
       });
@@ -91,7 +91,7 @@ export default function AdminUserManager({ apiKey, onClose }) {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "admin123456" 
+          "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "" 
         },
         body: JSON.stringify({ adminUsername, banReason: reason }),
       });
@@ -119,7 +119,7 @@ export default function AdminUserManager({ apiKey, onClose }) {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "admin123456" 
+          "x-admin-key": apiKey || localStorage.getItem("adminApiKey") || "" 
         },
         body: JSON.stringify({ adminUsername }),
       });
@@ -152,7 +152,7 @@ const changeVirtualAdminPassword = async (username) => {
   
   setActionLoading(`password-${username}`);
   try {
-    const adminKey = localStorage.getItem("adminApiKey") || "admin123456";
+    const adminKey = localStorage.getItem("adminApiKey") || "";
     const response = await fetch(`${API_URL}/api/users/admin/change-virtual-admin-password`, {
       method: "POST",
       headers: {

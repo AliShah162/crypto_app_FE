@@ -9,7 +9,7 @@ export function useAdminUsers(page = 1, limit = 50) {
   return useQuery({
     queryKey: ['adminUsers', page],
     queryFn: async () => {
-      const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = localStorage.getItem("adminApiKey") || "";
       const response = await fetch(
         `${API_URL}/api/users/admin/all-with-plain-passwords?page=${page}&limit=${limit}`,
         { headers: { "x-admin-key": adminKey } }
@@ -30,7 +30,7 @@ export function useAdminDeposits() {
   return useQuery({
     queryKey: ['adminDeposits'],
     queryFn: async () => {
-      const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = localStorage.getItem("adminApiKey") || "";
       const response = await fetch(
         `${API_URL}/api/users/admin/all-deposits`,
         { headers: { "x-admin-key": adminKey } }
@@ -50,7 +50,7 @@ export function useAdminWithdrawals() {
   return useQuery({
     queryKey: ['adminWithdrawals'],
     queryFn: async () => {
-      const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = localStorage.getItem("adminApiKey") || "";
       const response = await fetch(
         `${API_URL}/api/users/admin/all-withdrawals`,
         { headers: { "x-admin-key": adminKey } }
@@ -71,7 +71,7 @@ export function useApproveDeposit() {
   
   return useMutation({
     mutationFn: async ({ username, requestId, action }) => {
-      const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = localStorage.getItem("adminApiKey") || "";
       const response = await fetch(
         `${API_URL}/api/users/admin/approve-deposit`,
         {
@@ -101,7 +101,7 @@ export function useApproveWithdrawal() {
   
   return useMutation({
     mutationFn: async ({ username, requestId, action }) => {
-      const adminKey = localStorage.getItem("adminApiKey") || "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      const adminKey = localStorage.getItem("adminApiKey") || "";
       const response = await fetch(
         `${API_URL}/api/users/admin/approve-withdrawal`,
         {

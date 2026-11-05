@@ -29,12 +29,15 @@ async function fetchWithRetry(url, options = {}, maxRetries = 3) {
         } catch (e) {
           errorData = { error: `HTTP ${response.status}` };
         }
-        throw new Error(errorData.message || errorData.error || `HTTP ${response.status}`);
+        const error = new Error(errorData.message || errorData.error || `HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
       
       return response;
     } catch (error) {
       lastError = error;
+      if (error.status && error.status < 500) throw error;
       console.log(`🔄 DB Attempt ${attempt + 1}/${maxRetries} failed:`, error.message);
       
       if (attempt < maxRetries - 1) {

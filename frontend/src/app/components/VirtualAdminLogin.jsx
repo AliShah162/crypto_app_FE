@@ -2,13 +2,6 @@
 import { useState } from "react";
 import { API_URL } from "../lib/config";
 
-// ✅ Generate unique session ID
-function generateSessionId() {
-  const array = new Uint8Array(32);
-  crypto.getRandomValues(array);
-  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
-}
-
 export default function VirtualAdminLogin({ onLogin, onBack }) {
   const [username, setUsername] = useState("");
   const [refKey, setRefKey] = useState("");
@@ -66,34 +59,12 @@ export default function VirtualAdminLogin({ onLogin, onBack }) {
         return;
       }
 
-      // ✅ STEP 2: Generate UNIQUE session ID for THIS tab
-      const uniqueSessionId = generateSessionId();
-      console.log(`🆕 Generated unique session ID: ${uniqueSessionId.slice(0, 20)}...`);
-
-      // ✅ STEP 3: Register this specific session
-      // Use the same fallback key AdminPanel.jsx relies on everywhere else,
-      // and persist it so every later request (including session validation
-      // on refresh) reads a consistent value instead of guessing again.
-      const adminKey =
-        localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
-      localStorage.setItem("adminApiKey", adminKey);
-      const registerResponse = await fetch(`${API_URL}/api/users/admin/register-session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          adminKey: adminKey,
-          userAgent: navigator.userAgent,
-          adminUsername: data.admin.username,
-          sessionId: uniqueSessionId,
-        }),
-      });
-
-      const registerData = await registerResponse.json();
-      console.log("📦 Session registration response:", registerData);
-
-      // ✅ STEP 4: Store the session data
-      localStorage.setItem("admin_session_id", uniqueSessionId);
+      if (data.adminKey) {
+        localStorage.setItem("adminApiKey", data.adminKey);
+      }
+      if (data.sessionId) {
+        localStorage.setItem("admin_session_id", data.sessionId);
+      }
       localStorage.setItem("virtualAdmin", JSON.stringify(data.admin));
       localStorage.setItem("tabRole", "virtual_admin");
       

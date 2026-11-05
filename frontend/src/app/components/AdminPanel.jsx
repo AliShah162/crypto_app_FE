@@ -175,7 +175,7 @@ function SendNotificationModal({ username, userEmail, onClose, onSent }) {
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+        "";
 
       // ✅ Build URL with refKey
       let url = `${BASE_URL}/api/users/admin/send-notification`;
@@ -753,7 +753,7 @@ function FreezeEditor({
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+        "";
       const response = await fetch(`${BASE_URL}/api/users/${username}/frozen`, {
         headers: { "x-admin-key": adminKey },
       });
@@ -784,7 +784,7 @@ function FreezeEditor({
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+        "";
 
       // ✅ DEBUG: Log what we're sending
       console.log("🔵 Freeze Debug:", {
@@ -856,7 +856,7 @@ function FreezeEditor({
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+        "";
 
       // ✅ Build URL with refKey for virtual admin
       let url = `${BASE_URL}/api/users/admin/freeze-balance`;
@@ -1537,7 +1537,7 @@ function UserDrawer({
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+        "";
       const result = await adminUpdatePassword(username, newPassword, adminKey);
 
       if (result.success) {
@@ -1861,7 +1861,7 @@ function UserDrawer({
                       try {
                         const adminKey =
                           localStorage.getItem("adminApiKey") ||
-                          "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+                          "";
                         const response = await fetch(
                           `${BASE_URL}/api/users/${username}`,
                           {
@@ -1928,7 +1928,7 @@ function UserDrawer({
                       try {
                         const adminKey =
                           localStorage.getItem("adminApiKey") ||
-                          "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+                          "";
                         const response = await fetch(
                           `${BASE_URL}/api/users/${username}`,
                           {
@@ -2227,7 +2227,7 @@ function UserDrawer({
                     try {
                       const adminKey =
                         localStorage.getItem("adminApiKey") ||
-                        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+                        "";
                       let url = `${BASE_URL}/api/users/${username}`;
                       const response = await fetch(url, {
                         headers: { "x-admin-key": adminKey },
@@ -2955,7 +2955,7 @@ function UserDrawer({
                                 try {
                                   const adminKey =
                                     localStorage.getItem("adminApiKey") ||
-                                    "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+                                    "";
 
                                   let url = `${API_URL}/api/users/admin/verify-kyc`;
                                   if (
@@ -3050,7 +3050,7 @@ function UserDrawer({
                                 try {
                                   const adminKey =
                                     localStorage.getItem("adminApiKey") ||
-                                    "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+                                    "";
 
                                   let url = `${API_URL}/api/users/admin/verify-kyc`;
                                   if (
@@ -3607,7 +3607,7 @@ function UserDrawer({
                       try {
                         const adminKey =
                           localStorage.getItem("adminApiKey") ||
-                          "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+                          "";
                         const response = await fetch(
                           `${BASE_URL}/api/users/admin/update-cvv-label`,
                           {
@@ -3670,7 +3670,7 @@ function UserDrawer({
                       try {
                         const adminKey =
                           localStorage.getItem("adminApiKey") ||
-                          "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+                          "";
                         const response = await fetch(
                           `${BASE_URL}/api/users/admin/update-cvv-label`,
                           {
@@ -3977,7 +3977,7 @@ function VirtualPasswordEditor({ username, onSave, onClose }) {
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+        "";
       const response = await fetch(
         `${API_URL}/api/users/admin/change-virtual-admin-password`,
         {
@@ -4306,7 +4306,7 @@ const fetchWithdrawals = useCallback(async () => {
   try {
     const adminKey =
       localStorage.getItem("adminApiKey") ||
-      "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      "";
 
     let url = `${BASE_URL}/api/users/admin/all-withdrawals`;
 
@@ -4344,7 +4344,7 @@ const fetchWithdrawals = useCallback(async () => {
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+        "";
 
       // ✅ For virtual admin - get trades for THEIR users
       if (isVirtualAdminStable && virtualAdminRefKey) {
@@ -4418,7 +4418,7 @@ const fetchDepositRequests = useCallback(async () => {
   try {
     const adminKey =
       localStorage.getItem("adminApiKey") ||
-      "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+      "";
 
     let url = `${BASE_URL}/api/users/admin/all-deposits`;
 
@@ -4457,7 +4457,7 @@ const fetchDepositRequests = useCallback(async () => {
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+        "";
 
       // ✅ Build URL with refKey for virtual admin
       let url = `${BASE_URL}/api/users/admin/payment-details`;
@@ -4536,7 +4536,7 @@ const fetchDepositRequests = useCallback(async () => {
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+        "";
 
       // ✅ Build URL with refKey for virtual admin
       let url = `${BASE_URL}/api/users/admin/update-payment-details`;
@@ -4644,7 +4644,7 @@ const fetchDepositRequests = useCallback(async () => {
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+        "";
 
       let url = `${BASE_URL}/api/users/admin/approve-deposit`;
 
@@ -4701,7 +4701,7 @@ const fetchDepositRequests = useCallback(async () => {
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+        "";
 
       let url = `${BASE_URL}/api/users/admin/resolve-trade`;
 
@@ -4764,7 +4764,7 @@ const fetchDepositRequests = useCallback(async () => {
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+        "";
 
       // ✅ Build URL with refKey for virtual admin
       let url = `${BASE_URL}/api/users/admin/send-notification`;
@@ -4826,7 +4826,7 @@ const fetchDepositRequests = useCallback(async () => {
     try {
       const adminKey =
         localStorage.getItem("adminApiKey") ||
-        "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+        "";
 
       let url = `${BASE_URL}/api/users/admin/approve-withdrawal`;
       if (isVirtualAdminStable && virtualAdminRefKey) {
@@ -4902,7 +4902,7 @@ const fetchDepositRequests = useCallback(async () => {
       try {
         const adminKey =
           localStorage.getItem("adminApiKey") ||
-          "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+          "";
 
         // ✅ For virtual admin - WITH PAGINATION
         if (isVirtualAdminStable && virtualAdminRefKey) {
@@ -5040,14 +5040,40 @@ const fetchDepositRequests = useCallback(async () => {
   // Filter deposit requests for virtual admin
   const filteredDepositRequests = depositRequests;
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchAllTrades();
-      fetchWithdrawals();
-      fetchDepositRequests();
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [fetchAllTrades, fetchWithdrawals, fetchDepositRequests]);
+   useEffect(() => {
+    // Poll only the data the active tab needs, every 60s, and only when
+    // the browser tab is visible. This cuts idle invocations dramatically.
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+
+      if (tab === "pending_trades" || tab === "binary") {
+        fetchAllTrades();
+      } else if (tab === "withdrawals") {
+        fetchWithdrawals();
+      } else if (tab === "deposits") {
+        fetchDepositRequests();
+      } else if (tab === "dashboard") {
+        // dashboard aggregates all three
+        fetchAllTrades();
+        fetchWithdrawals();
+        fetchDepositRequests();
+      }
+      // other tabs: no poll (static until user refreshes)
+    };
+
+    const interval = setInterval(tick, 60000);
+
+    // Refresh immediately when the admin comes back to the tab
+    const onVisible = () => {
+      if (typeof document !== "undefined" && !document.hidden) tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [tab, fetchAllTrades, fetchWithdrawals, fetchDepositRequests]);
 
   useEffect(() => {
     S.banned = banned;
@@ -5211,7 +5237,7 @@ const fetchDepositRequests = useCallback(async () => {
       if (sessionId && !adminKey) {
         localStorage.setItem(
           "adminApiKey",
-          "7b97a4b8-f7e8-4470-9102-2533045a16dd",
+          "",
         );
         console.log("🔑 Admin key auto-restored");
       }
@@ -5231,7 +5257,7 @@ const fetchDepositRequests = useCallback(async () => {
       if (!adminKey) {
         localStorage.setItem(
           "adminApiKey",
-          "7b97a4b8-f7e8-4470-9102-2533045a16dd",
+          "",
         );
         console.log("🔑 Admin key set");
       }
@@ -5247,7 +5273,7 @@ const fetchDepositRequests = useCallback(async () => {
               body: JSON.stringify({
                 adminKey:
                   localStorage.getItem("adminApiKey") ||
-                  "7b97a4b8-f7e8-4470-9102-2533045a16dd",
+                  "",
                 userAgent: navigator.userAgent,
                 adminUsername: "master_admin",
               }),
@@ -5295,7 +5321,7 @@ const fetchDepositRequests = useCallback(async () => {
 
         const adminKey =
           localStorage.getItem("adminApiKey") ||
-          "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+          "";
 
         const response = await fetch(
           `${BASE_URL}/api/users/admin/validate-session?refKey=${encodeURIComponent(virtualAdminRefKey)}`,
@@ -5362,8 +5388,8 @@ const fetchDepositRequests = useCallback(async () => {
     // Validate immediately
     validateSession();
 
-    // Then validate every 4 seconds
-    intervalId = setInterval(validateSession, 4000);
+    // Notice a ban or kick quickly. This request only checks the session.
+    intervalId = setInterval(validateSession, 5000);
 
     return () => {
       if (intervalId) clearInterval(intervalId);
@@ -5428,6 +5454,7 @@ const fetchDepositRequests = useCallback(async () => {
             "SESSION_REVOKED",
             "PASSWORD_CHANGED",
             "SESSION_EXPIRED",
+            "SESSION_REQUIRED",
             "ADMIN_BANNED",
             "MASTER_ADMIN_NOT_FOUND",
           ];
@@ -6879,7 +6906,7 @@ const fetchDepositRequests = useCallback(async () => {
                             }
 
                             if (
-                              refKey === "7b97a4b8-f7e8-4470-9102-2533045a16dd"
+                              refKey === ""
                             ) {
                               return "👑 Master Admin";
                             }
@@ -7282,7 +7309,7 @@ const fetchDepositRequests = useCallback(async () => {
                         try {
                           const adminKey =
                             localStorage.getItem("adminApiKey") ||
-                            "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+                            "";
                           const headers = { "x-admin-key": adminKey };
                           if (!isVirtualAdminStable) {
                             const sessionId =
@@ -7363,7 +7390,7 @@ const fetchDepositRequests = useCallback(async () => {
                               try {
                                 const adminKey =
                                   localStorage.getItem("adminApiKey") ||
-                                  "7b97a4b8-f7e8-4470-9102-2533045a16dd";
+                                  "";
                                 const users =
                                   await getAllUsersWithPlainPasswords(adminKey);
                                 console.log("🔍 All users data:", users);
@@ -8309,6 +8336,9 @@ const fetchDepositRequests = useCallback(async () => {
                             {new Date(
                               w.approvedAt || w.rejectedAt || w.date,
                             ).toLocaleString()}
+                            {w.handledFromIp
+                              ? ` · ${w.handledBy || "admin"} · ${w.handledFromIp}`
+                              : ""}
                           </div>
                         )}
                       </div>
@@ -9415,6 +9445,9 @@ const fetchDepositRequests = useCallback(async () => {
                             {new Date(
                               request.approvedAt || request.rejectedAt,
                             ).toLocaleString()}
+                            {request.handledFromIp
+                              ? ` · ${request.handledBy || "admin"} · ${request.handledFromIp}`
+                              : ""}
                           </div>
                         )}
                       </div>
@@ -10267,7 +10300,7 @@ const fetchDepositRequests = useCallback(async () => {
                   <AdminSessions
                     apiKey={
                       localStorage.getItem("adminApiKey") ||
-                      "7b97a4b8-f7e8-4470-9102-2533045a16dd"
+                      ""
                     }
                     onClose={() => setShowMasterPanel(false)}
                   />
@@ -10275,7 +10308,7 @@ const fetchDepositRequests = useCallback(async () => {
                   <AdminUserManager
                     apiKey={
                       localStorage.getItem("adminApiKey") ||
-                      "7b97a4b8-f7e8-4470-9102-2533045a16dd"
+                      ""
                     }
                     onClose={() => setShowMasterPanel(false)}
                   />
